@@ -2,20 +2,42 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
 	<Frame name="CodexExampleAddonPanel" parent="UIParent" hidden="true">
-		<Size x="360" y="260"/>
+		<Size x="680" y="420"/>
 		<Anchors>
 			<Anchor point="CENTER"/>
 		</Anchors>
 		<Layers>
 			<Layer level="ARTWORK">
-				<FontString name="$parentTitle" inherits="GameFontNormalLarge" text="Codex Example Addon">
+				<FontString name="$parentTitle" inherits="GameFontNormalLarge" text="Inority Instance Tracker">
 					<Anchors>
 						<Anchor point="TOP" x="0" y="-16"/>
 					</Anchors>
 				</FontString>
-				<FontString name="$parentSubtitle" inherits="GameFontHighlightSmall" text="Sample settings panel with placeholder options.">
+				<FontString name="$parentSubtitle" inherits="GameFontHighlightSmall" text="Lightweight saved instance tracker for your characters.">
 					<Anchors>
 						<Anchor point="TOP" relativeTo="$parentTitle" relativePoint="BOTTOM" x="0" y="-8"/>
+					</Anchors>
+				</FontString>
+				<FontString name="$parentNavHeader" inherits="GameFontNormal" text="Sections">
+					<Anchors>
+						<Anchor point="TOPLEFT" x="24" y="-62"/>
+					</Anchors>
+				</FontString>
+				<Texture name="$parentNavDivider">
+					<Anchors>
+						<Anchor point="TOPLEFT" x="136" y="-58"/>
+						<Anchor point="BOTTOMLEFT" x="136" y="26"/>
+					</Anchors>
+					<Color r="0.22" g="0.24" b="0.30" a="0.95"/>
+				</Texture>
+				<FontString name="$parentConfigHeader" inherits="GameFontNormal" text="Display">
+					<Anchors>
+						<Anchor point="TOPLEFT" x="156" y="-62"/>
+					</Anchors>
+				</FontString>
+				<FontString name="$parentListHeader" inherits="GameFontNormal" text="Tracked Lockouts">
+					<Anchors>
+						<Anchor point="TOPLEFT" x="156" y="-154"/>
 					</Anchors>
 				</FontString>
 			</Layer>
@@ -26,31 +48,62 @@
 					<Anchor point="TOPRIGHT" x="-6" y="-5"/>
 				</Anchors>
 			</Button>
+			<Button name="$parentNavConfigButton" inherits="UIPanelButtonTemplate" text="Config">
+				<Size x="96" y="24"/>
+				<Anchors>
+					<Anchor point="TOPLEFT" x="24" y="-84"/>
+				</Anchors>
+			</Button>
+			<Button name="$parentNavDebugButton" inherits="UIPanelButtonTemplate" text="Debug">
+				<Size x="96" y="24"/>
+				<Anchors>
+					<Anchor point="TOPLEFT" relativeTo="$parentNavConfigButton" relativePoint="BOTTOMLEFT" x="0" y="-8"/>
+				</Anchors>
+			</Button>
 			<CheckButton name="$parentCheckbox1" inherits="UICheckButtonTemplate">
 				<Anchors>
-					<Anchor point="TOPLEFT" x="24" y="-64"/>
+					<Anchor point="TOPLEFT" x="156" y="-84"/>
 				</Anchors>
 			</CheckButton>
 			<CheckButton name="$parentCheckbox2" inherits="UICheckButtonTemplate">
 				<Anchors>
-					<Anchor point="TOPLEFT" x="24" y="-96"/>
+					<Anchor point="TOPLEFT" x="156" y="-108"/>
 				</Anchors>
 			</CheckButton>
 			<CheckButton name="$parentCheckbox3" inherits="UICheckButtonTemplate">
 				<Anchors>
-					<Anchor point="TOPLEFT" x="24" y="-128"/>
+					<Anchor point="TOPLEFT" x="352" y="-84"/>
 				</Anchors>
 			</CheckButton>
 			<Slider name="$parentSlider" inherits="OptionsSliderTemplate" minValue="0" maxValue="100" valueStep="1">
-				<Size x="220" y="16"/>
+				<Size x="180" y="16"/>
 				<Anchors>
-					<Anchor point="TOPLEFT" x="24" y="-180"/>
+					<Anchor point="TOPLEFT" x="352" y="-114"/>
 				</Anchors>
 			</Slider>
-			<Button name="$parentApplyButton" inherits="UIPanelButtonTemplate" text="Apply">
+			<ScrollFrame name="$parentScrollFrame" inherits="UIPanelScrollFrameTemplate">
+				<Size x="500" y="186"/>
+				<Anchors>
+					<Anchor point="TOPLEFT" x="156" y="-178"/>
+				</Anchors>
+			</ScrollFrame>
+			<EditBox name="$parentScrollChild">
+				<Size x="478" y="186"/>
+				<Anchors>
+					<Anchor point="TOPLEFT"/>
+				</Anchors>
+				<FontString inherits="GameFontHighlightSmall"/>
+			</EditBox>
+			<Button name="$parentRefreshButton" inherits="UIPanelButtonTemplate" text="Refresh">
 				<Size x="96" y="24"/>
 				<Anchors>
 					<Anchor point="BOTTOMRIGHT" x="-24" y="20"/>
+				</Anchors>
+			</Button>
+			<Button name="$parentResetButton" inherits="UIPanelButtonTemplate" text="Clear Data">
+				<Size x="96" y="24"/>
+				<Anchors>
+					<Anchor point="RIGHT" relativeTo="$parentRefreshButton" relativePoint="LEFT" x="-8" y="0"/>
 				</Anchors>
 			</Button>
 		</Frames>
