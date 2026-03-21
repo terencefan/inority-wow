@@ -20,8 +20,10 @@ local RefreshPanelText
 local RefreshLootPanel
 local InitializeLootPanel
 local InitializePanel
+local UpdateLootPanelLayout
 local ToggleLootPanel
 local FormatLootDebugInfo
+local GetLootItemCollectionState
 local SetPanelView
 local ShowMinimapTooltip
 local tooltipFrame
@@ -100,6 +102,12 @@ local function NormalizeSettings(settings)
 	if settings.showExpired == nil then
 		settings.showExpired = false
 	end
+	if settings.hideCollectedTransmog == nil then
+		settings.hideCollectedTransmog = false
+	end
+	if settings.collectSameAppearance == nil then
+		settings.collectSameAppearance = true
+	end
 	if type(settings.selectedClasses) ~= "table" then
 		settings.selectedClasses = {}
 	end
@@ -119,6 +127,8 @@ local function NormalizeSettings(settings)
 	settings.showRaids = settings.showRaids and true or false
 	settings.showDungeons = settings.showDungeons and true or false
 	settings.showExpired = settings.showExpired and true or false
+	settings.hideCollectedTransmog = settings.hideCollectedTransmog and true or false
+	settings.collectSameAppearance = settings.collectSameAppearance and true or false
 	for className, value in pairs(settings.selectedClasses) do
 		if not value then
 			settings.selectedClasses[className] = nil
@@ -178,7 +188,9 @@ local function InitializeDefaults()
 	CodexExampleAddonDB.loaded = true
 	CodexExampleAddonDB.minimapAngle = CodexExampleAddonDB.minimapAngle or 225
 	CodexExampleAddonDB.lootPanelPoint = CodexExampleAddonDB.lootPanelPoint or { point = "CENTER", relativePoint = "CENTER", x = 280, y = 0 }
+	CodexExampleAddonDB.lootPanelSize = CodexExampleAddonDB.lootPanelSize or { width = 420, height = 460 }
 	CodexExampleAddonDB.bossKillCache = CodexExampleAddonDB.bossKillCache or {}
+	CodexExampleAddonDB.lootCollapseCache = CodexExampleAddonDB.lootCollapseCache or {}
 	if tonumber(CodexExampleAddonDB.DBVersion) ~= DB_VERSION then
 		CodexExampleAddonDB.settings = NormalizeSettings(CodexExampleAddonDB.settings)
 		CodexExampleAddonDB.characters = NormalizeCharacterData(CodexExampleAddonDB.characters)
@@ -242,23 +254,13 @@ local function CreateMinimapButton()
 
 	minimapButton:SetScript("OnClick", function(_, button)
 		if button == "LeftButton" then
-			if IsControlKeyDown and IsControlKeyDown() then
-				ToggleLootPanel()
-				return
-			end
 			if panel:IsShown() then
 				panel:Hide()
 			else
 				panel:Show()
 			end
 		else
-			if RequestRaidInfo then
-				RequestRaidInfo()
-			end
-			CaptureSavedInstances()
-			RefreshPanelText()
-			panel:Show()
-			Print(T("MESSAGE_LOCKOUTS_REFRESHED", "Lockouts refreshed."))
+			ToggleLootPanel()
 		end
 	end)
 
@@ -367,6 +369,7 @@ local function ApplyElvUISkin()
 		end
 		if S.HandleButton then
 			S:HandleButton(CodexExampleAddonPanelNavConfigButton)
+			S:HandleButton(CodexExampleAddonPanelNavTrackButton)
 			S:HandleButton(CodexExampleAddonPanelNavClassButton)
 			S:HandleButton(CodexExampleAddonPanelNavLootButton)
 			S:HandleButton(CodexExampleAddonPanelNavDebugButton)
@@ -378,6 +381,8 @@ local function ApplyElvUISkin()
 			S:HandleCheckBox(CodexExampleAddonPanelCheckbox1)
 			S:HandleCheckBox(CodexExampleAddonPanelCheckbox2)
 			S:HandleCheckBox(CodexExampleAddonPanelCheckbox3)
+			S:HandleCheckBox(CodexExampleAddonPanelCheckbox4)
+			S:HandleCheckBox(CodexExampleAddonPanelCheckbox5)
 		end
 		if S.HandleSliderFrame then
 			S:HandleSliderFrame(CodexExampleAddonPanelSlider)
@@ -401,7 +406,11 @@ local function ApplyElvUISkin()
 		if S.HandleButton then
 			S:HandleButton(lootPanel.configButton)
 			S:HandleButton(lootPanel.refreshButton)
+			S:HandleButton(lootPanel.expandButton)
 			S:HandleButton(lootPanel.debugButton)
+		end
+		if S.HandleNextPrevButton and lootPanel.resizeButton then
+			S:HandleNextPrevButton(lootPanel.resizeButton)
 		end
 		if S.HandleEditBox and lootPanel.debugEditBox then
 			S:HandleEditBox(lootPanel.debugEditBox)
@@ -779,6 +788,47 @@ local function GetCurrentBossKillCacheKey()
 	return string.format("%s::%s::%s", tostring(instanceID or 0), tostring(difficultyID or 0), tostring(instanceName))
 end
 
+local function GetLootCollapseCacheKey()
+	return GetCurrentBossKillCacheKey()
+end
+
+local function GetEncounterCollapseCacheEntry(encounterName)
+	local cacheKey = GetLootCollapseCacheKey()
+	if not cacheKey or not encounterName then
+		return nil
+	end
+	local cache = CodexExampleAddonDB.lootCollapseCache and CodexExampleAddonDB.lootCollapseCache[cacheKey]
+	if not cache then
+		return nil
+	end
+	if cache.byName and cache.byName[encounterName] ~= nil then
+		return cache.byName[encounterName] and true or false
+	end
+	local normalizedName = NormalizeEncounterName(encounterName)
+	if normalizedName ~= "" and cache.byNormalizedName and cache.byNormalizedName[normalizedName] ~= nil then
+		return cache.byNormalizedName[normalizedName] and true or false
+	end
+	return nil
+end
+
+local function SetEncounterCollapseCacheEntry(encounterName, collapsed)
+	local cacheKey = GetLootCollapseCacheKey()
+	if not cacheKey or not encounterName or encounterName == "" then
+		return
+	end
+	CodexExampleAddonDB.lootCollapseCache = CodexExampleAddonDB.lootCollapseCache or {}
+	local cache = CodexExampleAddonDB.lootCollapseCache[cacheKey] or {
+		byName = {},
+		byNormalizedName = {},
+	}
+	cache.byName[encounterName] = collapsed and true or false
+	local normalizedName = NormalizeEncounterName(encounterName)
+	if normalizedName ~= "" then
+		cache.byNormalizedName[normalizedName] = collapsed and true or false
+	end
+	CodexExampleAddonDB.lootCollapseCache[cacheKey] = cache
+end
+
 local function RecordEncounterKill(encounterName)
 	local cacheKey = GetCurrentBossKillCacheKey()
 	if not cacheKey or not encounterName or encounterName == "" then
@@ -950,12 +1000,122 @@ local function IsLootTypeFilterActive()
 	return type(selected) == "table" and next(selected) ~= nil
 end
 
+GetLootItemCollectionState = function(item)
+	local itemInfo = item and (item.link or item.itemID)
+	local settings = CodexExampleAddonDB.settings or {}
+	local collectSameAppearance = settings.collectSameAppearance ~= false
+	if not itemInfo or not C_TransmogCollection then
+		return "unknown"
+	end
+
+	local appearanceID, sourceID = C_TransmogCollection.GetItemInfo(itemInfo)
+	if sourceID and C_TransmogCollection.GetAppearanceSourceInfo then
+		local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
+		if sourceInfo then
+			if sourceInfo.isCollected then
+				return "collected"
+			end
+			if sourceInfo.isValidSourceForPlayer and not collectSameAppearance then
+				return "not_collected"
+			end
+			if not collectSameAppearance then
+				return "unknown"
+			end
+		end
+	end
+
+	if collectSameAppearance and appearanceID and C_TransmogCollection.GetAllAppearanceSources and C_TransmogCollection.GetAppearanceSourceInfo then
+		local sourceIDs = C_TransmogCollection.GetAllAppearanceSources(appearanceID)
+		if type(sourceIDs) == "table" and #sourceIDs > 0 then
+			local sawUsableSource = false
+			for _, relatedSourceID in ipairs(sourceIDs) do
+				local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(relatedSourceID)
+				if sourceInfo then
+					if sourceInfo.isCollected then
+						return "collected"
+					end
+					if sourceInfo.itemLink and sourceInfo.itemLink ~= "" then
+						sawUsableSource = true
+					end
+				end
+			end
+			if sawUsableSource then
+				return "not_collected"
+			end
+		end
+	end
+
+	if collectSameAppearance and sourceID and C_TransmogCollection.GetAppearanceInfoBySource then
+		local appearanceInfo = C_TransmogCollection.GetAppearanceInfoBySource(sourceID)
+		if appearanceInfo then
+			if appearanceInfo.appearanceIsCollected then
+				return "collected"
+			end
+			if appearanceInfo.isAnySourceValidForPlayer or appearanceInfo.appearanceIsUsable then
+				return "not_collected"
+			end
+			return "unknown"
+		end
+	end
+
+	if C_TransmogCollection.PlayerHasTransmogByItemInfo and C_TransmogCollection.PlayerHasTransmogByItemInfo(itemInfo) then
+		return "collected"
+	end
+
+	if sourceID and C_TransmogCollection.GetAppearanceSourceInfo then
+		local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
+		if sourceInfo and sourceInfo.isValidSourceForPlayer then
+			return "not_collected"
+		end
+	end
+
+	return "unknown"
+end
+
 local function LootItemMatchesTypeFilter(item)
 	local selected = CodexExampleAddonDB.settings and CodexExampleAddonDB.settings.selectedLootTypes
 	if type(selected) ~= "table" or next(selected) == nil then
-		return true
+		selected = nil
 	end
-	return selected[item.typeKey or "MISC"] and true or false
+	if selected and not selected[item.typeKey or "MISC"] then
+		return false
+	end
+
+	local settings = CodexExampleAddonDB.settings or {}
+	if settings.hideCollectedTransmog and GetLootItemCollectionState(item) == "collected" then
+		return false
+	end
+	return true
+end
+
+local function GetEncounterLootDisplayState(encounter)
+	local state = {
+		filteredLoot = {},
+		visibleLoot = {},
+		fullyCollected = false,
+	}
+
+	for _, item in ipairs((encounter and encounter.loot) or {}) do
+		local selected = CodexExampleAddonDB.settings and CodexExampleAddonDB.settings.selectedLootTypes
+		if type(selected) ~= "table" or next(selected) == nil or selected[item.typeKey or "MISC"] then
+			state.filteredLoot[#state.filteredLoot + 1] = item
+			if LootItemMatchesTypeFilter(item) then
+				state.visibleLoot[#state.visibleLoot + 1] = item
+			end
+		end
+	end
+
+	if #state.filteredLoot > 0 then
+		state.fullyCollected = true
+		for _, item in ipairs(state.filteredLoot) do
+			if GetLootItemCollectionState(item) ~= "collected" then
+				state.fullyCollected = false
+				break
+			end
+		end
+	end
+
+	return state
 end
 
 local function CountSelectedLootTypes()
@@ -1191,7 +1351,7 @@ local function BuildExpansionCache()
 	return expansionByInstanceKey
 end
 
-local function ToggleLootEncounterCollapsed(encounterID)
+local function ToggleLootEncounterCollapsed(encounterID, encounterName)
 	if not encounterID then
 		return
 	end
@@ -1199,6 +1359,7 @@ local function ToggleLootEncounterCollapsed(encounterID)
 	local newValue = not currentValue
 	lootPanelState.collapsed[encounterID] = newValue
 	lootPanelState.manualCollapsed[encounterID] = newValue
+	SetEncounterCollapseCacheEntry(encounterName, newValue)
 end
 
 local function EnsureLootItemRow(parentFrame, row, index)
@@ -1214,9 +1375,13 @@ local function EnsureLootItemRow(parentFrame, row, index)
 	itemRow.icon:SetSize(16, 16)
 	itemRow.icon:SetPoint("LEFT", 0, 0)
 
+	itemRow.collectionIcon = itemRow:CreateTexture(nil, "OVERLAY")
+	itemRow.collectionIcon:SetSize(14, 14)
+	itemRow.collectionIcon:SetPoint("LEFT", itemRow.icon, "RIGHT", 4, 0)
+
 	itemRow.classIcons = {}
 	itemRow.text = itemRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	itemRow.text:SetPoint("LEFT", itemRow.icon, "RIGHT", 6, 0)
+	itemRow.text:SetPoint("LEFT", itemRow.collectionIcon, "RIGHT", 4, 0)
 	itemRow.text:SetJustifyH("LEFT")
 
 	itemRow:SetScript("OnEnter", function(self)
@@ -1236,6 +1401,56 @@ local function EnsureLootItemRow(parentFrame, row, index)
 
 	row.itemRows[index] = itemRow
 	return itemRow
+end
+
+local function GetLootPanelContentWidth()
+	if not lootPanel then
+		return 360
+	end
+	return math.max(220, math.floor((lootPanel:GetWidth() or 420) - 60))
+end
+
+local function UpdateLootItemCollectionState(itemRow, item)
+	if not itemRow or not itemRow.collectionIcon then
+		return
+	end
+
+	local collectionState = GetLootItemCollectionState(item)
+	if collectionState == "unknown" then
+		itemRow.collectionIcon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Waiting")
+		itemRow.collectionIcon:Show()
+		return
+	end
+
+	if collectionState == "collected" then
+		itemRow.collectionIcon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
+	else
+		itemRow.collectionIcon:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+	end
+	itemRow.collectionIcon:Show()
+end
+
+local function UpdateEncounterHeaderVisuals(header, fullyCollected, collapsed)
+	if not header then
+		return
+	end
+
+	if header.icon then
+		header.icon:SetTexture(nil)
+		header.icon:SetColorTexture(1, 1, 1, 0)
+		header.icon:Show()
+	end
+
+	if header.collectionIcon then
+		if fullyCollected then
+			header.collectionIcon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
+		elseif collapsed then
+			header.collectionIcon:SetTexture("Interface\\Buttons\\UI-PlusButton-Up")
+		else
+			header.collectionIcon:SetTexture("Interface\\Buttons\\UI-MinusButton-Up")
+		end
+		header.collectionIcon:Show()
+	end
 end
 
 local function UpdateLootItemClassIcons(itemRow, item)
@@ -1275,11 +1490,11 @@ local function UpdateLootItemClassIcons(itemRow, item)
 
 	if totalWidth > 0 then
 		itemRow.text:ClearAllPoints()
-		itemRow.text:SetPoint("LEFT", itemRow.icon, "RIGHT", 6, 0)
+		itemRow.text:SetPoint("LEFT", itemRow.collectionIcon, "RIGHT", 4, 0)
 		itemRow.text:SetPoint("RIGHT", itemRow, "RIGHT", -(totalWidth + 6), 0)
 	else
 		itemRow.text:ClearAllPoints()
-		itemRow.text:SetPoint("LEFT", itemRow.icon, "RIGHT", 6, 0)
+		itemRow.text:SetPoint("LEFT", itemRow.collectionIcon, "RIGHT", 4, 0)
 		itemRow.text:SetPoint("RIGHT", itemRow, "RIGHT", 0, 0)
 	end
 end
@@ -1292,6 +1507,7 @@ RefreshLootPanel = function()
 	local data = CollectCurrentInstanceLootData()
 	local encounterKillState = BuildCurrentEncounterKillMap()
 	local progressCount = tonumber(encounterKillState.progressCount) or 0
+	local contentWidth = GetLootPanelContentWidth()
 	lootPanel.title:SetText(data.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本"))
 	lootPanel.debugButton:SetShown(data.error and true or false)
 	lootPanel.debugScrollFrame:SetShown(data.error and true or false)
@@ -1329,15 +1545,22 @@ RefreshLootPanel = function()
 		local row = rows[rowIndex]
 		if not row.header then
 			row.header = CreateFrame("Button", nil, lootPanel.content)
-			row.header:SetSize(360, 22)
+			row.header:SetSize(contentWidth, 22)
+			row.header.icon = row.header:CreateTexture(nil, "ARTWORK")
+			row.header.icon:SetSize(16, 16)
+			row.header.icon:SetPoint("LEFT", 0, 0)
+			row.header.collectionIcon = row.header:CreateTexture(nil, "OVERLAY")
+			row.header.collectionIcon:SetSize(14, 14)
+			row.header.collectionIcon:SetPoint("LEFT", row.header.icon, "RIGHT", 4, 0)
 			row.header.text = row.header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-			row.header.text:SetPoint("LEFT", 0, 0)
+			row.header.text:SetPoint("LEFT", row.header.collectionIcon, "RIGHT", 4, 0)
 			row.body = lootPanel.content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-			row.body:SetWidth(360)
+			row.body:SetWidth(contentWidth)
 			row.body:SetJustifyH("LEFT")
 		end
 		row.header:ClearAllPoints()
 		row.header:SetPoint("TOPLEFT", 0, yOffset)
+		UpdateEncounterHeaderVisuals(row.header, false, false)
 		row.header.text:SetText(T("LOOT_PANEL_STATUS", "状态"))
 		row.header:Show()
 		yOffset = yOffset - 24
@@ -1357,22 +1580,36 @@ RefreshLootPanel = function()
 			local row = rows[rowIndex]
 			if not row.header then
 				row.header = CreateFrame("Button", nil, lootPanel.content)
-				row.header:SetSize(360, 22)
+				row.header:SetSize(contentWidth, 22)
+				row.header.icon = row.header:CreateTexture(nil, "ARTWORK")
+				row.header.icon:SetSize(16, 16)
+				row.header.icon:SetPoint("LEFT", 0, 0)
+				row.header.collectionIcon = row.header:CreateTexture(nil, "OVERLAY")
+				row.header.collectionIcon:SetSize(14, 14)
+				row.header.collectionIcon:SetPoint("LEFT", row.header.icon, "RIGHT", 4, 0)
 				row.header.text = row.header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-				row.header.text:SetPoint("LEFT", 0, 0)
+				row.header.text:SetPoint("LEFT", row.header.collectionIcon, "RIGHT", 4, 0)
 			end
 			if row.body then
 				row.body:Hide()
 			end
 			if not row.bodyFrame then
 				row.bodyFrame = CreateFrame("Frame", nil, lootPanel.content)
-				row.bodyFrame:SetSize(360, 1)
+				row.bodyFrame:SetSize(contentWidth, 1)
 			end
 
 			local encounterName = encounter.name or T("LOOT_UNKNOWN_BOSS", "未知首领")
-			local autoCollapsed = IsEncounterKilledByName(encounterKillState, encounterName) or ((tonumber(encounter.index) or 0) > 0 and (tonumber(encounter.index) or 0) <= progressCount)
-			if lootPanelState.manualCollapsed[encounter.encounterID] ~= nil then
+			local lootState = GetEncounterLootDisplayState(encounter)
+			local autoCollapsed = lootState.fullyCollected
+				or IsEncounterKilledByName(encounterKillState, encounterName)
+				or ((tonumber(encounter.index) or 0) > 0 and (tonumber(encounter.index) or 0) <= progressCount)
+			local cachedCollapsed = GetEncounterCollapseCacheEntry(encounterName)
+			if lootState.fullyCollected then
+				lootPanelState.collapsed[encounter.encounterID] = true
+			elseif lootPanelState.manualCollapsed[encounter.encounterID] ~= nil then
 				lootPanelState.collapsed[encounter.encounterID] = lootPanelState.manualCollapsed[encounter.encounterID] and true or false
+			elseif cachedCollapsed ~= nil then
+				lootPanelState.collapsed[encounter.encounterID] = cachedCollapsed and true or false
 			else
 				lootPanelState.collapsed[encounter.encounterID] = autoCollapsed
 			end
@@ -1380,16 +1617,20 @@ RefreshLootPanel = function()
 			row.header:ClearAllPoints()
 			row.header:SetPoint("TOPLEFT", 0, yOffset)
 			row.header:SetScript("OnClick", function()
-				ToggleLootEncounterCollapsed(encounter.encounterID)
+				if lootState.fullyCollected then
+					return
+				end
+				ToggleLootEncounterCollapsed(encounter.encounterID, encounterName)
 				RefreshLootPanel()
 			end)
-			row.header.text:SetText(string.format("%s %s", lootPanelState.collapsed[encounter.encounterID] and "[+]" or "[-]", encounterName))
+			UpdateEncounterHeaderVisuals(row.header, lootState.fullyCollected, lootPanelState.collapsed[encounter.encounterID])
+			row.header.text:SetText(encounterName)
 			row.header:Show()
 			yOffset = yOffset - 24
 
 			row.bodyFrame:ClearAllPoints()
 			row.bodyFrame:SetPoint("TOPLEFT", row.header, "BOTTOMLEFT", 0, -2)
-			row.bodyFrame:SetWidth(360)
+			row.bodyFrame:SetWidth(contentWidth)
 			if lootPanelState.collapsed[encounter.encounterID] then
 				row.bodyFrame:Hide()
 				if row.itemRows then
@@ -1398,12 +1639,7 @@ RefreshLootPanel = function()
 					end
 				end
 			else
-				local visibleLoot = {}
-				for _, item in ipairs(encounter.loot or {}) do
-					if LootItemMatchesTypeFilter(item) then
-						visibleLoot[#visibleLoot + 1] = item
-					end
-				end
+				local visibleLoot = lootState.visibleLoot
 				if #visibleLoot == 0 then
 					local itemRow = EnsureLootItemRow(row.bodyFrame, row, 1)
 					itemRow:ClearAllPoints()
@@ -1413,6 +1649,7 @@ RefreshLootPanel = function()
 					itemRow.text:SetText(T("LOOT_NO_ITEMS", "  没有符合当前过滤条件的掉落。"))
 					itemRow.itemLink = nil
 					itemRow.itemID = nil
+					UpdateLootItemCollectionState(itemRow, nil)
 					UpdateLootItemClassIcons(itemRow, nil)
 					itemRow:Show()
 					for itemIndex = 2, #(row.itemRows or {}) do
@@ -1444,6 +1681,7 @@ RefreshLootPanel = function()
 						end
 						itemRow.itemLink = item.link
 						itemRow.itemID = item.itemID
+						UpdateLootItemCollectionState(itemRow, item)
 						UpdateLootItemClassIcons(itemRow, item)
 						itemRow:Show()
 						itemYOffset = itemYOffset + 20
@@ -1595,19 +1833,76 @@ local function SelectTransmoggableLootTypes()
 	UpdateLootTypeFilterButtons()
 end
 
+local function ExpandUncollectedLootEncounters()
+	if not lootPanel then
+		return
+	end
+
+	local data = CollectCurrentInstanceLootData()
+	for _, encounter in ipairs(data.encounters or {}) do
+		local encounterName = encounter.name or T("LOOT_UNKNOWN_BOSS", "未知首领")
+		local lootState = GetEncounterLootDisplayState(encounter)
+		if lootState.fullyCollected then
+			lootPanelState.collapsed[encounter.encounterID] = true
+			lootPanelState.manualCollapsed[encounter.encounterID] = true
+			SetEncounterCollapseCacheEntry(encounterName, true)
+		else
+			lootPanelState.collapsed[encounter.encounterID] = false
+			lootPanelState.manualCollapsed[encounter.encounterID] = false
+			SetEncounterCollapseCacheEntry(encounterName, false)
+		end
+	end
+
+	RefreshLootPanel()
+end
+
+UpdateLootPanelLayout = function()
+	if not lootPanel then
+		return
+	end
+
+	local contentWidth = GetLootPanelContentWidth()
+	if lootPanel.content then
+		lootPanel.content:SetWidth(contentWidth)
+	end
+	if lootPanel.debugEditBox then
+		lootPanel.debugEditBox:SetWidth(contentWidth)
+	end
+
+	for _, row in ipairs(lootPanel.rows or {}) do
+		if row.header then
+			row.header:SetWidth(contentWidth)
+		end
+		if row.body then
+			row.body:SetWidth(contentWidth)
+		end
+		if row.bodyFrame then
+			row.bodyFrame:SetWidth(contentWidth)
+		end
+	end
+end
+
 InitializeLootPanel = function()
 	if lootPanel then
 		return
 	end
 
 	local lootPanelPoint = CodexExampleAddonDB.lootPanelPoint or { point = "CENTER", relativePoint = "CENTER", x = 280, y = 0 }
+	local lootPanelSize = CodexExampleAddonDB.lootPanelSize or { width = 420, height = 460 }
 	lootPanel = CreateFrame("Frame", "CodexExampleAddonLootPanel", UIParent, "BackdropTemplate")
-	lootPanel:SetSize(420, 460)
+	lootPanel:SetSize(math.max(360, tonumber(lootPanelSize.width) or 420), math.max(320, tonumber(lootPanelSize.height) or 460))
 	lootPanel:SetPoint(lootPanelPoint.point or "CENTER", UIParent, lootPanelPoint.relativePoint or "CENTER", tonumber(lootPanelPoint.x) or 280, tonumber(lootPanelPoint.y) or 0)
 	lootPanel:SetFrameStrata("DIALOG")
 	lootPanel:SetClampedToScreen(true)
 	lootPanel:EnableMouse(true)
 	lootPanel:SetMovable(true)
+	lootPanel:SetResizable(true)
+	if lootPanel.SetResizeBounds then
+		lootPanel:SetResizeBounds(360, 320, 900, 900)
+	elseif lootPanel.SetMinResize and lootPanel.SetMaxResize then
+		lootPanel:SetMinResize(360, 320)
+		lootPanel:SetMaxResize(900, 900)
+	end
 	lootPanel:RegisterForDrag("LeftButton")
 	lootPanel:SetScript("OnDragStart", function(self)
 		self:StartMoving()
@@ -1621,6 +1916,16 @@ InitializeLootPanel = function()
 			x = x or 280,
 			y = y or 0,
 		}
+	end)
+	lootPanel:SetScript("OnSizeChanged", function(self, width, height)
+		CodexExampleAddonDB.lootPanelSize = {
+			width = math.floor(width + 0.5),
+			height = math.floor(height + 0.5),
+		}
+		UpdateLootPanelLayout()
+		if self:IsShown() then
+			RefreshLootPanel()
+		end
 	end)
 	lootPanel:Hide()
 	ApplyDefaultFrameStyle(lootPanel)
@@ -1652,9 +1957,17 @@ InitializeLootPanel = function()
 		RefreshLootPanel()
 	end)
 
+	lootPanel.expandButton = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
+	lootPanel.expandButton:SetSize(116, 24)
+	lootPanel.expandButton:SetPoint("LEFT", lootPanel.refreshButton, "RIGHT", 8, 0)
+	lootPanel.expandButton:SetText(T("LOOT_BUTTON_EXPAND_UNCOLLECTED", "展开未收集"))
+	lootPanel.expandButton:SetScript("OnClick", function()
+		ExpandUncollectedLootEncounters()
+	end)
+
 	lootPanel.debugButton = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
 	lootPanel.debugButton:SetSize(96, 24)
-	lootPanel.debugButton:SetPoint("LEFT", lootPanel.refreshButton, "RIGHT", 8, 0)
+	lootPanel.debugButton:SetPoint("LEFT", lootPanel.expandButton, "RIGHT", 8, 0)
 	lootPanel.debugButton:SetText(T("LOOT_BUTTON_SELECT_DEBUG", "选择调试"))
 	lootPanel.debugButton:SetScript("OnClick", function()
 		lootPanel.debugEditBox:SetFocus()
@@ -1694,6 +2007,42 @@ InitializeLootPanel = function()
 	lootPanel.debugScrollFrame:SetScrollChild(lootPanel.debugEditBox)
 	lootPanel.debugEditBox:Hide()
 
+	lootPanel.resizeButton = CreateFrame("Button", nil, lootPanel)
+	lootPanel.resizeButton:SetSize(16, 16)
+	lootPanel.resizeButton:SetPoint("BOTTOMRIGHT", -6, 6)
+	lootPanel.resizeButton.texture = lootPanel.resizeButton:CreateTexture(nil, "ARTWORK")
+	lootPanel.resizeButton.texture:SetAllPoints()
+	lootPanel.resizeButton.texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Up")
+	lootPanel.resizeButton:SetScript("OnEnter", function(self)
+		if self.texture then
+			self.texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Highlight")
+		end
+	end)
+	lootPanel.resizeButton:SetScript("OnLeave", function(self)
+		if self.texture then
+			self.texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Up")
+		end
+	end)
+	lootPanel.resizeButton:SetScript("OnMouseDown", function(self)
+		if self.texture then
+			self.texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Down")
+		end
+		lootPanel:StartSizing("BOTTOMRIGHT")
+	end)
+	lootPanel.resizeButton:SetScript("OnMouseUp", function(self)
+		if self.texture then
+			self.texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Up")
+		end
+		lootPanel:StopMovingOrSizing()
+	end)
+	lootPanel.resizeButton:SetScript("OnHide", function(self)
+		if self.texture then
+			self.texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Up")
+		end
+		lootPanel:StopMovingOrSizing()
+	end)
+
+	UpdateLootPanelLayout()
 	ApplyElvUISkin()
 end
 
@@ -2438,11 +2787,13 @@ RefreshPanelText = function()
 	local text
 	if currentPanelView == "debug" then
 		text = FormatDebugDump(lastDebugDump or CodexExampleAddonDB.debugTemp)
-	elseif currentPanelView == "classes" or currentPanelView == "loot" then
-		text = ""
-	else
+	elseif currentPanelView == "track" then
 		BuildDisplayRows()
 		text = table.concat(displayRows, "\n")
+	elseif currentPanelView == "classes" or currentPanelView == "loot" or currentPanelView == "config" then
+		text = ""
+	else
+		text = ""
 	end
 	CodexExampleAddonPanelScrollChild:SetText(text)
 	CodexExampleAddonPanelScrollChild:SetCursorPosition(0)
@@ -2529,6 +2880,8 @@ SetPanelView = function(view)
 	if not panel then return end
 	if view == "debug" then
 		currentPanelView = "debug"
+	elseif view == "track" then
+		currentPanelView = "track"
 	elseif view == "classes" then
 		currentPanelView = "classes"
 	elseif view == "loot" then
@@ -2538,6 +2891,7 @@ SetPanelView = function(view)
 	end
 
 	local isDebug = currentPanelView == "debug"
+	local isTrack = currentPanelView == "track"
 	local isClasses = currentPanelView == "classes"
 	local isLoot = currentPanelView == "loot"
 	local isConfig = currentPanelView == "config"
@@ -2549,26 +2903,32 @@ SetPanelView = function(view)
 	local itemScrollChild = CodexExampleAddonPanelItemScrollChild
 
 	CodexExampleAddonPanelConfigHeader:SetShown(isConfig)
+	CodexExampleAddonPanelConfigFiltersHeader:SetShown(isConfig)
+	CodexExampleAddonPanelConfigLootHeader:SetShown(isConfig)
+	CodexExampleAddonPanelTrackHeader:SetShown(isTrack)
 	CodexExampleAddonPanelClassHeader:SetShown(isClasses)
 	CodexExampleAddonPanelItemHeader:SetShown(isLoot)
 	CodexExampleAddonPanelCheckbox1:SetShown(isConfig)
 	CodexExampleAddonPanelCheckbox2:SetShown(isConfig)
 	CodexExampleAddonPanelCheckbox3:SetShown(isConfig)
+	CodexExampleAddonPanelCheckbox4:SetShown(isConfig)
+	CodexExampleAddonPanelCheckbox5:SetShown(isConfig)
 	CodexExampleAddonPanelSlider:SetShown(isConfig)
 	CodexExampleAddonPanelTransmogButton:SetShown(isLoot)
 	classScrollFrame:SetShown(isClasses)
 	classScrollChild:SetShown(isClasses)
 	itemScrollFrame:SetShown(isLoot)
 	itemScrollChild:SetShown(isLoot)
-	CodexExampleAddonPanelResetButton:SetShown(isConfig)
-	scrollFrame:SetShown(not isClasses and not isLoot)
-	scrollChild:SetShown(not isClasses and not isLoot)
-	CodexExampleAddonPanelListHeader:SetShown(not isClasses and not isLoot)
-	CodexExampleAddonPanelListHeader:SetText(isDebug and T("DEBUG_HEADER", "Debug Output") or T("LIST_HEADER", "Tracked Lockouts"))
+	CodexExampleAddonPanelResetButton:SetShown(isTrack)
+	scrollFrame:SetShown(isTrack or isDebug)
+	scrollChild:SetShown(isTrack or isDebug)
+	CodexExampleAddonPanelListHeader:SetShown(isDebug)
+	CodexExampleAddonPanelListHeader:SetText(T("DEBUG_HEADER", "Debug Output"))
 	CodexExampleAddonPanelRefreshButton:SetText(isDebug and T("BUTTON_COLLECT_DEBUG", "Collect Logs") or T("BUTTON_REFRESH", "Refresh"))
-	CodexExampleAddonPanelRefreshButton:SetShown(not isClasses and not isLoot)
+	CodexExampleAddonPanelRefreshButton:SetShown(isTrack or isDebug)
 
 	CodexExampleAddonPanelNavConfigButton:SetEnabled(not isConfig)
+	CodexExampleAddonPanelNavTrackButton:SetEnabled(not isTrack)
 	CodexExampleAddonPanelNavClassButton:SetEnabled(not isClasses)
 	CodexExampleAddonPanelNavLootButton:SetEnabled(not isLoot)
 	CodexExampleAddonPanelNavDebugButton:SetEnabled(not isDebug)
@@ -2579,6 +2939,10 @@ SetPanelView = function(view)
 	CodexExampleAddonPanelListHeader:ClearAllPoints()
 	if isDebug then
 		CodexExampleAddonPanelListHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
+		scrollFrame:SetSize(500, 376)
+		scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -84)
+		scrollChild:SetWidth(478)
+	elseif isTrack then
 		scrollFrame:SetSize(500, 376)
 		scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -84)
 		scrollChild:SetWidth(478)
@@ -2594,14 +2958,7 @@ SetPanelView = function(view)
 		itemScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -116)
 		itemScrollChild:SetWidth(196)
 	else
-		CodexExampleAddonPanelListHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -214)
-		scrollFrame:SetSize(500, 236)
-		scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -238)
 		scrollChild:SetWidth(478)
-		CodexExampleAddonPanelClassHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 500, -62)
-		classScrollFrame:SetSize(156, 112)
-		classScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 500, -84)
-		classScrollChild:SetWidth(132)
 	end
 
 	UpdateClassFilterUI(CodexExampleAddonDB.settings or {})
@@ -2626,10 +2983,14 @@ InitializePanel = function()
 	CodexExampleAddonPanelSubtitle:SetText(T("ADDON_SUBTITLE", "Lightweight dungeon and raid lockout tracking for your characters."))
 	CodexExampleAddonPanelNavHeader:SetText(T("NAV_SECTIONS", "Sections"))
 	CodexExampleAddonPanelNavConfigButton:SetText(T("NAV_CONFIG", "Config"))
+	CodexExampleAddonPanelNavTrackButton:SetText(T("NAV_TRACK", "Tracking"))
 	CodexExampleAddonPanelNavClassButton:SetText(T("NAV_CLASS", "Classes"))
 	CodexExampleAddonPanelNavLootButton:SetText(T("NAV_LOOT", "Loot Types"))
 	CodexExampleAddonPanelNavDebugButton:SetText(T("NAV_DEBUG", "Debug"))
 	CodexExampleAddonPanelConfigHeader:SetText(T("CONFIG_HEADER", "Config"))
+	CodexExampleAddonPanelConfigFiltersHeader:SetText(T("CONFIG_FILTERS_HEADER", "Tracking Filters"))
+	CodexExampleAddonPanelConfigLootHeader:SetText(T("CONFIG_LOOT_HEADER", "Loot Display"))
+	CodexExampleAddonPanelTrackHeader:SetText(T("TRACK_HEADER", "Tracked Lockouts"))
 	CodexExampleAddonPanelClassHeader:SetText(T("CLASS_FILTER_HEADER", "Classes"))
 	CodexExampleAddonPanelItemHeader:SetText(T("ITEM_FILTER_HEADER", "Item Types"))
 	CodexExampleAddonPanelResetButton:SetText(T("BUTTON_CLEAR_DATA", "Clear Data"))
@@ -2638,10 +2999,14 @@ InitializePanel = function()
 	_G["CodexExampleAddonPanelCheckbox1Text"]:SetText(T("CHECKBOX_SHOW_RAIDS", "Show raids"))
 	_G["CodexExampleAddonPanelCheckbox2Text"]:SetText(T("CHECKBOX_SHOW_DUNGEONS", "Show dungeons"))
 	_G["CodexExampleAddonPanelCheckbox3Text"]:SetText(T("CHECKBOX_SHOW_EXPIRED", "Show expired lockouts"))
+	_G["CodexExampleAddonPanelCheckbox4Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_TRANSMOG", "Hide collected appearances"))
+	_G["CodexExampleAddonPanelCheckbox5Text"]:SetText(T("CHECKBOX_COLLECT_SAME_APPEARANCE", "Treat same appearance as collected"))
 
 	CodexExampleAddonPanelCheckbox1:SetChecked(settings.showRaids)
 	CodexExampleAddonPanelCheckbox2:SetChecked(settings.showDungeons)
 	CodexExampleAddonPanelCheckbox3:SetChecked(settings.showExpired)
+	CodexExampleAddonPanelCheckbox4:SetChecked(settings.hideCollectedTransmog)
+	CodexExampleAddonPanelCheckbox5:SetChecked(settings.collectSameAppearance)
 
 	CodexExampleAddonPanelCheckbox1:SetScript("OnClick", function(self)
 		settings.showRaids = self:GetChecked() and true or false
@@ -2654,6 +3019,14 @@ InitializePanel = function()
 	CodexExampleAddonPanelCheckbox3:SetScript("OnClick", function(self)
 		settings.showExpired = self:GetChecked() and true or false
 		RefreshPanelText()
+	end)
+	CodexExampleAddonPanelCheckbox4:SetScript("OnClick", function(self)
+		settings.hideCollectedTransmog = self:GetChecked() and true or false
+		RefreshLootPanel()
+	end)
+	CodexExampleAddonPanelCheckbox5:SetScript("OnClick", function(self)
+		settings.collectSameAppearance = self:GetChecked() and true or false
+		RefreshLootPanel()
 	end)
 
 	local slider = CodexExampleAddonPanelSlider
@@ -2698,6 +3071,10 @@ InitializePanel = function()
 
 	CodexExampleAddonPanelNavConfigButton:SetScript("OnClick", function()
 		SetPanelView("config")
+	end)
+
+	CodexExampleAddonPanelNavTrackButton:SetScript("OnClick", function()
+		SetPanelView("track")
 	end)
 
 	CodexExampleAddonPanelNavClassButton:SetScript("OnClick", function()

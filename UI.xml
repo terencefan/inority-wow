@@ -35,6 +35,21 @@
 						<Anchor point="TOPLEFT" x="156" y="-62"/>
 					</Anchors>
 				</FontString>
+				<FontString name="$parentConfigFiltersHeader" inherits="GameFontHighlight" text="Tracking Filters">
+					<Anchors>
+						<Anchor point="TOPLEFT" x="156" y="-92"/>
+					</Anchors>
+				</FontString>
+				<FontString name="$parentConfigLootHeader" inherits="GameFontHighlight" text="Loot Display">
+					<Anchors>
+						<Anchor point="TOPLEFT" x="420" y="-92"/>
+					</Anchors>
+				</FontString>
+				<FontString name="$parentTrackHeader" inherits="GameFontNormal" text="Tracked Lockouts">
+					<Anchors>
+						<Anchor point="TOPLEFT" x="156" y="-62"/>
+					</Anchors>
+				</FontString>
 				<FontString name="$parentClassHeader" inherits="GameFontNormal" text="Classes">
 					<Anchors>
 						<Anchor point="TOPLEFT" x="500" y="-62"/>
@@ -64,10 +79,16 @@
 					<Anchor point="TOPLEFT" x="24" y="-84"/>
 				</Anchors>
 			</Button>
-			<Button name="$parentNavClassButton" inherits="UIPanelButtonTemplate" text="Classes">
+			<Button name="$parentNavTrackButton" inherits="UIPanelButtonTemplate" text="Tracking">
 				<Size x="96" y="24"/>
 				<Anchors>
 					<Anchor point="TOPLEFT" relativeTo="$parentNavConfigButton" relativePoint="BOTTOMLEFT" x="0" y="-8"/>
+				</Anchors>
+			</Button>
+			<Button name="$parentNavClassButton" inherits="UIPanelButtonTemplate" text="Classes">
+				<Size x="96" y="24"/>
+				<Anchors>
+					<Anchor point="TOPLEFT" relativeTo="$parentNavTrackButton" relativePoint="BOTTOMLEFT" x="0" y="-8"/>
 				</Anchors>
 			</Button>
 			<Button name="$parentNavLootButton" inherits="UIPanelButtonTemplate" text="Loot">
@@ -84,23 +105,33 @@
 			</Button>
 			<CheckButton name="$parentCheckbox1" inherits="UICheckButtonTemplate">
 				<Anchors>
-					<Anchor point="TOPLEFT" x="156" y="-84"/>
+					<Anchor point="TOPLEFT" x="156" y="-116"/>
 				</Anchors>
 			</CheckButton>
 			<CheckButton name="$parentCheckbox2" inherits="UICheckButtonTemplate">
 				<Anchors>
-					<Anchor point="TOPLEFT" x="156" y="-108"/>
+					<Anchor point="TOPLEFT" x="156" y="-140"/>
 				</Anchors>
 			</CheckButton>
 			<CheckButton name="$parentCheckbox3" inherits="UICheckButtonTemplate">
 				<Anchors>
-					<Anchor point="TOPLEFT" x="352" y="-84"/>
+					<Anchor point="TOPLEFT" x="156" y="-164"/>
+				</Anchors>
+			</CheckButton>
+			<CheckButton name="$parentCheckbox4" inherits="UICheckButtonTemplate">
+				<Anchors>
+					<Anchor point="TOPLEFT" x="420" y="-116"/>
+				</Anchors>
+			</CheckButton>
+			<CheckButton name="$parentCheckbox5" inherits="UICheckButtonTemplate">
+				<Anchors>
+					<Anchor point="TOPLEFT" x="420" y="-140"/>
 				</Anchors>
 			</CheckButton>
 			<Slider name="$parentSlider" inherits="OptionsSliderTemplate" minValue="0" maxValue="100" valueStep="1">
-				<Size x="180" y="16"/>
+				<Size x="220" y="16"/>
 				<Anchors>
-					<Anchor point="TOPLEFT" x="352" y="-114"/>
+					<Anchor point="TOPLEFT" x="156" y="-214"/>
 				</Anchors>
 			</Slider>
 			<ScrollFrame name="$parentClassScrollFrame" inherits="UIPanelScrollFrameTemplate">
