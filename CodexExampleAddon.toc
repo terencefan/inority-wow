@@ -1,6 +1,6 @@
 ## Interface: 120001
-## Title: Inority Instance Tracker
-## Notes: Lightweight dungeon and raid lockout tracking for your characters.
+## Title: 幻化追踪
+## Notes: Track transmog, raid loot, and set collection across your characters.
 ## Author: Codex
 ## Version: 0.2.0
 ## OptionalDeps: ElvUI
@@ -10,5 +10,9 @@ Libs\LibStub\LibStub.lua
 Libs\LibQTip-1.0\lib.xml
 Locale\enUS.lua
 Locale\zhCN.lua
+Storage.lua
+Compute.lua
+API.lua
+LootSets.lua
 UI.xml
 Core.lua
