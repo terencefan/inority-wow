@@ -2,32 +2,136 @@ local addonName, addon = ...
 
 local LootSets = addon.LootSets or {}
 addon.LootSets = LootSets
+local dependencies = {}
+
+function LootSets.Configure(config)
+	dependencies = config or {}
+end
+
+local function Translate(key, fallback)
+	local translate = dependencies.T or addon.T
+	if translate then
+		return translate(key, fallback)
+	end
+	return fallback or key
+end
+
+local function GetSelectedLootClassFiles()
+	local fn = dependencies.GetSelectedLootClassFiles
+	return fn and fn() or {}
+end
+
+local function GetLootItemSetIDs(item)
+	local fn = dependencies.GetLootItemSetIDs
+	return fn and fn(item) or {}
+end
+
+local function GetLootItemSourceID(item)
+	local fn = dependencies.GetLootItemSourceID
+	return fn and fn(item) or nil
+end
+
+local function ClassMatchesSetInfo(classFile, setInfo)
+	local fn = dependencies.ClassMatchesSetInfo
+	return fn and fn(classFile, setInfo) or false
+end
+
+local function GetSetProgress(setID)
+	local fn = dependencies.GetSetProgress
+	if fn then
+		return fn(setID)
+	end
+	return 0, 0
+end
+
+local function GetLootItemCollectionState(item)
+	local fn = dependencies.GetLootItemCollectionState
+	return fn and fn(item) or nil
+end
+
+local function GetClassDisplayName(classFile)
+	local fn = dependencies.GetClassDisplayName
+	return fn and fn(classFile) or tostring(classFile or "")
+end
+
+local function GetBaseSetName(setEntry)
+	return tostring((setEntry and setEntry.name) or ("Set " .. tostring(setEntry and setEntry.setID or "")))
+end
+
+local function GetSetDisplayCountSuffix(total)
+	local totalNumber = tonumber(total) or 0
+	if totalNumber > 0 then
+		return string.format(Translate("LOOT_SET_DISPLAY_COUNT_SUFFIX", "%d pieces"), totalNumber)
+	end
+	return nil
+end
+
+function LootSets.BuildDistinctSetDisplayNames(sets)
+	local baseNameCounts = {}
+	for _, setEntry in ipairs(sets or {}) do
+		local baseName = GetBaseSetName(setEntry)
+		baseNameCounts[baseName] = (baseNameCounts[baseName] or 0) + 1
+	end
+
+	local candidateCounts = {}
+	for _, setEntry in ipairs(sets or {}) do
+		local baseName = GetBaseSetName(setEntry)
+		local displayName = baseName
+		if (baseNameCounts[baseName] or 0) > 1 then
+			local label = tostring(setEntry and setEntry.label or "")
+			if label ~= "" then
+				displayName = string.format("%s - %s", baseName, label)
+			else
+				local countSuffix = GetSetDisplayCountSuffix(setEntry and setEntry.total)
+				if countSuffix then
+					displayName = string.format("%s [%s]", baseName, countSuffix)
+				end
+			end
+		end
+
+		setEntry.displayName = displayName
+		candidateCounts[displayName] = (candidateCounts[displayName] or 0) + 1
+	end
+
+	for _, setEntry in ipairs(sets or {}) do
+		local displayName = tostring(setEntry and setEntry.displayName or GetBaseSetName(setEntry))
+		if (candidateCounts[displayName] or 0) > 1 then
+			setEntry.displayName = string.format("%s #%s", displayName, tostring(setEntry and setEntry.setID or "?"))
+		end
+	end
+
+	return sets
+end
+
+function LootSets.GetDisplaySetName(setEntry)
+	if not setEntry then
+		return "Set"
+	end
+	return tostring(setEntry.displayName or GetBaseSetName(setEntry))
+end
 
 function LootSets.IsLootItemIncompleteSetPiece(item)
 	if not item or not C_TransmogSets or not C_TransmogSets.GetSetInfo then
 		return false
 	end
 
-	local classFiles = addon.GetSelectedLootClassFiles and addon.GetSelectedLootClassFiles() or {}
+	local classFiles = GetSelectedLootClassFiles()
 	if #classFiles == 0 then
 		return false
 	end
 
-	for _, setID in ipairs((addon.GetLootItemSetIDs and addon.GetLootItemSetIDs(item)) or {}) do
+	for _, setID in ipairs(GetLootItemSetIDs(item)) do
 		local setInfo = C_TransmogSets.GetSetInfo(setID)
 		if setInfo then
 			local matchesClass = false
 			for _, classFile in ipairs(classFiles) do
-				if addon.ClassMatchesSetInfo and addon.ClassMatchesSetInfo(classFile, setInfo) then
+				if ClassMatchesSetInfo(classFile, setInfo) then
 					matchesClass = true
 					break
 				end
 			end
 			if matchesClass then
-				local collected, total = 0, 0
-				if addon.GetSetProgress then
-					collected, total = addon.GetSetProgress(setID)
-				end
+				local collected, total = GetSetProgress(setID)
 				if total > 0 and collected < total then
 					return true
 				end
@@ -80,19 +184,18 @@ function LootSets.UpdateSetCompletionRowVisual(itemRow, setEntry)
 end
 
 function LootSets.BuildCurrentInstanceSetLootSources(data, sourceContext)
-	local T = addon.T or function(_, fallback) return fallback end
 	local sourcesBySetID = {}
-	local instanceName = tostring((sourceContext and sourceContext.instanceName) or (data and data.instanceName) or T("LOOT_UNKNOWN_INSTANCE", "未知副本"))
+	local instanceName = tostring((sourceContext and sourceContext.instanceName) or (data and data.instanceName) or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本"))
 	local difficultyName = tostring((sourceContext and sourceContext.difficultyName) or (data and data.difficultyName) or "")
 	for _, encounter in ipairs((data and data.encounters) or {}) do
-		local encounterName = encounter.name or T("LOOT_UNKNOWN_BOSS", "未知首领")
+		local encounterName = encounter.name or Translate("LOOT_UNKNOWN_BOSS", "未知首领")
 		for _, item in ipairs(encounter.loot or {}) do
-			for _, setID in ipairs((addon.GetLootItemSetIDs and addon.GetLootItemSetIDs(item)) or {}) do
+			for _, setID in ipairs(GetLootItemSetIDs(item)) do
 				sourcesBySetID[setID] = sourcesBySetID[setID] or {}
 				sourcesBySetID[setID][#sourcesBySetID[setID] + 1] = {
-					sourceID = addon.GetLootItemSourceID and addon.GetLootItemSourceID(item) or nil,
+					sourceID = GetLootItemSourceID(item),
 					itemID = item.itemID,
-					name = item.name or item.link or T("LOOT_UNKNOWN_ITEM", "未知物品"),
+					name = item.name or item.link or Translate("LOOT_UNKNOWN_ITEM", "未知物品"),
 					link = item.link,
 					icon = item.icon,
 					slot = item.slot,
@@ -159,19 +262,18 @@ function LootSets.GetAppearanceSourceDisplayInfo(sourceID)
 end
 
 function LootSets.GetLocalizedEquipLocName(equipLoc)
-	local T = addon.T or function(_, fallback) return fallback end
 	local normalizedEquipLoc = string.upper(tostring(equipLoc or ""))
 	local labels = {
-		INVTYPE_HEAD = T("LOOT_SLOT_HEAD", "头部"),
-		INVTYPE_SHOULDER = T("LOOT_SLOT_SHOULDER", "肩部"),
-		INVTYPE_CHEST = T("LOOT_SLOT_CHEST", "胸部"),
-		INVTYPE_ROBE = T("LOOT_SLOT_CHEST", "胸部"),
-		INVTYPE_WAIST = T("LOOT_SLOT_WAIST", "腰部"),
-		INVTYPE_LEGS = T("LOOT_SLOT_LEGS", "腿部"),
-		INVTYPE_FEET = T("LOOT_SLOT_FEET", "脚部"),
-		INVTYPE_WRIST = T("LOOT_SLOT_WRIST", "手腕"),
-		INVTYPE_HAND = T("LOOT_SLOT_HAND", "手部"),
-		INVTYPE_CLOAK = T("LOOT_SLOT_BACK", "披风"),
+		INVTYPE_HEAD = Translate("LOOT_SLOT_HEAD", "头部"),
+		INVTYPE_SHOULDER = Translate("LOOT_SLOT_SHOULDER", "肩部"),
+		INVTYPE_CHEST = Translate("LOOT_SLOT_CHEST", "胸部"),
+		INVTYPE_ROBE = Translate("LOOT_SLOT_CHEST", "胸部"),
+		INVTYPE_WAIST = Translate("LOOT_SLOT_WAIST", "腰部"),
+		INVTYPE_LEGS = Translate("LOOT_SLOT_LEGS", "腿部"),
+		INVTYPE_FEET = Translate("LOOT_SLOT_FEET", "脚部"),
+		INVTYPE_WRIST = Translate("LOOT_SLOT_WRIST", "手腕"),
+		INVTYPE_HAND = Translate("LOOT_SLOT_HAND", "手部"),
+		INVTYPE_CLOAK = Translate("LOOT_SLOT_BACK", "披风"),
 	}
 	return labels[normalizedEquipLoc]
 end
@@ -217,7 +319,6 @@ function LootSets.BuildSetPieceSlotKey(slot, equipLoc)
 end
 
 function LootSets.GetSetAppearanceDisplayName(appearance, sourceDisplayInfo)
-	local T = addon.T or function(_, fallback) return fallback end
 	local sourceName = tostring((appearance and appearance.name) or (sourceDisplayInfo and sourceDisplayInfo.name) or "")
 	if sourceName ~= "" then
 		return sourceName
@@ -229,15 +330,15 @@ function LootSets.GetSetAppearanceDisplayName(appearance, sourceDisplayInfo)
 
 	local slotName = tostring((appearance and (appearance.slotName or appearance.slot)) or "")
 	if slotName ~= "" then
-		return string.format(T("LOOT_SET_MISSING_PIECE_LABEL", "未收集部位: %s"), slotName)
+		return string.format(Translate("LOOT_SET_MISSING_PIECE_LABEL", "未收集部位: %s"), slotName)
 	end
 
 	local equipLocName = LootSets.GetLocalizedEquipLocName(sourceDisplayInfo and sourceDisplayInfo.equipLoc)
 	if equipLocName then
-		return string.format(T("LOOT_SET_MISSING_PIECE_LABEL", "未收集部位: %s"), equipLocName)
+		return string.format(Translate("LOOT_SET_MISSING_PIECE_LABEL", "未收集部位: %s"), equipLocName)
 	end
 
-	return T("LOOT_SET_MISSING_PIECE", "未收集部位")
+	return Translate("LOOT_SET_MISSING_PIECE", "未收集部位")
 end
 
 function LootSets.GetAllTheThingsAPI()
@@ -313,16 +414,15 @@ function LootSets.IsSetLootSourceMissing(source)
 	if not source then
 		return false
 	end
-	local collectionState = addon.GetLootItemCollectionState and addon.GetLootItemCollectionState({
+	local collectionState = GetLootItemCollectionState({
 		sourceID = source.sourceID,
 		itemID = source.itemID,
 		link = source.link,
-	}) or nil
+	})
 	return collectionState ~= "collected"
 end
 
 function LootSets.BuildCurrentInstanceMissingSetPieces(setID, currentInstanceSources)
-	local T = addon.T or function(_, fallback) return fallback end
 	local missingPieces = {}
 	local instanceSources = currentInstanceSources and currentInstanceSources[setID] or nil
 	local seenSlotKeys = {}
@@ -337,24 +437,24 @@ function LootSets.BuildCurrentInstanceMissingSetPieces(setID, currentInstanceSou
 				local acquisitionText
 				if source.difficultyName and source.difficultyName ~= "" then
 					acquisitionText = string.format(
-						T("LOOT_SET_SOURCE_INSTANCE_DETAIL", "%s (%s) - %s"),
-						tostring(source.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本")),
+						Translate("LOOT_SET_SOURCE_INSTANCE_DETAIL", "%s (%s) - %s"),
+						tostring(source.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")),
 						tostring(source.difficultyName),
-						tostring(source.encounterName or T("LOOT_UNKNOWN_BOSS", "未知首领"))
+						tostring(source.encounterName or Translate("LOOT_UNKNOWN_BOSS", "未知首领"))
 					)
 				else
 					acquisitionText = string.format(
-						T("LOOT_SET_SOURCE_INSTANCE_DETAIL_NO_DIFFICULTY", "%s - %s"),
-						tostring(source.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本")),
-						tostring(source.encounterName or T("LOOT_UNKNOWN_BOSS", "未知首领"))
+						Translate("LOOT_SET_SOURCE_INSTANCE_DETAIL_NO_DIFFICULTY", "%s - %s"),
+						tostring(source.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")),
+						tostring(source.encounterName or Translate("LOOT_UNKNOWN_BOSS", "未知首领"))
 					)
 				end
 				missingPieces[#missingPieces + 1] = {
-					name = tostring(source.link or source.name or T("LOOT_UNKNOWN_ITEM", "未知物品")),
-					searchName = tostring(source.name or T("LOOT_UNKNOWN_ITEM", "未知物品")),
+					name = tostring(source.link or source.name or Translate("LOOT_UNKNOWN_ITEM", "未知物品")),
+					searchName = tostring(source.name or Translate("LOOT_UNKNOWN_ITEM", "未知物品")),
 					acquisitionText = acquisitionText,
-					sourceBoss = tostring(source.encounterName or T("LOOT_UNKNOWN_BOSS", "未知首领")),
-					sourceInstance = tostring(source.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本")),
+					sourceBoss = tostring(source.encounterName or Translate("LOOT_UNKNOWN_BOSS", "未知首领")),
+					sourceInstance = tostring(source.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")),
 					sourceDifficulty = tostring(source.difficultyName or ""),
 					icon = source.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
 					sourceID = source.sourceID,
@@ -409,7 +509,6 @@ function LootSets.PickSetDisplayIcon(setID, currentInstanceSources, fallbackIcon
 end
 
 function LootSets.BuildSetMissingPieces(setID, currentInstanceSources)
-	local T = addon.T or function(_, fallback) return fallback end
 	if not (C_TransmogSets and C_TransmogSets.GetSetPrimaryAppearances) then
 		return {}
 	end
@@ -450,7 +549,7 @@ function LootSets.BuildSetMissingPieces(setID, currentInstanceSources)
 					if not (slotKey and seenSlotKeys[slotKey]) then
 						local sourceName = LootSets.GetSetAppearanceDisplayName(appearance, sourceDisplayInfo)
 						local attHint = LootSets.GetATTSourceHint(appearanceSourceID, sourceDisplayInfo and sourceDisplayInfo.link or nil, nil)
-						local acquisitionText = attHint and string.format(T("LOOT_SET_SOURCE_ATT", "其他来源: %s"), attHint) or T("LOOT_SET_SOURCE_OTHER", "其他途径")
+						local acquisitionText = attHint and string.format(Translate("LOOT_SET_SOURCE_ATT", "其他来源: %s"), attHint) or Translate("LOOT_SET_SOURCE_OTHER", "其他途径")
 						missingPieces[#missingPieces + 1] = {
 							name = sourceName,
 							searchName = tostring((sourceDisplayInfo and sourceDisplayInfo.name) or sourceName),
@@ -469,10 +568,7 @@ function LootSets.BuildSetMissingPieces(setID, currentInstanceSources)
 		end
 	end
 
-	local collected, total = 0, 0
-	if addon.GetSetProgress then
-		collected, total = addon.GetSetProgress(setID)
-	end
+	local collected, total = GetSetProgress(setID)
 	local resolvedSlotCount = 0
 	for _ in pairs(seenSlotKeys) do
 		resolvedSlotCount = resolvedSlotCount + 1
@@ -481,13 +577,119 @@ function LootSets.BuildSetMissingPieces(setID, currentInstanceSources)
 	if unresolvedCount > 0 then
 		missingPieces[#missingPieces + 1] = {
 			name = unresolvedCount > 1
-				and string.format(T("LOOT_SET_MISSING_OTHER_COUNT", "其他未收集部位 x%d"), unresolvedCount)
-				or T("LOOT_SET_MISSING_OTHER", "其他未收集部位"),
+				and string.format(Translate("LOOT_SET_MISSING_OTHER_COUNT", "其他未收集部位 x%d"), unresolvedCount)
+				or Translate("LOOT_SET_MISSING_OTHER", "其他未收集部位"),
 			searchName = nil,
-			acquisitionText = T("LOOT_SET_SOURCE_UNKNOWN", "来源待确认"),
+			acquisitionText = Translate("LOOT_SET_SOURCE_UNKNOWN", "来源待确认"),
 			icon = "Interface\\Icons\\INV_Misc_QuestionMark",
 		}
 	end
 
 	return missingPieces
+end
+
+function LootSets.BuildCurrentInstanceSetSummary(data, context)
+	context = context or {}
+
+	local classFiles = context.classFiles or GetSelectedLootClassFiles()
+	if #classFiles == 0 then
+		return {
+			message = Translate("LOOT_SETS_NO_CLASS_FILTER", "Select one or more classes in the main panel first."),
+			classGroups = {},
+		}
+	end
+
+	if not (C_TransmogSets and C_TransmogSets.GetSetInfo and C_TransmogSets.GetSetsContainingSourceID) then
+		return {
+			message = Translate("LOOT_ERROR_NO_APIS", "Encounter Journal APIs are not available on this client."),
+			classGroups = {},
+		}
+	end
+
+	local getClassDisplayName = context.getClassDisplayName or GetClassDisplayName
+	local getLootItemSetIDs = context.getLootItemSetIDs or GetLootItemSetIDs
+	local classMatchesSetInfo = context.classMatchesSetInfo or ClassMatchesSetInfo
+	local getSetProgress = context.getSetProgress or GetSetProgress
+	local setLootSources = LootSets.BuildCurrentInstanceSetLootSources(data, context.selectedInstance)
+
+	local groupsByClass = {}
+	for _, classFile in ipairs(classFiles) do
+		groupsByClass[classFile] = {
+			classFile = classFile,
+			className = getClassDisplayName(classFile),
+			setsByID = {},
+		}
+	end
+
+	for _, encounter in ipairs((data and data.encounters) or {}) do
+		for _, item in ipairs(encounter.loot or {}) do
+			for _, setID in ipairs(getLootItemSetIDs(item)) do
+				local setInfo = C_TransmogSets.GetSetInfo(setID)
+				if setInfo then
+					local collected, total = getSetProgress(setID)
+					if total > 0 then
+						for _, classFile in ipairs(classFiles) do
+							if classMatchesSetInfo(classFile, setInfo) then
+								groupsByClass[classFile].setsByID[setID] = groupsByClass[classFile].setsByID[setID] or {
+									setID = setID,
+									name = setInfo.name or ("Set " .. tostring(setID)),
+									label = setInfo.label,
+									icon = LootSets.PickSetDisplayIcon(setID, setLootSources, setInfo.icon),
+									collected = collected,
+									total = total,
+									completed = collected >= total,
+								}
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	local classGroups = {}
+	for _, classFile in ipairs(classFiles) do
+		local group = groupsByClass[classFile]
+		local sets = {}
+		for _, setEntry in pairs(group.setsByID) do
+			setEntry.missingPieces = LootSets.BuildSetMissingPieces(setEntry.setID, setLootSources)
+			sets[#sets + 1] = setEntry
+		end
+		LootSets.BuildDistinctSetDisplayNames(sets)
+		table.sort(sets, function(a, b)
+			if (a.completed and true or false) ~= (b.completed and true or false) then
+				return not a.completed
+			end
+			if a.collected ~= b.collected then
+				return a.collected < b.collected
+			end
+			if a.total ~= b.total then
+				return a.total < b.total
+			end
+			return tostring(a.name) < tostring(b.name)
+		end)
+		classGroups[#classGroups + 1] = {
+			classFile = group.classFile,
+			className = group.className,
+			sets = sets,
+		}
+	end
+
+	local hasSets = false
+	for _, group in ipairs(classGroups) do
+		if #group.sets > 0 then
+			hasSets = true
+			break
+		end
+	end
+
+	local summaryMessage = nil
+	if not hasSets then
+		summaryMessage = Translate("LOOT_SETS_NO_MATCHING", "No incomplete collectible sets match the current instance and class filter.")
+	end
+
+	return {
+		message = summaryMessage,
+		classGroups = classGroups,
+	}
 end

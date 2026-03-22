@@ -66,11 +66,6 @@
 						<Anchor point="TOPLEFT" x="420" y="-168"/>
 					</Anchors>
 				</FontString>
-				<FontString name="$parentTrackHeader" inherits="GameFontNormal" text="Tracked Lockouts">
-					<Anchors>
-						<Anchor point="TOPLEFT" x="156" y="-62"/>
-					</Anchors>
-				</FontString>
 				<FontString name="$parentClassHeader" inherits="GameFontNormal" text="Classes">
 					<Anchors>
 						<Anchor point="TOPLEFT" x="500" y="-62"/>
@@ -105,16 +100,10 @@
 					<Anchor point="TOPLEFT" x="24" y="-84"/>
 				</Anchors>
 			</Button>
-			<Button name="$parentNavTrackButton" inherits="UIPanelButtonTemplate" text="Tracking">
-				<Size x="96" y="24"/>
-				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="$parentNavConfigButton" relativePoint="BOTTOMLEFT" x="0" y="-8"/>
-				</Anchors>
-			</Button>
 			<Button name="$parentNavClassButton" inherits="UIPanelButtonTemplate" text="Classes">
 				<Size x="96" y="24"/>
 				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="$parentNavTrackButton" relativePoint="BOTTOMLEFT" x="0" y="-8"/>
+					<Anchor point="TOPLEFT" relativeTo="$parentNavConfigButton" relativePoint="BOTTOMLEFT" x="0" y="-8"/>
 				</Anchors>
 			</Button>
 			<Button name="$parentNavLootButton" inherits="UIPanelButtonTemplate" text="Loot">
@@ -178,16 +167,10 @@
 					<Anchor point="TOPLEFT"/>
 				</Anchors>
 			</Frame>
-			<Button name="$parentTransmogButton" inherits="UIPanelButtonTemplate" text="Transmog">
-				<Size x="132" y="24"/>
-				<Anchors>
-					<Anchor point="TOPLEFT" x="156" y="-84"/>
-				</Anchors>
-			</Button>
 			<ScrollFrame name="$parentItemScrollFrame" inherits="UIPanelScrollFrameTemplate">
 				<Size x="220" y="328"/>
 				<Anchors>
-					<Anchor point="TOPLEFT" x="156" y="-116"/>
+					<Anchor point="TOPLEFT" x="156" y="-84"/>
 				</Anchors>
 			</ScrollFrame>
 			<Frame name="$parentItemScrollChild">

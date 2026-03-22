@@ -18,7 +18,12 @@ function Compute.GetSelectedLootClassIDs(settings, getClassIDByFile)
 			end
 		end
 	end
-	table.sort(classIDs)
+	local api = addon.API
+	if api and api.CompareClassIDs then
+		table.sort(classIDs, api.CompareClassIDs)
+	else
+		table.sort(classIDs)
+	end
 	return classIDs
 end
 
@@ -115,14 +120,23 @@ function Compute.BuildTooltipMatrix(charactersByKey, settings, maxCharacters, op
 		local info = entry.info or {}
 		if Compute.CharacterMatchesSettings(info, settings) then
 			local visibleLockouts = Compute.GetVisibleLockouts(info, settings)
-			visibleCharacters[#visibleCharacters + 1] = {
+			local visibleCharacter = {
 				key = entry.key,
 				info = info,
 				lockouts = visibleLockouts,
+				lockoutLookup = {},
 			}
+			visibleCharacters[#visibleCharacters + 1] = visibleCharacter
 
 			for _, lockout in ipairs(visibleLockouts) do
 				local rowKey = string.format("%s::%s", lockout.isRaid and "R" or "D", lockout.name or "Unknown")
+				local lockoutLookupKey = string.format(
+					"%s::%s::%s",
+					lockout.isRaid and "R" or "D",
+					tostring(lockout.name or "Unknown"),
+					tostring(tonumber(lockout.difficultyID) or 0)
+				)
+				visibleCharacter.lockoutLookup[lockoutLookupKey] = lockout
 				if not instanceMap[rowKey] then
 					instanceMap[rowKey] = {
 						key = rowKey,
@@ -178,16 +192,13 @@ function Compute.BuildTooltipMatrix(charactersByKey, settings, maxCharacters, op
 			end
 			return tostring(a.difficultyName or "") < tostring(b.difficultyName or "")
 		end)
-		for _, difficultyInfo in ipairs(difficulties) do
-			tooltipRows[#tooltipRows + 1] = {
-				key = string.format("%s::%s", instanceInfo.key, tostring(difficultyInfo.difficultyID or 0)),
-				name = instanceInfo.name,
-				isRaid = instanceInfo.isRaid,
-				expansionName = instanceInfo.expansionName,
-				difficultyID = tonumber(difficultyInfo.difficultyID) or 0,
-				difficultyName = difficultyInfo.difficultyName or "Unknown",
-			}
-		end
+		tooltipRows[#tooltipRows + 1] = {
+			key = instanceInfo.key,
+			name = instanceInfo.name,
+			isRaid = instanceInfo.isRaid,
+			expansionName = instanceInfo.expansionName,
+			difficulties = difficulties,
+		}
 	end
 
 	return visibleCharacters, tooltipRows

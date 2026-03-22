@@ -3,6 +3,8 @@ local L = addon.L or {}
 local API = addon.API
 local Compute = addon.Compute
 local Storage = addon.Storage
+local TooltipUI = addon.TooltipUI
+local DebugTools = addon.DebugTools
 
 local function T(key, fallback)
 	return L[key] or fallback or key
@@ -19,7 +21,8 @@ local function GetAddonMetadataCompat(name, field)
 	return nil
 end
 
-CodexExampleAddonDB = CodexExampleAddonDB or {}
+TransmogTrackerDB = TransmogTrackerDB or CodexExampleAddonDB or {}
+CodexExampleAddonDB = TransmogTrackerDB
 
 local frame = CreateFrame("Frame")
 addon.frame = frame
@@ -27,31 +30,33 @@ local minimapButton
 local panel = CodexExampleAddonPanel
 local panelSkinApplied
 local lootPanelSkinApplied
-local displayRows = {}
 local CaptureSavedInstances
-local CaptureEncounterDebugDump
 local RefreshPanelText
 local RefreshLootPanel
 local InitializeLootPanel
+local InitializeDashboardPanel
 local InitializePanel
+local RefreshDashboardPanel
 local UpdateLootPanelLayout
+local UpdateDashboardPanelLayout
+local UpdateResizeButtonTexture
 local ToggleLootPanel
+local ToggleDashboardPanel
 local GetSelectedLootPanelInstance
+local BuildLootPanelInstanceSelections
 local BuildLootFilterMenu
-local FormatLootDebugInfo
 local FormatLockoutProgress
 local GetLootItemCollectionState
 local BuildCurrentInstanceSetSummary
 local GetExpansionForLockout
 local GetExpansionOrder
-local GetSortedCharacters
 local GetSelectedLootClassFiles
 local SetPanelView
-local ShowMinimapTooltip
 local ShowLootPanelInstanceProgressTooltip
+local ShowDashboardInfoTooltip
 local UpdateLootHeaderLayout
-local tooltipFrame
 local lootPanel
+local dashboardPanel
 local lootPanelState = {
 	classID = 0,
 	specID = 0,
@@ -68,10 +73,9 @@ local lootPanelSessionState = {
 	encounterBaseline = {},
 }
 local lootDropdownMenu
-local QTip = LibStub("LibQTip-1.0")
 local DB_VERSION = 2
-local JOURNAL_INSTANCE_LOOKUP_RULES_VERSION = 1
-local LOOT_PANEL_SELECTION_RULES_VERSION = 2
+local JOURNAL_INSTANCE_LOOKUP_RULES_VERSION = 2
+local LOOT_PANEL_SELECTION_RULES_VERSION = 3
 local LOOT_DATA_RULES_VERSION = 2
 local expansionByInstanceKey
 local expansionOrderByName
@@ -82,13 +86,14 @@ local lootDataCache
 local lootCacheWarmupPending
 local journalInstanceLookupCache
 local lootPanelSelectionCache
+addon.lootPanelRenderDebugHistory = addon.lootPanelRenderDebugHistory or {}
 local MINIMAP_ICON_TEXTURE = "Interface\\Icons\\INV_Misc_Book_09"
 local selectableClasses = {
+	"PRIEST",
 	"WARRIOR",
 	"PALADIN",
 	"HUNTER",
 	"ROGUE",
-	"PRIEST",
 	"DEATHKNIGHT",
 	"SHAMAN",
 	"MAGE",
@@ -99,11 +104,11 @@ local selectableClasses = {
 	"EVOKER",
 }
 local allPlayableClasses = {
+	"PRIEST",
 	"WARRIOR",
 	"PALADIN",
 	"HUNTER",
 	"ROGUE",
-	"PRIEST",
 	"DEATHKNIGHT",
 	"SHAMAN",
 	"MAGE",
@@ -284,24 +289,28 @@ local function CreateMinimapButton()
 	minimapButton.icon = icon
 
 	minimapButton:SetScript("OnClick", function(_, button)
-		if button == "LeftButton" then
-			if panel:IsShown() then
-				panel:Hide()
-			else
-				panel:Show()
-			end
-		else
-			ToggleLootPanel()
+		if button == "LeftButton" and IsControlKeyDown and IsControlKeyDown() then
+			InitializePanel()
+			SetPanelView("config")
+			panel:Show()
+			return
 		end
+		if button == "LeftButton" then
+			ToggleDashboardPanel(IsShiftKeyDown and IsShiftKeyDown() and "party" or "raid")
+			return
+		end
+		ToggleLootPanel()
 	end)
 
 	minimapButton:SetScript("OnEnter", function(self)
-		ShowMinimapTooltip(self)
+		if TooltipUI and TooltipUI.ShowMinimapTooltip then
+			TooltipUI.ShowMinimapTooltip(self)
+		end
 	end)
 
 	minimapButton:SetScript("OnLeave", function()
-		if tooltipFrame and tooltipFrame.Hide then
-			tooltipFrame:Hide()
+		if TooltipUI and TooltipUI.HideTooltip then
+			TooltipUI.HideTooltip()
 		end
 		GameTooltip:Hide()
 	end)
@@ -375,6 +384,54 @@ local function ApplyDefaultFrameStyle(targetFrame)
 	})
 	border:SetBackdropBorderColor(0.35, 0.35, 0.4, 1)
 	targetFrame.border = border
+end
+
+function addon.ApplyCompactScrollBarLayout(scrollFrame, options)
+	if not scrollFrame or not scrollFrame.ScrollBar then
+		return
+	end
+
+	addon.debugScrollOverlayEnabled = false
+
+	local scrollBar = scrollFrame.ScrollBar
+	local xOffset = options and options.xOffset or 0
+	local topInset = options and options.topInset or 0
+	local bottomInset = options and options.bottomInset or 0
+
+	scrollBar:ClearAllPoints()
+	scrollBar:SetPoint("TOPRIGHT", scrollFrame, "TOPRIGHT", xOffset, -topInset)
+	scrollBar:SetPoint("BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT", xOffset, bottomInset)
+
+	if addon.debugScrollOverlayEnabled then
+		local function EnsureDebugBox(owner, key, r, g, b, labelText)
+			owner._codexDebugBoxes = owner._codexDebugBoxes or {}
+			local box = owner._codexDebugBoxes[key]
+			if not box then
+				box = CreateFrame("Frame", nil, owner, "BackdropTemplate")
+				box:SetIgnoreParentAlpha(true)
+				box:SetFrameStrata("DIALOG")
+				box:SetBackdrop({
+					edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+					edgeSize = 10,
+					insets = { left = 1, right = 1, top = 1, bottom = 1 },
+				})
+				box.text = box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+				box.text:SetPoint("TOPLEFT", 2, -2)
+				box.text:SetJustifyH("LEFT")
+				owner._codexDebugBoxes[key] = box
+			end
+			box:ClearAllPoints()
+			box:SetAllPoints(owner)
+			box:SetBackdropBorderColor(r, g, b, 0.95)
+			box.text:SetTextColor(r, g, b, 0.95)
+			box.text:SetText(labelText)
+			box:Show()
+			return box
+		end
+
+		EnsureDebugBox(scrollFrame, "scrollFrame", 1.0, 0.15, 0.15, "scrollFrame")
+		EnsureDebugBox(scrollBar, "scrollBar", 0.15, 1.0, 0.15, "scrollBar")
+	end
 end
 
 local function SetLootHeaderButtonVisualState(button, state)
@@ -532,20 +589,11 @@ local function ApplyElvUISkin()
 		end
 		if S.HandleButton then
 			S:HandleButton(CodexExampleAddonPanelNavConfigButton)
-			S:HandleButton(CodexExampleAddonPanelNavTrackButton)
 			S:HandleButton(CodexExampleAddonPanelNavClassButton)
 			S:HandleButton(CodexExampleAddonPanelNavLootButton)
 			S:HandleButton(CodexExampleAddonPanelNavDebugButton)
 			S:HandleButton(CodexExampleAddonPanelRefreshButton)
 			S:HandleButton(CodexExampleAddonPanelResetButton)
-			S:HandleButton(CodexExampleAddonPanelTransmogButton)
-		end
-		if S.HandleCheckBox then
-			S:HandleCheckBox(CodexExampleAddonPanelCheckbox1)
-			S:HandleCheckBox(CodexExampleAddonPanelCheckbox2)
-			S:HandleCheckBox(CodexExampleAddonPanelCheckbox3)
-			S:HandleCheckBox(CodexExampleAddonPanelCheckbox4)
-			S:HandleCheckBox(CodexExampleAddonPanelCheckbox5)
 		end
 		if S.HandleSliderFrame then
 			S:HandleSliderFrame(CodexExampleAddonPanelSlider)
@@ -582,12 +630,48 @@ local function ApplyElvUISkin()
 		end
 		if S.HandleScrollBar and lootPanel.scrollFrame and lootPanel.scrollFrame.ScrollBar then
 			S:HandleScrollBar(lootPanel.scrollFrame.ScrollBar)
+			addon.ApplyCompactScrollBarLayout(lootPanel.scrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
 		end
 		if S.HandleScrollBar and lootPanel.debugScrollFrame and lootPanel.debugScrollFrame.ScrollBar then
 			S:HandleScrollBar(lootPanel.debugScrollFrame.ScrollBar)
+			addon.ApplyCompactScrollBarLayout(lootPanel.debugScrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
 		end
 
 		lootPanelSkinApplied = true
+	end
+
+	if dashboardPanel then
+		if dashboardPanel.background then dashboardPanel.background:Hide() end
+		if dashboardPanel.headerBackground then dashboardPanel.headerBackground:Hide() end
+		if dashboardPanel.border then dashboardPanel.border:Hide() end
+
+		if dashboardPanel.SetTemplate then
+			dashboardPanel:SetTemplate("Transparent")
+		end
+
+		if S.HandleCloseButton and dashboardPanel.closeButton then
+			S:HandleCloseButton(dashboardPanel.closeButton)
+			dashboardPanel.closeButton:SetSize(20, 20)
+		end
+		if S.HandleButton and dashboardPanel.refreshButton then
+			S:HandleButton(dashboardPanel.refreshButton)
+		end
+		if S.HandleButton and dashboardPanel.infoButton then
+			S:HandleButton(dashboardPanel.infoButton)
+		end
+		if S.HandleButton and dashboardPanel.setsModeButton then
+			S:HandleButton(dashboardPanel.setsModeButton)
+		end
+		if S.HandleButton and dashboardPanel.collectiblesModeButton then
+			S:HandleButton(dashboardPanel.collectiblesModeButton)
+		end
+		if S.HandleButton and dashboardPanel.bulkScanButton then
+			S:HandleButton(dashboardPanel.bulkScanButton)
+		end
+		if S.HandleScrollBar and dashboardPanel.scrollFrame and dashboardPanel.scrollFrame.ScrollBar then
+			S:HandleScrollBar(dashboardPanel.scrollFrame.ScrollBar)
+			addon.ApplyCompactScrollBarLayout(dashboardPanel.scrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
+		end
 	end
 end
 
@@ -679,6 +763,31 @@ local function GetClassDisplayName(classFile)
 	return classFile
 end
 
+local function GetDashboardClassFiles()
+	local settings = CodexExampleAddonDB and CodexExampleAddonDB.settings or {}
+	local selectedClasses = settings.selectedClasses or {}
+	local selectedClassFiles = {}
+	local unselectedClassFiles = {}
+
+	for _, classFile in ipairs(selectableClasses) do
+		if selectedClasses[classFile] then
+			selectedClassFiles[#selectedClassFiles + 1] = classFile
+		else
+			unselectedClassFiles[#unselectedClassFiles + 1] = classFile
+		end
+	end
+
+	local classFiles = {}
+	for _, classFile in ipairs(selectedClassFiles) do
+		classFiles[#classFiles + 1] = classFile
+	end
+	for _, classFile in ipairs(unselectedClassFiles) do
+		classFiles[#classFiles + 1] = classFile
+	end
+
+	return classFiles
+end
+
 local function GetClassIDByFile(classFile)
 	for classID = 1, 20 do
 		local _, currentClassFile = GetClassInfoCompat(classID)
@@ -687,6 +796,17 @@ local function GetClassIDByFile(classFile)
 		end
 	end
 	return nil
+end
+
+local function GetDashboardClassIDs()
+	local classIDs = {}
+	for _, classFile in ipairs(GetDashboardClassFiles()) do
+		local classID = GetClassIDByFile(classFile)
+		if classID then
+			classIDs[#classIDs + 1] = classID
+		end
+	end
+	return classIDs
 end
 
 local function GetEligibleClassesForLootItem(item)
@@ -830,20 +950,70 @@ end
 
 local function GetRaidDifficultyDisplayOrder(difficultyID)
 	local orderByID = {
+		[1] = 1,
+		[2] = 2,
+		[23] = 3,
+		[8] = 4,
 		[17] = 1,
 		[7] = 2,
-		[14] = 3,
-		[15] = 4,
-		[16] = 5,
-		[24] = 6,
-		[33] = 7,
-		[3] = 8,
-		[4] = 9,
-		[5] = 10,
-		[6] = 11,
-		[9] = 12,
+		[14] = 5,
+		[15] = 6,
+		[16] = 7,
+		[24] = 8,
+		[33] = 9,
+		[3] = 10,
+		[4] = 11,
+		[5] = 12,
+		[6] = 13,
+		[9] = 14,
 	}
 	return orderByID[tonumber(difficultyID) or 0] or 999
+end
+
+local function GetRaidDifficultyScanPriority(difficultyID)
+	local priorityByID = {
+		[1] = 1,
+		[2] = 2,
+		[8] = 3,
+		[23] = 4,
+		[17] = 1,
+		[7] = 2,
+		[24] = 3,
+		[33] = 4,
+		[3] = 5,
+		[4] = 6,
+		[9] = 7,
+		[14] = 8,
+		[5] = 9,
+		[6] = 10,
+		[15] = 11,
+		[16] = 12,
+	}
+	return priorityByID[tonumber(difficultyID) or 0] or 0
+end
+
+local function GetDifficultyColorCode(difficultyID)
+	difficultyID = tonumber(difficultyID) or 0
+	if difficultyID == 24 or difficultyID == 33 then
+		return "FF00CCFF"
+	end
+	if difficultyID == 17 or difficultyID == 7 then
+		return "FF1EFF00"
+	end
+	if difficultyID == 14 or difficultyID == 3 or difficultyID == 4 then
+		return "FF0070DD"
+	end
+	if difficultyID == 15 or difficultyID == 2 or difficultyID == 5 or difficultyID == 6 then
+		return "FFA335EE"
+	end
+	if difficultyID == 16 or difficultyID == 8 or difficultyID == 9 then
+		return "FFFF8000"
+	end
+	return "FFFFFFFF"
+end
+
+local function ColorizeDifficultyLabel(text, difficultyID)
+	return string.format("|c%s%s|r", GetDifficultyColorCode(difficultyID), tostring(text or ""))
 end
 
 local function GetObservedRaidDifficultyOptions(instanceName, instanceID)
@@ -877,67 +1047,8 @@ local function GetObservedRaidDifficultyMap(instanceName, instanceID)
 	return observedMap
 end
 
-local function GetRaidDifficultyFamily(difficultyID)
-	difficultyID = tonumber(difficultyID) or 0
-	if difficultyID == 24 or difficultyID == 33 then
-		return "timewalking"
-	end
-	if difficultyID == 3 or difficultyID == 4 or difficultyID == 5 or difficultyID == 6 or difficultyID == 9 then
-		return "legacy"
-	end
-	if difficultyID == 7 or difficultyID == 14 or difficultyID == 15 or difficultyID == 16 or difficultyID == 17 then
-		return "modern"
-	end
-	return "other"
-end
-
-local function FilterRaidDifficultyOptionsByFamily(options)
-	local families = {}
-	for _, option in ipairs(options or {}) do
-		families[GetRaidDifficultyFamily(option.difficultyID)] = true
-	end
-
-	local preferredFamily
-	if families.timewalking then
-		preferredFamily = "timewalking"
-	elseif families.legacy and families.modern then
-		preferredFamily = "legacy"
-	elseif families.legacy then
-		preferredFamily = "legacy"
-	elseif families.modern then
-		preferredFamily = "modern"
-	end
-
-	if not preferredFamily then
-		return options
-	end
-
-	local filtered = {}
-	for _, option in ipairs(options or {}) do
-		if GetRaidDifficultyFamily(option.difficultyID) == preferredFamily then
-			filtered[#filtered + 1] = option
-		end
-	end
-	return #filtered > 0 and filtered or options
-end
-
-local function FilterRaidDifficultyOptionsByPreferredFamily(options, preferredFamily)
-	if not preferredFamily or preferredFamily == "" then
-		return options
-	end
-
-	local filtered = {}
-	for _, option in ipairs(options or {}) do
-		if GetRaidDifficultyFamily(option.difficultyID) == preferredFamily then
-			filtered[#filtered + 1] = option
-		end
-	end
-
-	return #filtered > 0 and filtered or options
-end
-
 local function GetJournalInstanceDifficultyOptions(journalInstanceID, isRaid)
-	local difficultyIDs = isRaid and { 17, 7, 14, 15, 16, 24, 33, 3, 4, 5, 6, 9 } or {}
+	local difficultyIDs = isRaid and { 17, 7, 14, 15, 16, 24, 33, 3, 4, 5, 6, 9 } or { 1, 2, 23, 8 }
 	local optionsByID = {}
 	local options = {}
 	local EJ_IsValidInstanceDifficulty = _G.EJ_IsValidInstanceDifficulty
@@ -950,14 +1061,7 @@ local function GetJournalInstanceDifficultyOptions(journalInstanceID, isRaid)
 		EJ_SelectInstance(journalInstanceID)
 	end
 
-	local observedMap = GetObservedRaidDifficultyMap(instanceName, instanceMapID)
-	local preferredFamily
-	for observedDifficultyID in pairs(observedMap) do
-		preferredFamily = GetRaidDifficultyFamily(observedDifficultyID)
-		if preferredFamily == "timewalking" then
-			break
-		end
-	end
+	local observedMap = isRaid and GetObservedRaidDifficultyMap(instanceName, instanceMapID) or {}
 
 	local function addOption(difficultyID, difficultyName)
 		difficultyID = tonumber(difficultyID) or 0
@@ -983,13 +1087,6 @@ local function GetJournalInstanceDifficultyOptions(journalInstanceID, isRaid)
 		end
 		if valid then
 			addOption(difficultyID, GetDifficultyNameCompat(difficultyID))
-		end
-	end
-	if isRaid then
-		if preferredFamily then
-			options = FilterRaidDifficultyOptionsByPreferredFamily(options, preferredFamily)
-		else
-			options = FilterRaidDifficultyOptionsByFamily(options)
 		end
 	end
 	if #options == 0 then
@@ -1033,19 +1130,100 @@ local function GetLootPanelSelectionCacheEntries()
 end
 
 local function GetExpansionDisplayName(index)
+	local function NormalizeExpansionDisplayName(name)
+		name = tostring(name or "")
+		local aliases = {
+			["经典旧世"] = "魔兽世界",
+			["燃烧的远征"] = "燃烧的远征",
+			["巫妖王之怒"] = "巫妖王之怒",
+			["大地的裂变"] = "大地的裂变",
+			["熊猫人之谜"] = "熊猫人之谜",
+			["德拉诺"] = "德拉诺之王",
+			["军团再临"] = "军团再临",
+			["争霸艾泽拉斯"] = "争霸艾泽拉斯",
+			["暗影国度"] = "暗影国度",
+			["巨龙时代"] = "巨龙时代",
+			["地心之战"] = "地心之战",
+			["Classic"] = "魔兽世界",
+			["The Burning Crusade"] = "燃烧的远征",
+			["Wrath of the Lich King"] = "巫妖王之怒",
+			["Cataclysm"] = "大地的裂变",
+			["Mists of Pandaria"] = "熊猫人之谜",
+			["Warlords of Draenor"] = "德拉诺之王",
+			["Draenor"] = "德拉诺之王",
+			["Legion"] = "军团再临",
+			["Battle for Azeroth"] = "争霸艾泽拉斯",
+			["Shadowlands"] = "暗影国度",
+			["Dragonflight"] = "巨龙时代",
+			["The War Within"] = "地心之战",
+		}
+		return aliases[name] or name
+	end
+
 	if EJ_GetTierInfo then
 		local tierName = EJ_GetTierInfo(index)
 		if tierName and tierName ~= "" then
-			return tierName
+			return NormalizeExpansionDisplayName(tierName)
 		end
 	end
 
 	local fallback = _G["EXPANSION_NAME" .. (index - 1)]
 	if fallback and fallback ~= "" then
-		return fallback
+		return NormalizeExpansionDisplayName(fallback)
 	end
 
 	return "Other"
+end
+
+local RAID_TIER_BY_NAME = {
+	["熔火之心"] = "T1", ["Molten Core"] = "T1",
+	["黑翼之巢"] = "T2", ["Blackwing Lair"] = "T2",
+	["安其拉神殿"] = "T2.5", ["Temple of Ahn'Qiraj"] = "T2.5",
+	["纳克萨玛斯"] = "T3", ["Naxxramas"] = "T3",
+	["卡拉赞"] = "T4", ["Karazhan"] = "T4",
+	["格鲁尔的巢穴"] = "T4", ["Gruul's Lair"] = "T4",
+	["玛瑟里顿的巢穴"] = "T4", ["Magtheridon's Lair"] = "T4",
+	["盘牙湖泊：毒蛇神殿"] = "T5", ["毒蛇神殿"] = "T5", ["Serpentshrine Cavern"] = "T5",
+	["风暴要塞"] = "T5", ["Tempest Keep"] = "T5",
+	["海加尔山之战"] = "T6", ["Battle for Mount Hyjal"] = "T6",
+	["黑暗神殿"] = "T6", ["Black Temple"] = "T6",
+	["奥杜尔"] = "T8", ["Ulduar"] = "T8",
+	["十字军的试炼"] = "T9", ["Trial of the Crusader"] = "T9",
+	["冰冠堡垒"] = "T10", ["Icecrown Citadel"] = "T10",
+	["黑翼血环"] = "T11", ["Blackwing Descent"] = "T11",
+	["暮光堡垒"] = "T11", ["The Bastion of Twilight"] = "T11",
+	["风神王座"] = "T11", ["Throne of the Four Winds"] = "T11",
+	["火焰之地"] = "T12", ["Firelands"] = "T12",
+	["巨龙之魂"] = "T13", ["Dragon Soul"] = "T13",
+	["魔古山宝库"] = "T14", ["Mogu'shan Vaults"] = "T14",
+	["恐惧之心"] = "T14", ["Heart of Fear"] = "T14",
+	["永春台"] = "T14", ["Terrace of Endless Spring"] = "T14",
+	["雷电王座"] = "T15", ["Throne of Thunder"] = "T15",
+	["决战奥格瑞玛"] = "T16", ["Siege of Orgrimmar"] = "T16",
+	["悬槌堡"] = "T17", ["Highmaul"] = "T17",
+	["黑石铸造厂"] = "T17", ["Blackrock Foundry"] = "T17",
+	["地狱火堡垒"] = "T18", ["Hellfire Citadel"] = "T18",
+	["翡翠梦魇"] = "T19", ["The Emerald Nightmare"] = "T19",
+	["暗夜要塞"] = "T19", ["The Nighthold"] = "T19",
+	["萨格拉斯之墓"] = "T20", ["Tomb of Sargeras"] = "T20",
+	["安托鲁斯，燃烧王座"] = "T21", ["Antorus, the Burning Throne"] = "T21",
+	["奥迪尔"] = "T22", ["Uldir"] = "T22",
+	["达萨罗之战"] = "T23", ["Battle of Dazar'alor"] = "T23",
+	["永恒王宫"] = "T24", ["The Eternal Palace"] = "T24",
+	["尼奥罗萨，觉醒之城"] = "T25", ["Ny'alotha, the Waking City"] = "T25",
+	["纳斯利亚堡"] = "T26", ["Castle Nathria"] = "T26",
+	["统御圣所"] = "T27", ["Sanctum of Domination"] = "T27",
+	["初诞者圣墓"] = "T28", ["Sepulcher of the First Ones"] = "T28",
+	["化身巨龙牢窟"] = "T29", ["Vault of the Incarnates"] = "T29",
+	["亚贝鲁斯，焰影熔炉"] = "T30", ["Aberrus, the Shadowed Crucible"] = "T30",
+	["阿梅达希尔，梦境之愿"] = "T31", ["Amirdrassil, the Dream's Hope"] = "T31",
+}
+
+local function GetRaidTierTag(selection)
+	if not selection then
+		return ""
+	end
+	return RAID_TIER_BY_NAME[tostring(selection.instanceName or "")] or ""
 end
 
 local function FindJournalInstanceByInstanceInfo(instanceName, instanceID, instanceType)
@@ -1070,7 +1248,9 @@ local function FindJournalInstanceByInstanceInfo(instanceName, instanceID, insta
 
 	local isRaidOnly = instanceType == "raid"
 	local isDungeonOnly = instanceType == "party"
+	local normalizedInstanceName = tostring(instanceName or "")
 	local numTiers = tonumber(EJ_GetNumTiers()) or 0
+	local mapMatchJournalInstanceID = nil
 	for tierIndex = 1, numTiers do
 		EJ_SelectTier(tierIndex)
 		for _, isRaid in ipairs({ false, true }) do
@@ -1082,24 +1262,28 @@ local function FindJournalInstanceByInstanceInfo(instanceName, instanceID, insta
 						break
 					end
 					local _, _, _, _, _, _, _, _, _, journalMapID = EJ_GetInstanceInfo(journalInstanceID)
-					if tonumber(journalMapID) == tonumber(instanceID) then
-						lookupEntries[cacheKey] = {
-							journalInstanceID = journalInstanceID,
-							resolution = "instanceID",
-						}
-						return journalInstanceID, "instanceID"
-					end
-					if instanceName and journalName == instanceName then
+					if normalizedInstanceName ~= "" and journalName == normalizedInstanceName then
 						lookupEntries[cacheKey] = {
 							journalInstanceID = journalInstanceID,
 							resolution = "name",
 						}
 						return journalInstanceID, "name"
 					end
+					if mapMatchJournalInstanceID == nil and tonumber(journalMapID) == tonumber(instanceID) then
+						mapMatchJournalInstanceID = journalInstanceID
+					end
 					index = index + 1
 				end
 			end
 		end
+	end
+
+	if mapMatchJournalInstanceID then
+		lookupEntries[cacheKey] = {
+			journalInstanceID = mapMatchJournalInstanceID,
+			resolution = "instanceID",
+		}
+		return mapMatchJournalInstanceID, "instanceID"
 	end
 
 	lookupEntries[cacheKey] = false
@@ -1174,11 +1358,21 @@ local function GetCurrentBossKillCacheKey()
 	if not GetInstanceInfo then
 		return nil
 	end
+	local characterKey = CharacterKey and CharacterKey() or nil
+	if not characterKey or characterKey == "" then
+		return nil
+	end
 	local instanceName, instanceType, difficultyID, _, _, _, _, instanceID = GetInstanceInfo()
 	if not instanceName or instanceName == "" or instanceType == "none" then
 		return nil
 	end
-	return string.format("%s::%s::%s", tostring(instanceID or 0), tostring(difficultyID or 0), tostring(instanceName))
+	return string.format(
+		"%s::%s::%s::%s",
+		tostring(characterKey),
+		tostring(instanceID or 0),
+		tostring(difficultyID or 0),
+		tostring(instanceName)
+	)
 end
 
 local function GetBossKillCountScopeKey(instanceName, difficultyID)
@@ -1333,7 +1527,11 @@ local function GetSelectedLootClassIDs()
 			classIDs[#classIDs + 1] = classID
 		end
 	end
-	table.sort(classIDs)
+	if API.CompareClassIDs then
+		table.sort(classIDs, API.CompareClassIDs)
+	else
+		table.sort(classIDs)
+	end
 	return classIDs
 end
 
@@ -1375,29 +1573,6 @@ local LOOT_TYPE_ORDER = {
 	"MOUNT",
 	"PET",
 	"MISC",
-}
-
-local TRANSMOGGABLE_LOOT_TYPES = {
-	PLATE = true,
-	MAIL = true,
-	LEATHER = true,
-	CLOTH = true,
-	BACK = true,
-	SHIELD = true,
-	OFF_HAND = true,
-	ONE_HAND = true,
-	TWO_HAND = true,
-	DAGGER = true,
-	WAND = true,
-	BOW = true,
-	GUN = true,
-	CROSSBOW = true,
-	POLEARM = true,
-	STAFF = true,
-	FIST = true,
-	AXE = true,
-	MACE = true,
-	SWORD = true,
 }
 
 local function GetLootTypeLabel(typeKey)
@@ -1528,10 +1703,110 @@ local function GetLootItemSetIDs(item)
 
 	return setIDs
 end
-addon.ClassMatchesSetInfo = ClassMatchesSetInfo
-addon.GetSetProgress = GetSetProgress
-addon.GetLootItemSourceID = GetLootItemSourceID
-addon.GetLootItemSetIDs = GetLootItemSetIDs
+
+local function ConfigureLootSetsModule()
+	if not addon.LootSets or not addon.LootSets.Configure then
+		return
+	end
+
+	addon.LootSets.Configure({
+		T = T,
+		GetSelectedLootClassFiles = GetSelectedLootClassFiles,
+		GetLootItemSetIDs = GetLootItemSetIDs,
+		GetLootItemSourceID = GetLootItemSourceID,
+		ClassMatchesSetInfo = ClassMatchesSetInfo,
+		GetSetProgress = GetSetProgress,
+		GetLootItemCollectionState = GetLootItemCollectionState,
+		GetClassDisplayName = GetClassDisplayName,
+	})
+end
+
+local function ConfigureRaidDashboardModule()
+	if not addon.RaidDashboard or not addon.RaidDashboard.Configure then
+		return
+	end
+
+	addon.RaidDashboard.Configure({
+		T = T,
+		getDashboardClassFiles = GetDashboardClassFiles,
+		getDashboardInstanceType = function()
+			return dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
+		end,
+		getStoredCache = function(instanceType)
+			if not CodexExampleAddonDB then
+				return nil
+			end
+			if instanceType == "party" then
+				return CodexExampleAddonDB.dungeonDashboardCache or nil
+			end
+			return CodexExampleAddonDB.raidDashboardCache or nil
+		end,
+		isExpansionCollapsed = function(expansionName)
+			local collapsed = CodexExampleAddonDB and CodexExampleAddonDB.dashboardCollapsedExpansions or nil
+			local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
+			local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
+			return collapsed and collapsed[key] and true or false
+		end,
+		toggleExpansionCollapsed = function(expansionName)
+			if not CodexExampleAddonDB then
+				return false
+			end
+			CodexExampleAddonDB.dashboardCollapsedExpansions = CodexExampleAddonDB.dashboardCollapsedExpansions or {}
+			local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
+			local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
+			local newValue = not (CodexExampleAddonDB.dashboardCollapsedExpansions[key] and true or false)
+			CodexExampleAddonDB.dashboardCollapsedExpansions[key] = newValue or nil
+			if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+				addon.RaidDashboard.InvalidateCache()
+			end
+			return newValue
+		end,
+		captureDashboardSnapshotWriteDebug = function(debugInfo)
+			if CodexExampleAddonDB then
+				CodexExampleAddonDB.debugTemp = CodexExampleAddonDB.debugTemp or {}
+				CodexExampleAddonDB.debugTemp.dashboardSnapshotWriteDebug = debugInfo
+			end
+		end,
+		getExpansionInfoForInstance = GetLootPanelInstanceExpansionInfo,
+		getExpansionOrder = function(expansionName)
+			return GetExpansionOrder and GetExpansionOrder(expansionName) or 999
+		end,
+		getEligibleClassesForLootItem = GetEligibleClassesForLootItem,
+		getLootItemCollectionState = GetLootItemCollectionState,
+		getLootItemSetIDs = GetLootItemSetIDs,
+		classMatchesSetInfo = ClassMatchesSetInfo,
+		getSetProgress = GetSetProgress,
+		deriveLootTypeKey = DeriveLootTypeKey,
+		getClassDisplayName = GetClassDisplayName,
+		getDifficultyName = GetDifficultyNameCompat,
+		getDifficultyDisplayOrder = GetRaidDifficultyDisplayOrder,
+		openLootPanelForSelection = OpenLootPanelForDashboardSelection,
+		colorizeExpansionLabel = ColorizeExpansionLabel,
+		getDisplaySetName = function(setEntry)
+			return addon.LootSets and addon.LootSets.GetDisplaySetName and addon.LootSets.GetDisplaySetName(setEntry)
+				or tostring(setEntry and setEntry.name or ("Set " .. tostring(setEntry and setEntry.setID or "")))
+		end,
+		buildDistinctSetDisplayNames = function(sets)
+			return addon.LootSets and addon.LootSets.BuildDistinctSetDisplayNames and addon.LootSets.BuildDistinctSetDisplayNames(sets) or sets
+		end,
+		isCollectSameAppearanceEnabled = function()
+			local settings = CodexExampleAddonDB and CodexExampleAddonDB.settings or {}
+			return settings.collectSameAppearance ~= false
+		end,
+		isKnownRaidInstanceName = function(name)
+			if not name or name == "" then
+				return false
+			end
+			return FindJournalInstanceByInstanceInfo(name, nil, "raid") ~= nil
+		end,
+		getInstanceGroupTag = function(selection)
+			if tostring(selection and selection.instanceType or "") == "raid" then
+				return GetRaidTierTag(selection)
+			end
+			return ""
+		end,
+	})
+end
 
 local function DeriveLootTypeKey(item)
 	local slot = string.lower(tostring(item and item.slot or ""))
@@ -1638,12 +1913,12 @@ local function GetMountCollectionState(item)
 		return nil
 	end
 
-	local itemInfo = item and (item.link or item.itemID)
-	if not itemInfo then
+	local itemID = GetItemIDFromItemInfo(item)
+	if not itemID then
 		return nil
 	end
 
-	local mountID = C_MountJournal.GetMountFromItem(itemInfo)
+	local mountID = C_MountJournal.GetMountFromItem(itemID)
 	if not mountID or mountID == 0 then
 		return nil
 	end
@@ -1669,7 +1944,11 @@ local function GetPetCollectionState(item)
 		return nil
 	end
 
-	local speciesID = select(13, C_PetJournal.GetPetInfoByItemID(itemID))
+	local petName, _, _, _, _, _, _, _, _, _, _, _, rawSpeciesID = C_PetJournal.GetPetInfoByItemID(itemID)
+	local speciesID = tonumber(rawSpeciesID)
+	if (not speciesID or speciesID == 0) and petName and C_PetJournal.FindPetIDByName then
+		speciesID = tonumber((C_PetJournal.FindPetIDByName(petName)))
+	end
 	if not speciesID or speciesID == 0 then
 		return nil
 	end
@@ -1689,33 +1968,66 @@ local function GetPetCollectionState(item)
 	return "unknown"
 end
 
-GetLootItemCollectionState = function(item)
+local function ResolveLootItemCollectionState(item, includeDebug)
 	local itemInfo = item and (item.link or item.itemID)
 	local settings = CodexExampleAddonDB.settings or {}
 	local collectSameAppearance = settings.collectSameAppearance ~= false
 	local typeKey = item and item.typeKey
+	local debugInfo = includeDebug and {
+		itemName = item and item.name or nil,
+		itemLink = item and item.link or nil,
+		itemID = item and item.itemID or nil,
+		typeKey = typeKey,
+		slot = item and item.slot or nil,
+		itemType = item and item.itemType or nil,
+		itemSubType = item and item.itemSubType or nil,
+		collectSameAppearance = collectSameAppearance,
+	} or nil
+
+	local function ReturnState(state, reason)
+		if debugInfo then
+			debugInfo.state = state
+			debugInfo.reason = reason
+		end
+		return state, debugInfo
+	end
+
 	if typeKey == "MOUNT" then
-		return GetMountCollectionState(item) or "unknown"
+		return ReturnState(GetMountCollectionState(item) or "unknown", "mount_journal")
 	end
 	if typeKey == "PET" then
-		return GetPetCollectionState(item) or "unknown"
+		return ReturnState(GetPetCollectionState(item) or "unknown", "pet_journal")
 	end
 	if not itemInfo or not C_TransmogCollection then
-		return "unknown"
+		return ReturnState("unknown", "missing_iteminfo_or_api")
+	end
+
+	if debugInfo then
+		local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(itemInfo)
+		debugInfo.equipLoc = equipLoc
 	end
 
 	local appearanceID, sourceID = C_TransmogCollection.GetItemInfo(itemInfo)
+	if debugInfo then
+		debugInfo.appearanceID = appearanceID
+		debugInfo.sourceID = sourceID
+	end
 	if sourceID and C_TransmogCollection.GetAppearanceSourceInfo then
 		local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
+		if debugInfo then
+			debugInfo.sourceCollected = sourceInfo and sourceInfo.isCollected and true or false
+			debugInfo.sourceValid = sourceInfo and sourceInfo.isValidSourceForPlayer and true or false
+			debugInfo.sourceItemLink = sourceInfo and sourceInfo.itemLink or nil
+		end
 		if sourceInfo then
 			if sourceInfo.isCollected then
-				return "collected"
+				return ReturnState("collected", "source_collected")
 			end
 			if sourceInfo.isValidSourceForPlayer and not collectSameAppearance then
-				return "not_collected"
+				return ReturnState("not_collected", "source_valid_for_player")
 			end
 			if not collectSameAppearance then
-				return "unknown"
+				return ReturnState("unknown", "source_not_valid_same_appearance_disabled")
 			end
 		end
 	end
@@ -1724,48 +2036,87 @@ GetLootItemCollectionState = function(item)
 		local sourceIDs = C_TransmogCollection.GetAllAppearanceSources(appearanceID)
 		if type(sourceIDs) == "table" and #sourceIDs > 0 then
 			local sawUsableSource = false
+			local collectedSourceCount = 0
+			local collectedSourceIDs = {}
 			for _, relatedSourceID in ipairs(sourceIDs) do
 				local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(relatedSourceID)
 				if sourceInfo then
 					if sourceInfo.isCollected then
-						return "collected"
+						collectedSourceCount = collectedSourceCount + 1
+						if #collectedSourceIDs < 5 then
+							collectedSourceIDs[#collectedSourceIDs + 1] = tostring(relatedSourceID)
+						end
+						if debugInfo then
+							debugInfo.sameAppearanceSourceCount = #sourceIDs
+							debugInfo.sameAppearanceCollectedSourceCount = collectedSourceCount
+							debugInfo.sameAppearanceCollectedSourceIDs = table.concat(collectedSourceIDs, ",")
+							debugInfo.sameAppearanceUsableSourceSeen = sawUsableSource
+						end
+						return ReturnState("collected", "same_appearance_collected_source")
 					end
 					if sourceInfo.itemLink and sourceInfo.itemLink ~= "" then
 						sawUsableSource = true
 					end
 				end
 			end
+			if debugInfo then
+				debugInfo.sameAppearanceSourceCount = #sourceIDs
+				debugInfo.sameAppearanceCollectedSourceCount = collectedSourceCount
+				debugInfo.sameAppearanceCollectedSourceIDs = table.concat(collectedSourceIDs, ",")
+				debugInfo.sameAppearanceUsableSourceSeen = sawUsableSource
+			end
 			if sawUsableSource then
-				return "not_collected"
+				return ReturnState("not_collected", "same_appearance_usable_source")
 			end
 		end
 	end
 
 	if collectSameAppearance and sourceID and C_TransmogCollection.GetAppearanceInfoBySource then
 		local appearanceInfo = C_TransmogCollection.GetAppearanceInfoBySource(sourceID)
+		if debugInfo then
+			debugInfo.appearanceCollected = appearanceInfo and appearanceInfo.appearanceIsCollected and true or false
+			debugInfo.appearanceUsable = appearanceInfo and appearanceInfo.appearanceIsUsable and true or false
+			debugInfo.appearanceAnySourceValid = appearanceInfo and appearanceInfo.isAnySourceValidForPlayer and true or false
+		end
 		if appearanceInfo then
 			if appearanceInfo.appearanceIsCollected then
-				return "collected"
+				return ReturnState("collected", "appearance_collected")
 			end
 			if appearanceInfo.isAnySourceValidForPlayer or appearanceInfo.appearanceIsUsable then
-				return "not_collected"
+				return ReturnState("not_collected", "appearance_usable")
 			end
-			return "unknown"
+			return ReturnState("unknown", "appearance_unknown")
 		end
 	end
 
-	if C_TransmogCollection.PlayerHasTransmogByItemInfo and C_TransmogCollection.PlayerHasTransmogByItemInfo(itemInfo) then
-		return "collected"
+	if C_TransmogCollection.PlayerHasTransmogByItemInfo then
+		local playerHasByItemInfo = C_TransmogCollection.PlayerHasTransmogByItemInfo(itemInfo)
+		if debugInfo then
+			debugInfo.playerHasByItemInfo = playerHasByItemInfo and true or false
+		end
+		if playerHasByItemInfo then
+			return ReturnState("collected", "player_has_by_iteminfo")
+		end
 	end
 
 	if sourceID and C_TransmogCollection.GetAppearanceSourceInfo then
 		local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
 		if sourceInfo and sourceInfo.isValidSourceForPlayer then
-			return "not_collected"
+			return ReturnState("not_collected", "fallback_source_valid")
 		end
 	end
 
-	return "unknown"
+	return ReturnState("unknown", "fallback_unknown")
+end
+
+GetLootItemCollectionState = function(item)
+	local state = ResolveLootItemCollectionState(item, false)
+	return state
+end
+
+local function GetLootItemCollectionStateDebug(item)
+	local _, debugInfo = ResolveLootItemCollectionState(item, true)
+	return debugInfo or {}
 end
 
 local function GetLootItemSessionKey(item)
@@ -1868,12 +2219,6 @@ local function CountSelectedLootTypes()
 	return count
 end
 
-local function UpdateLootTypeFilterButtons()
-	if CodexExampleAddonPanelTransmogButton then
-		CodexExampleAddonPanelTransmogButton:SetText(T("LOOT_BUTTON_TRANSMOG", "可幻化"))
-	end
-end
-
 local function BuildCurrentEncounterKillMap()
 	local selectedInstance = GetSelectedLootPanelInstance()
 	return API.BuildCurrentEncounterKillMap({
@@ -1950,6 +2295,30 @@ local function BuildLootDataCacheKey(selectedInstance)
 	)
 end
 
+local function AreNumericListsEquivalent(a, b)
+	a = type(a) == "table" and a or {}
+	b = type(b) == "table" and b or {}
+	if #a ~= #b then
+		return false
+	end
+	local counts = {}
+	for _, value in ipairs(a) do
+		local normalized = tonumber(value)
+		counts[normalized] = (counts[normalized] or 0) + 1
+	end
+	for _, value in ipairs(b) do
+		local normalized = tonumber(value)
+		if not counts[normalized] then
+			return false
+		end
+		counts[normalized] = counts[normalized] - 1
+		if counts[normalized] == 0 then
+			counts[normalized] = nil
+		end
+	end
+	return next(counts) == nil
+end
+
 local function BuildLootPanelSelectionSignature(selection)
 	if not selection then
 		return "current"
@@ -1962,13 +2331,50 @@ local function BuildLootPanelSelectionSignature(selection)
 	)
 end
 
-local function BuildLootPanelInstanceSelections()
+local function GetLootPanelInstanceExpansionInfo(selection)
+	if not selection then
+		local fallbackExpansion = "Other"
+		return {
+			expansionName = fallbackExpansion,
+			expansionOrder = GetExpansionOrder(fallbackExpansion),
+			instanceOrder = 999,
+			raidOrder = 999,
+		}
+	end
+
+	local expansionName = selection.expansionName
+	local raidOrder = tonumber(selection.instanceOrder)
+	if not expansionName or not raidOrder then
+		for _, candidate in ipairs(BuildLootPanelInstanceSelections()) do
+			if not candidate.isCurrent
+				and tonumber(candidate.journalInstanceID) == tonumber(selection.journalInstanceID)
+				and tostring(candidate.instanceName or "") == tostring(selection.instanceName or "") then
+				expansionName = expansionName or candidate.expansionName
+				raidOrder = raidOrder or tonumber(candidate.instanceOrder)
+				if expansionName and raidOrder then
+					break
+				end
+			end
+		end
+	end
+
+	expansionName = expansionName or "Other"
+	return {
+		expansionName = expansionName,
+		expansionOrder = GetExpansionOrder(expansionName),
+		instanceOrder = raidOrder or 999,
+		raidOrder = raidOrder or 999,
+	}
+end
+
+BuildLootPanelInstanceSelections = function()
 	local selections = {}
 	local seenSignatures = {}
 	local currentJournalInstanceID, currentDebugInfo = GetCurrentJournalInstanceID()
 	local currentInstanceType = currentDebugInfo and currentDebugInfo.instanceType or nil
+	local currentInstanceTypeString = tostring(currentInstanceType or "")
 
-	if currentJournalInstanceID then
+	if currentJournalInstanceID and currentInstanceTypeString ~= "" and currentInstanceTypeString ~= "none" then
 		local currentInstanceName = (EJ_GetInstanceInfo and EJ_GetInstanceInfo(currentJournalInstanceID))
 			or (currentDebugInfo and currentDebugInfo.instanceName)
 			or T("LOOT_UNKNOWN_INSTANCE", "未知副本")
@@ -1995,7 +2401,7 @@ local function BuildLootPanelInstanceSelections()
 			for tierIndex = 1, numTiers do
 				EJ_SelectTier(tierIndex)
 				local expansionName = GetExpansionDisplayName(tierIndex)
-				for _, isRaid in ipairs({ true }) do
+				for _, isRaid in ipairs({ false, true }) do
 					local instanceIndex = 1
 					while true do
 						local journalInstanceID, instanceName = EJ_GetInstanceByIndex(instanceIndex, isRaid)
@@ -2069,9 +2475,28 @@ GetSelectedLootPanelInstance = function()
 		end
 	end
 
-	local fallback = selections[1]
-	lootPanelState.selectedInstanceKey = BuildLootPanelSelectionKey(fallback)
-	return fallback, selections
+	for _, selection in ipairs(selections) do
+		local instanceType = tostring(selection and selection.instanceType or "")
+		if selection.isCurrent and instanceType ~= "" and instanceType ~= "none" then
+			lootPanelState.selectedInstanceKey = BuildLootPanelSelectionKey(selection)
+			return selection, selections
+		end
+	end
+
+	lootPanelState.selectedInstanceKey = nil
+	return nil, selections
+end
+
+local function PreferCurrentLootPanelSelectionOnOpen()
+	local selections = BuildLootPanelInstanceSelections()
+	for _, selection in ipairs(selections) do
+		local instanceType = tostring(selection and selection.instanceType or "")
+		if selection.isCurrent and instanceType ~= "" and instanceType ~= "none" then
+			lootPanelState.selectedInstanceKey = BuildLootPanelSelectionKey(selection)
+			return
+		end
+	end
+	lootPanelState.selectedInstanceKey = nil
 end
 
 local function BuildLootPanelInstanceMenu(button)
@@ -2081,7 +2506,7 @@ local function BuildLootPanelInstanceMenu(button)
 
 	if #selections == 0 then
 		items[#items + 1] = {
-			text = T("LOOT_NO_RAID_SELECTIONS", "没有可选的团队副本"),
+			text = T("LOOT_NO_INSTANCE_SELECTIONS", "没有可选的副本"),
 			checked = false,
 			func = function() end,
 		}
@@ -2096,6 +2521,9 @@ local function BuildLootPanelInstanceMenu(button)
 		lootPanelState.manualCollapsed = {}
 		ResetLootPanelScrollPosition()
 		RefreshLootPanel()
+		if CloseDropDownMenus then
+			CloseDropDownMenus()
+		end
 	end
 
 	local expansionGroups = {}
@@ -2183,8 +2611,9 @@ local function BuildLootPanelInstanceMenu(button)
 		for _, selection in ipairs(instance.difficulties) do
 			local selectionKey = BuildLootPanelSelectionKey(selection)
 			local difficultyText = selection.difficultyName or T("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度")
+			difficultyText = ColorizeDifficultyLabel(difficultyText, selection.difficultyID)
 			if selection.observed then
-				difficultyText = string.format("|cffff4040%s|r", tostring(difficultyText))
+				difficultyText = string.format("|cffff4040*|r %s", tostring(difficultyText))
 			end
 			difficultyItems[#difficultyItems + 1] = {
 					text = difficultyText,
@@ -2213,6 +2642,40 @@ local function BuildLootPanelInstanceMenu(button)
 	end
 
 	BuildLootFilterMenu(button, items)
+end
+
+local function OpenLootPanelForDashboardSelection(selection)
+	if type(selection) ~= "table" then
+		return false
+	end
+
+	InitializeLootPanel()
+	InvalidateLootPanelSelectionCache()
+
+	local targetJournalInstanceID = tonumber(selection.journalInstanceID) or 0
+	local targetDifficultyID = tonumber(selection.difficultyID) or 0
+	local targetInstanceName = tostring(selection.instanceName or "")
+
+	for _, candidate in ipairs(BuildLootPanelInstanceSelections() or {}) do
+		if tonumber(candidate.journalInstanceID) == targetJournalInstanceID
+			and tonumber(candidate.difficultyID) == targetDifficultyID
+			and tostring(candidate.instanceName or "") == targetInstanceName then
+			lootPanelState.selectedInstanceKey = BuildLootPanelSelectionKey(candidate)
+			lootPanelState.collapsed = {}
+			lootPanelState.manualCollapsed = {}
+			ResetLootPanelSessionState(true)
+			ResetLootPanelScrollPosition()
+			SetLootPanelTab("loot")
+			lootPanel:Show()
+			if lootPanel.Raise then
+				lootPanel:Raise()
+			end
+			RefreshLootPanel()
+			return true
+		end
+	end
+
+	return false
 end
 
 local function FindCharacterLockoutForSelection(info, selection)
@@ -2299,25 +2762,82 @@ local function ShowLootPanelInstanceProgressTooltip(owner)
 	GameTooltip:Show()
 end
 
+local function ShowDashboardInfoTooltip(owner)
+	local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
+	GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+	GameTooltip:ClearLines()
+	if dashboardType == "party" then
+		GameTooltip:AddLine(T("TRACK_HEADER_DUNGEON", "地下城幻化统计看板"), 1, 0.82, 0)
+		GameTooltip:AddLine(T("DASHBOARD_SUBTITLE_DUNGEON", "仅显示已缓存的地下城。使用下方按钮切换统计指标。"), 1, 1, 1, true)
+	else
+		GameTooltip:AddLine(T("TRACK_HEADER", "团队副本幻化统计看板"), 1, 0.82, 0)
+		GameTooltip:AddLine(T("DASHBOARD_SUBTITLE", "仅显示已缓存的团队副本。使用下方按钮切换统计指标。"), 1, 1, 1, true)
+	end
+	GameTooltip:Show()
+end
+
 local function CollectCurrentInstanceLootData()
 	local selectedInstance = GetSelectedLootPanelInstance()
+	if not selectedInstance then
+		return {
+			instanceName = T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."),
+			encounters = {},
+			debugInfo = {
+				instanceName = nil,
+				instanceType = "none",
+				difficultyID = 0,
+				difficultyName = "",
+				instanceID = nil,
+				journalInstanceID = nil,
+				resolution = "no_selection",
+			},
+		}
+	end
 	local cacheKey = BuildLootDataCacheKey(selectedInstance)
+	local selectedClassIDs = GetSelectedLootClassIDs()
+	local dashboardClassIDs = GetDashboardClassIDs()
+	local data
 	if lootDataCache and lootDataCache.version == LOOT_DATA_RULES_VERSION and lootDataCache.key == cacheKey and lootDataCache.data then
-		return lootDataCache.data
+		data = lootDataCache.data
+	else
+		data = API.CollectCurrentInstanceLootData({
+			T = T,
+			findJournalInstanceByInstanceInfo = FindJournalInstanceByInstanceInfo,
+			getSelectedLootClassIDs = function()
+				return selectedClassIDs
+			end,
+			deriveLootTypeKey = DeriveLootTypeKey,
+			targetInstance = selectedInstance,
+		})
+		lootDataCache = {
+			version = LOOT_DATA_RULES_VERSION,
+			key = cacheKey,
+			data = data,
+		}
 	end
 
-	local data = API.CollectCurrentInstanceLootData({
-		T = T,
-		findJournalInstanceByInstanceInfo = FindJournalInstanceByInstanceInfo,
-		getSelectedLootClassIDs = GetSelectedLootClassIDs,
-		deriveLootTypeKey = DeriveLootTypeKey,
-		targetInstance = selectedInstance,
-	})
-	lootDataCache = {
-		version = LOOT_DATA_RULES_VERSION,
-		key = cacheKey,
-		data = data,
-	}
+	if addon.RaidDashboard and addon.RaidDashboard.UpdateSnapshot then
+		local dashboardData
+		if AreNumericListsEquivalent(selectedClassIDs, dashboardClassIDs) then
+			dashboardData = data
+		else
+			dashboardData = API.CollectCurrentInstanceLootData({
+				T = T,
+				findJournalInstanceByInstanceInfo = FindJournalInstanceByInstanceInfo,
+				getSelectedLootClassIDs = function()
+					return selectedClassIDs
+				end,
+				getLootFilterClassIDs = function()
+					return dashboardClassIDs
+				end,
+				deriveLootTypeKey = DeriveLootTypeKey,
+				targetInstance = selectedInstance,
+			})
+		end
+		addon.RaidDashboard.UpdateSnapshot(selectedInstance, dashboardData, {
+			classFiles = GetDashboardClassFiles(),
+		})
+	end
 	return data
 end
 
@@ -2334,7 +2854,10 @@ local function QueueLootPanelCacheWarmup()
 		end
 
 		BuildLootPanelInstanceSelections()
-		CollectCurrentInstanceLootData()
+		local selectedInstance = GetSelectedLootPanelInstance()
+		if selectedInstance and selectedInstance.isCurrent then
+			CollectCurrentInstanceLootData()
+		end
 	end)
 end
 
@@ -2392,7 +2915,7 @@ local function EnsureLootItemRow(parentFrame, row, index)
 	end
 
 	itemRow = CreateFrame("Button", nil, parentFrame)
-	itemRow:SetHeight(18)
+	itemRow:SetHeight(16)
 	itemRow.highlight = itemRow:CreateTexture(nil, "BACKGROUND")
 	itemRow.highlight:SetPoint("TOPLEFT", -2, 0)
 	itemRow.highlight:SetPoint("BOTTOMRIGHT", 2, 0)
@@ -2439,18 +2962,18 @@ local function EnsureLootItemRow(parentFrame, row, index)
 		itemRow.acquiredFlash:Hide()
 	end)
 	itemRow.icon = itemRow:CreateTexture(nil, "ARTWORK")
-	itemRow.icon:SetSize(16, 16)
+	itemRow.icon:SetSize(15, 15)
 	itemRow.icon:SetPoint("LEFT", 0, 0)
 
 	itemRow.collectionIcon = itemRow:CreateTexture(nil, "OVERLAY")
-	itemRow.collectionIcon:SetSize(14, 14)
-	itemRow.collectionIcon:SetPoint("LEFT", itemRow.icon, "RIGHT", 4, 0)
+	itemRow.collectionIcon:SetSize(12, 12)
+	itemRow.collectionIcon:SetPoint("LEFT", itemRow.icon, "RIGHT", 3, 0)
 
 	itemRow.classIcons = {}
 	itemRow.text = itemRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	itemRow.text:SetPoint("LEFT", itemRow.collectionIcon, "RIGHT", 4, 0)
+	itemRow.text:SetPoint("LEFT", itemRow.collectionIcon, "RIGHT", 3, 0)
 	itemRow.text:SetJustifyH("LEFT")
-	itemRow.rightText = itemRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	itemRow.rightText = itemRow:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	itemRow.rightText:SetPoint("RIGHT", itemRow, "RIGHT", 0, 0)
 	itemRow.rightText:SetJustifyH("RIGHT")
 	itemRow.rightText:SetTextColor(0.62, 0.62, 0.66)
@@ -2548,9 +3071,9 @@ local function GetLootPanelContentWidth()
 		local scrollWidth = activeScrollFrame:GetWidth() or baseWidth
 		local scrollbarWidth = 0
 		if activeScrollFrame.ScrollBar and activeScrollFrame.ScrollBar:IsShown() then
-			scrollbarWidth = (activeScrollFrame.ScrollBar:GetWidth() or 0) + 8
+			scrollbarWidth = (activeScrollFrame.ScrollBar:GetWidth() or 0) + 4
 		end
-		baseWidth = scrollWidth - scrollbarWidth - 4
+		baseWidth = scrollWidth - scrollbarWidth - 2
 	end
 
 	return math.max(220, math.floor(baseWidth))
@@ -2581,7 +3104,8 @@ local function UpdateLootItemCollectionState(itemRow, item)
 	itemRow.collectionIcon:Show()
 end
 
-addon.GetLootItemCollectionState = GetLootItemCollectionState
+ConfigureLootSetsModule()
+ConfigureRaidDashboardModule()
 
 local function UpdateEncounterHeaderVisuals(header, fullyCollected, collapsed, killed)
 	if not header then
@@ -2640,8 +3164,8 @@ local function UpdateLootItemClassIcons(itemRow, item)
 
 	local eligibleClasses = GetVisibleEligibleClassesForLootItem(item)
 	local iconCount = #eligibleClasses
-	local iconSize = 14
-	local iconSpacing = 2
+	local iconSize = 12
+	local iconSpacing = 1
 	local totalWidth = iconCount > 0 and (iconCount * iconSize) + ((iconCount - 1) * iconSpacing) or 0
 
 	for index, classFile in ipairs(eligibleClasses) do
@@ -2672,12 +3196,12 @@ local function UpdateLootItemClassIcons(itemRow, item)
 
 	if totalWidth > 0 then
 		itemRow.text:ClearAllPoints()
-		itemRow.text:SetPoint("LEFT", itemRow.collectionIcon, "RIGHT", 4, 0)
-		itemRow.text:SetPoint("RIGHT", itemRow.rightText or itemRow, "LEFT", -(totalWidth + 6), 0)
+		itemRow.text:SetPoint("LEFT", itemRow.collectionIcon, "RIGHT", 3, 0)
+		itemRow.text:SetPoint("RIGHT", itemRow.rightText or itemRow, "LEFT", -(totalWidth + 4), 0)
 	else
 		itemRow.text:ClearAllPoints()
-		itemRow.text:SetPoint("LEFT", itemRow.collectionIcon, "RIGHT", 4, 0)
-		itemRow.text:SetPoint("RIGHT", itemRow.rightText or itemRow, "LEFT", -6, 0)
+		itemRow.text:SetPoint("LEFT", itemRow.collectionIcon, "RIGHT", 3, 0)
+		itemRow.text:SetPoint("RIGHT", itemRow.rightText or itemRow, "LEFT", -4, 0)
 	end
 end
 
@@ -2782,10 +3306,8 @@ local function BuildSetSummaryBodyText(group)
 		lines[1] = T("LOOT_SETS_NO_MATCHING", "No incomplete collectible sets match the current instance and class filter.")
 	else
 		for _, setEntry in ipairs(sets) do
-			local setName = tostring(setEntry.name or ("Set " .. tostring(setEntry.setID)))
-			if setEntry.label and setEntry.label ~= "" then
-				setName = string.format("%s - %s", setName, setEntry.label)
-			end
+			local setName = addon.LootSets and addon.LootSets.GetDisplaySetName and addon.LootSets.GetDisplaySetName(setEntry)
+				or tostring(setEntry.name or ("Set " .. tostring(setEntry.setID)))
 			local line = string.format("%s (%s)", setName, string.format(T("LOOT_SET_PROGRESS", "%d/%d"), setEntry.collected or 0, setEntry.total or 0))
 			if setEntry.completed then
 				line = "|cff66ff99" .. line .. "|r"
@@ -2801,40 +3323,56 @@ RefreshLootPanel = function()
 		return
 	end
 
-	local selectedInstance = GetSelectedLootPanelInstance()
-	local data = CollectCurrentInstanceLootData()
-	local encounterKillState = BuildCurrentEncounterKillMap()
-	local progressCount = tonumber(encounterKillState.progressCount) or 0
-	local contentWidth = GetLootPanelContentWidth()
-	local titleText = data.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本")
-	if selectedInstance and selectedInstance.difficultyName and selectedInstance.difficultyName ~= "" and not selectedInstance.isCurrent then
-		titleText = string.format("%s (%s)", titleText, selectedInstance.difficultyName)
-	end
-	lootPanel.title:SetText(titleText)
-	if lootPanel.instanceSelectorButton then
-	lootPanel.instanceSelectorButton:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他团队副本..."))
-		if lootPanel.instanceSelectorButton.customText then
-			lootPanel.instanceSelectorButton.customText:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他团队副本..."))
+	local function getProfileTimestampMS()
+		if type(debugprofilestop) == "function" then
+			return tonumber(debugprofilestop()) or 0
 		end
+		if type(GetTimePreciseSec) == "function" then
+			return (tonumber(GetTimePreciseSec()) or 0) * 1000
+		end
+		return 0
 	end
-	if lootPanel.instanceSelectorButton and lootPanel.instanceSelectorButton.arrow then
-		lootPanel.instanceSelectorButton.arrow:SetTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
+
+	local renderStartedAt = getProfileTimestampMS()
+	local lastPhaseAt = renderStartedAt
+	local renderDebug = {
+		startedAtMS = renderStartedAt,
+		tab = lootPanelState.currentTab or "loot",
+		selectedInstanceKey = lootPanelState and lootPanelState.selectedInstanceKey or nil,
+		caller = type(debugstack) == "function" and tostring((debugstack(2, 2, 2) or ""):match("([^\n]+)")) or "unknown",
+		phases = {},
+	}
+
+	local function markPhase(name, extra)
+		local now = getProfileTimestampMS()
+		renderDebug.phases[#renderDebug.phases + 1] = {
+			name = name,
+			elapsedMS = now - lastPhaseAt,
+			totalMS = now - renderStartedAt,
+			extra = extra,
+		}
+		lastPhaseAt = now
 	end
-	if lootPanel.classScopeButton then
-		lootPanel.classScopeButton:SetText(GetLootClassScopeButtonLabel())
+
+	local function finishRender(status, extra)
+		renderDebug.status = status
+		renderDebug.totalElapsedMS = getProfileTimestampMS() - renderStartedAt
+		renderDebug.extra = extra
+		local history = addon.lootPanelRenderDebugHistory or {}
+		history[#history + 1] = renderDebug
+		while #history > 30 do
+			table.remove(history, 1)
+		end
+		addon.lootPanelRenderDebugHistory = history
 	end
-	lootPanel.lootTabButton:SetEnabled((lootPanelState.currentTab or "loot") ~= "loot")
-	lootPanel.setsTabButton:SetEnabled((lootPanelState.currentTab or "loot") ~= "sets")
-	lootPanel.debugButton:SetShown(data.error and true or false)
-	lootPanel.debugScrollFrame:SetShown(data.error and true or false)
-	lootPanel.debugEditBox:SetShown(data.error and true or false)
-	lootPanel.scrollFrame:ClearAllPoints()
-	lootPanel.scrollFrame:SetPoint("TOPLEFT", 16, data.error and -132 or -80)
-	if data.error then
-		lootPanel.scrollFrame:SetPoint("BOTTOMRIGHT", -24, 124)
-	else
-		lootPanel.scrollFrame:SetPoint("BOTTOMRIGHT", -24, 56)
-	end
+
+	local currentTab = lootPanelState.currentTab or "loot"
+	local contentWidth = GetLootPanelContentWidth()
+	local headerRowHeight = 20
+	local headerRowStep = 22
+	local itemRowHeight = 16
+	local itemRowStep = 16
+	local groupGap = 4
 
 	local rows = lootPanel.rows or {}
 	lootPanel.rows = rows
@@ -2852,6 +3390,126 @@ RefreshLootPanel = function()
 			end
 		end
 	end
+	if addon.RaidDashboard and addon.RaidDashboard.HideWidgets then
+		addon.RaidDashboard.HideWidgets(lootPanel)
+	end
+	markPhase("reset_rows")
+
+	lootPanel.lootTabButton:SetEnabled(currentTab ~= "loot")
+	lootPanel.setsTabButton:SetEnabled(currentTab ~= "sets")
+
+	if lootPanel.instanceSelectorButton then
+		lootPanel.instanceSelectorButton:Show()
+		lootPanel.instanceSelectorButton:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."))
+		if lootPanel.instanceSelectorButton.customText then
+			lootPanel.instanceSelectorButton.customText:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."))
+		end
+	end
+	if lootPanel.instanceSelectorButton and lootPanel.instanceSelectorButton.arrow then
+		lootPanel.instanceSelectorButton.arrow:SetTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
+	end
+	if lootPanel.classScopeButton then
+		lootPanel.classScopeButton:Show()
+		lootPanel.classScopeButton:SetText(GetLootClassScopeButtonLabel())
+	end
+
+	local selectedInstance = GetSelectedLootPanelInstance()
+	local activeClassFiles = GetSelectedLootClassFiles()
+	local noSelectedClasses = lootPanelState.classScopeMode ~= "current" and #activeClassFiles == 0
+	local titleText = (selectedInstance and selectedInstance.instanceName) or T("LOOT_UNKNOWN_INSTANCE", "未知副本")
+	if selectedInstance and selectedInstance.difficultyName and selectedInstance.difficultyName ~= "" and not selectedInstance.isCurrent then
+		titleText = string.format("%s (%s)", titleText, selectedInstance.difficultyName)
+	end
+	lootPanel.title:SetText(titleText)
+	markPhase("resolve_selection", string.format("noSelectedClasses=%s", tostring(noSelectedClasses)))
+
+	if noSelectedClasses then
+		local emptyYOffset = -4
+		local emptyRowIndex = 1
+		lootPanel.debugButton:SetShown(false)
+		lootPanel.debugScrollFrame:SetShown(false)
+		lootPanel.debugEditBox:SetShown(false)
+		lootPanel.scrollFrame:ClearAllPoints()
+		lootPanel.scrollFrame:SetPoint("TOPLEFT", 12, -68)
+		lootPanel.scrollFrame:SetPoint("BOTTOMRIGHT", -16, 42)
+
+		rows[emptyRowIndex] = rows[emptyRowIndex] or {}
+		local row = rows[emptyRowIndex]
+		if not row.header then
+			row.header = CreateFrame("Button", nil, lootPanel.content)
+			row.header:SetSize(contentWidth, headerRowHeight)
+			row.header.icon = row.header:CreateTexture(nil, "ARTWORK")
+			row.header.icon:SetSize(16, 16)
+			row.header.icon:SetPoint("LEFT", 0, 0)
+			row.header.collectionIcon = row.header:CreateTexture(nil, "OVERLAY")
+			row.header.collectionIcon:SetSize(14, 14)
+			row.header.collectionIcon:SetPoint("LEFT", row.header.icon, "RIGHT", 4, 0)
+			row.header.text = row.header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+			row.header.text:SetPoint("LEFT", row.header.collectionIcon, "RIGHT", 4, 0)
+			row.header.countText = row.header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			row.header.countText:SetPoint("RIGHT", row.header, "RIGHT", -2, 0)
+			row.header.text:SetPoint("RIGHT", row.header.countText, "LEFT", -8, 0)
+			row.header.text:SetJustifyH("LEFT")
+		end
+		if row.body then
+			row.body:Hide()
+		end
+		if not row.bodyFrame then
+			row.bodyFrame = CreateFrame("Frame", nil, lootPanel.content)
+			row.bodyFrame:SetSize(contentWidth, 1)
+		end
+
+		row.header:ClearAllPoints()
+		row.header:SetPoint("TOPLEFT", 0, emptyYOffset)
+		row.header.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+		row.header.collectionIcon:Hide()
+		row.header.countText:SetText("")
+		row.header.countText:Hide()
+		row.header.text:SetText(T("LOOT_NO_CLASS_FILTER", "请先在主面板的职业过滤里选择至少一个职业。"))
+		row.header:SetScript("OnClick", nil)
+		row.header:Show()
+		emptyYOffset = emptyYOffset - headerRowStep
+
+		row.bodyFrame:Hide()
+		for index = emptyRowIndex + 1, #rows do
+			rows[index].header:Hide()
+			if rows[index].body then
+				rows[index].body:Hide()
+			end
+			if rows[index].bodyFrame then
+				rows[index].bodyFrame:Hide()
+			end
+		end
+		lootPanel.content:SetHeight(math.max(1, -emptyYOffset + 4))
+		if lootPanel.scrollFrame.SetVerticalScroll then
+			lootPanel.scrollFrame:SetVerticalScroll(0)
+		end
+		markPhase("render_empty_state")
+		finishRender("no_selected_classes", nil)
+		return
+	end
+
+	local data = CollectCurrentInstanceLootData()
+	markPhase("collect_loot_data", string.format("error=%s encounters=%s", tostring(data and data.error ~= nil), tostring(#((data and data.encounters) or {}))))
+	local encounterKillState = BuildCurrentEncounterKillMap()
+	markPhase("build_kill_map", string.format("progressCount=%s", tostring(encounterKillState and encounterKillState.progressCount or 0)))
+	local progressCount = tonumber(encounterKillState.progressCount) or 0
+	titleText = data.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本")
+	if selectedInstance and selectedInstance.difficultyName and selectedInstance.difficultyName ~= "" and not selectedInstance.isCurrent then
+		titleText = string.format("%s (%s)", titleText, selectedInstance.difficultyName)
+	end
+	lootPanel.title:SetText(titleText)
+
+	lootPanel.debugButton:SetShown(data.error and true or false)
+	lootPanel.debugScrollFrame:SetShown(data.error and true or false)
+	lootPanel.debugEditBox:SetShown(data.error and true or false)
+	lootPanel.scrollFrame:ClearAllPoints()
+	lootPanel.scrollFrame:SetPoint("TOPLEFT", 12, data.error and -116 or -68)
+	if data.error then
+		lootPanel.scrollFrame:SetPoint("BOTTOMRIGHT", -16, 108)
+	else
+		lootPanel.scrollFrame:SetPoint("BOTTOMRIGHT", -16, 42)
+	end
 
 	local yOffset = -4
 	local rowIndex = 0
@@ -2861,7 +3519,7 @@ RefreshLootPanel = function()
 		local row = rows[rowIndex]
 		if not row.header then
 			row.header = CreateFrame("Button", nil, lootPanel.content)
-			row.header:SetSize(contentWidth, 22)
+			row.header:SetSize(contentWidth, headerRowHeight)
 			row.header.icon = row.header:CreateTexture(nil, "ARTWORK")
 			row.header.icon:SetSize(16, 16)
 			row.header.icon:SetPoint("LEFT", 0, 0)
@@ -2885,15 +3543,17 @@ RefreshLootPanel = function()
 		row.header.countText:SetText("")
 		row.header.countText:Hide()
 		row.header:Show()
-		yOffset = yOffset - 24
+		yOffset = yOffset - headerRowStep
 		row.body:ClearAllPoints()
 		row.body:SetPoint("TOPLEFT", row.header, "BOTTOMLEFT", 0, -2)
-		local debugText = data.error .. FormatLootDebugInfo(data.debugInfo)
+		local debugFormatter = DebugTools and DebugTools.FormatLootDebugInfo
+		local debugText = data.error .. ((debugFormatter and debugFormatter(data.debugInfo)) or "")
 		row.body:SetText(debugText)
 		row.body:Show()
 		lootPanel.debugEditBox:SetText(debugText)
 		lootPanel.debugEditBox:SetCursorPosition(0)
-		yOffset = yOffset - row.body:GetStringHeight() - 10
+		yOffset = yOffset - row.body:GetStringHeight() - 8
+		markPhase("render_error_state")
 	elseif (lootPanelState.currentTab or "loot") == "sets" then
 		lootPanel.debugEditBox:SetText("")
 		local setSummary = BuildCurrentInstanceSetSummary(data)
@@ -2903,7 +3563,7 @@ RefreshLootPanel = function()
 			local row = rows[rowIndex]
 			if not row.header then
 				row.header = CreateFrame("Button", nil, lootPanel.content)
-				row.header:SetSize(contentWidth, 22)
+				row.header:SetSize(contentWidth, headerRowHeight)
 				row.header.icon = row.header:CreateTexture(nil, "ARTWORK")
 				row.header.icon:SetSize(16, 16)
 				row.header.icon:SetPoint("LEFT", 0, 0)
@@ -2931,7 +3591,7 @@ RefreshLootPanel = function()
 			row.header.countText:SetText("")
 			row.header.countText:Hide()
 			row.header:Show()
-			yOffset = yOffset - 24
+			yOffset = yOffset - headerRowStep
 			row.bodyFrame:ClearAllPoints()
 			row.bodyFrame:SetPoint("TOPLEFT", row.header, "BOTTOMLEFT", 0, -2)
 			row.bodyFrame:SetWidth(contentWidth)
@@ -2948,9 +3608,9 @@ RefreshLootPanel = function()
 			for itemIndex = 2, #(row.itemRows or {}) do
 				row.itemRows[itemIndex]:Hide()
 			end
-			row.bodyFrame:SetHeight(18)
+			row.bodyFrame:SetHeight(itemRowHeight)
 			row.bodyFrame:Show()
-			yOffset = yOffset - row.bodyFrame:GetHeight() - 6
+			yOffset = yOffset - row.bodyFrame:GetHeight() - groupGap
 		else
 			for _, group in ipairs(setSummary.classGroups or {}) do
 				rowIndex = rowIndex + 1
@@ -2958,7 +3618,7 @@ RefreshLootPanel = function()
 				local row = rows[rowIndex]
 				if not row.header then
 					row.header = CreateFrame("Button", nil, lootPanel.content)
-					row.header:SetSize(contentWidth, 22)
+					row.header:SetSize(contentWidth, headerRowHeight)
 					row.header.icon = row.header:CreateTexture(nil, "ARTWORK")
 					row.header.icon:SetSize(16, 16)
 					row.header.icon:SetPoint("LEFT", 0, 0)
@@ -2987,7 +3647,7 @@ RefreshLootPanel = function()
 				row.header.countText:SetText("")
 				row.header.countText:Hide()
 				row.header:Show()
-				yOffset = yOffset - 24
+				yOffset = yOffset - headerRowStep
 				row.bodyFrame:ClearAllPoints()
 				row.bodyFrame:SetPoint("TOPLEFT", row.header, "BOTTOMLEFT", 0, -2)
 				row.bodyFrame:SetWidth(contentWidth)
@@ -3004,7 +3664,7 @@ RefreshLootPanel = function()
 					UpdateLootItemCollectionState(itemRow, nil)
 					addon.LootSets.UpdateSetCompletionRowVisual(itemRow, nil)
 					itemRow:Show()
-					itemYOffset = 18
+					itemYOffset = itemRowHeight
 					row.renderedSetRowCount = 1
 				else
 					local itemIndex = 0
@@ -3016,19 +3676,17 @@ RefreshLootPanel = function()
 						itemRow:SetPoint("TOPLEFT", row.bodyFrame, "TOPLEFT", 0, -itemYOffset)
 						itemRow:SetPoint("RIGHT", row.bodyFrame, "RIGHT", 0, 0)
 						itemRow.icon:SetTexture(setEntry.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-						local setName = tostring(setEntry.name or ("Set " .. tostring(setEntry.setID)))
-						if setEntry.label and setEntry.label ~= "" then
-							setName = string.format("%s - %s", setName, setEntry.label)
-						end
+						local setName = addon.LootSets and addon.LootSets.GetDisplaySetName and addon.LootSets.GetDisplaySetName(setEntry)
+							or tostring(setEntry.name or ("Set " .. tostring(setEntry.setID)))
 						itemRow.setID = setEntry.setID
-						itemRow.setName = tostring(setEntry.name or ("Set " .. tostring(setEntry.setID)))
+						itemRow.setName = setName
 						itemRow.itemName = itemRow.setName
 						itemRow.wardrobeMode = "sets"
 						itemRow.text:SetText(string.format("%s (%s)", setName, string.format(T("LOOT_SET_PROGRESS", "%d/%d"), setEntry.collected or 0, setEntry.total or 0)))
 						UpdateLootItemCollectionState(itemRow, nil)
 						addon.LootSets.UpdateSetCompletionRowVisual(itemRow, setEntry)
 						itemRow:Show()
-						itemYOffset = itemYOffset + 18
+						itemYOffset = itemYOffset + itemRowStep
 
 						for _, missingPiece in ipairs(setEntry.missingPieces or {}) do
 							itemIndex = itemIndex + 1
@@ -3079,7 +3737,7 @@ RefreshLootPanel = function()
 								missingRow.text:SetTextColor(0.82, 0.82, 0.86)
 							end
 							missingRow:Show()
-							itemYOffset = itemYOffset + 18
+							itemYOffset = itemYOffset + itemRowStep
 						end
 					end
 					row.renderedSetRowCount = itemIndex
@@ -3088,9 +3746,9 @@ RefreshLootPanel = function()
 				for itemIndex = renderedCount + 1, #(row.itemRows or {}) do
 					row.itemRows[itemIndex]:Hide()
 				end
-				row.bodyFrame:SetHeight(math.max(18, itemYOffset))
+				row.bodyFrame:SetHeight(math.max(itemRowHeight, itemYOffset))
 				row.bodyFrame:Show()
-				yOffset = yOffset - row.bodyFrame:GetHeight() - 6
+				yOffset = yOffset - row.bodyFrame:GetHeight() - groupGap
 			end
 		end
 	else
@@ -3101,7 +3759,7 @@ RefreshLootPanel = function()
 			local row = rows[rowIndex]
 			if not row.header then
 				row.header = CreateFrame("Button", nil, lootPanel.content)
-				row.header:SetSize(contentWidth, 22)
+				row.header:SetSize(contentWidth, headerRowHeight)
 				row.header.icon = row.header:CreateTexture(nil, "ARTWORK")
 				row.header.icon:SetSize(16, 16)
 				row.header.icon:SetPoint("LEFT", 0, 0)
@@ -3159,7 +3817,7 @@ RefreshLootPanel = function()
 				row.header.countText:Hide()
 			end
 			row.header:Show()
-			yOffset = yOffset - 24
+			yOffset = yOffset - headerRowStep
 
 			row.bodyFrame:ClearAllPoints()
 			row.bodyFrame:SetPoint("TOPLEFT", row.header, "BOTTOMLEFT", 0, -2)
@@ -3188,9 +3846,9 @@ RefreshLootPanel = function()
 					for itemIndex = 2, #(row.itemRows or {}) do
 						row.itemRows[itemIndex]:Hide()
 					end
-					row.bodyFrame:SetHeight(18)
+					row.bodyFrame:SetHeight(itemRowHeight)
 					row.bodyFrame:Show()
-					yOffset = yOffset - 24
+					yOffset = yOffset - headerRowStep
 				else
 					local itemYOffset = 0
 					for itemIndex, item in ipairs(visibleLoot) do
@@ -3220,17 +3878,25 @@ RefreshLootPanel = function()
 						UpdateLootItemSetHighlight(itemRow, item)
 						UpdateLootItemClassIcons(itemRow, item)
 						itemRow:Show()
-						itemYOffset = itemYOffset + 18
+						itemYOffset = itemYOffset + itemRowStep
 					end
 					for itemIndex = #visibleLoot + 1, #(row.itemRows or {}) do
 						row.itemRows[itemIndex]:Hide()
 					end
-					row.bodyFrame:SetHeight(math.max(18, itemYOffset))
+					row.bodyFrame:SetHeight(math.max(itemRowHeight, itemYOffset))
 					row.bodyFrame:Show()
-					yOffset = yOffset - row.bodyFrame:GetHeight() - 6
+					yOffset = yOffset - row.bodyFrame:GetHeight() - groupGap
 				end
 			end
 		end
+	end
+
+	if data.error then
+		-- already marked above
+	elseif (lootPanelState.currentTab or "loot") == "sets" then
+		markPhase("render_sets_tab", string.format("rows=%s", tostring(rowIndex)))
+	else
+		markPhase("render_loot_tab", string.format("rows=%s", tostring(rowIndex)))
 	end
 
 	for index = rowIndex + 1, #rows do
@@ -3243,7 +3909,8 @@ RefreshLootPanel = function()
 		end
 	end
 
-	lootPanel.content:SetHeight(math.max(1, -yOffset + 8))
+	lootPanel.content:SetHeight(math.max(1, -yOffset + 4))
+	markPhase("finalize_layout")
 
 	if data.missingItemData and not lootRefreshPending then
 		lootRefreshPending = true
@@ -3254,6 +3921,7 @@ RefreshLootPanel = function()
 			end
 		end)
 	end
+	finishRender("ok", string.format("tab=%s rows=%s missingItemData=%s", tostring(currentTab), tostring(rowIndex), tostring(data and data.missingItemData and true or false)))
 end
 
 local function BuildClassFilterMenu(button)
@@ -3359,120 +4027,33 @@ local function BuildLootTypeFilterMenu(button)
 	BuildLootFilterMenu(button, items)
 end
 
-local function SelectTransmoggableLootTypes()
-	local settings = CodexExampleAddonDB.settings or {}
-	settings.selectedLootTypes = {}
-	for typeKey in pairs(TRANSMOGGABLE_LOOT_TYPES) do
-		settings.selectedLootTypes[typeKey] = true
-	end
-	RefreshLootPanel()
-	UpdateLootTypeFilterButtons()
-end
-
 BuildCurrentInstanceSetSummary = function(data)
-	local classFiles = GetSelectedLootClassFiles()
-	if #classFiles == 0 then
-		return {
-			message = T("LOOT_SETS_NO_CLASS_FILTER", "Select one or more classes in the main panel first."),
-			classGroups = {},
-		}
-	end
-
-	if not (C_TransmogSets and C_TransmogSets.GetSetInfo and C_TransmogSets.GetSetsContainingSourceID) then
+	local selectedInstance = GetSelectedLootPanelInstance()
+	if not (addon.LootSets and addon.LootSets.BuildCurrentInstanceSetSummary) then
 		return {
 			message = T("LOOT_ERROR_NO_APIS", "Encounter Journal APIs are not available on this client."),
 			classGroups = {},
 		}
 	end
-
-	local groupsByClass = {}
-	local selectedInstance = GetSelectedLootPanelInstance()
-	local setLootSources = addon.LootSets.BuildCurrentInstanceSetLootSources(data, selectedInstance)
-	for _, classFile in ipairs(classFiles) do
-		groupsByClass[classFile] = {
-			classFile = classFile,
-			className = GetClassDisplayName(classFile),
-			setsByID = {},
-		}
-	end
-
-	for _, encounter in ipairs((data and data.encounters) or {}) do
-		for _, item in ipairs(encounter.loot or {}) do
-			for _, setID in ipairs(GetLootItemSetIDs(item)) do
-				local setInfo = C_TransmogSets.GetSetInfo(setID)
-				if setInfo then
-					local collected, total = GetSetProgress(setID)
-					if total > 0 then
-						for _, classFile in ipairs(classFiles) do
-							if ClassMatchesSetInfo(classFile, setInfo) then
-								groupsByClass[classFile].setsByID[setID] = groupsByClass[classFile].setsByID[setID] or {
-									setID = setID,
-									name = setInfo.name or ("Set " .. tostring(setID)),
-									label = setInfo.label,
-									icon = addon.LootSets.PickSetDisplayIcon(setID, setLootSources, setInfo.icon),
-									collected = collected,
-									total = total,
-									completed = collected >= total,
-								}
-							end
-						end
-					end
-				end
-			end
-		end
-	end
-
-	local classGroups = {}
-	for _, classFile in ipairs(classFiles) do
-		local group = groupsByClass[classFile]
-		local sets = {}
-		for _, setEntry in pairs(group.setsByID) do
-			setEntry.missingPieces = addon.LootSets.BuildSetMissingPieces(setEntry.setID, setLootSources)
-			sets[#sets + 1] = setEntry
-		end
-		table.sort(sets, function(a, b)
-			if (a.completed and true or false) ~= (b.completed and true or false) then
-				return not a.completed
-			end
-			if a.collected ~= b.collected then
-				return a.collected < b.collected
-			end
-			if a.total ~= b.total then
-				return a.total < b.total
-			end
-			return tostring(a.name) < tostring(b.name)
-		end)
-		classGroups[#classGroups + 1] = {
-			classFile = group.classFile,
-			className = group.className,
-			sets = sets,
-		}
-	end
-
-	local hasSets = false
-	for _, group in ipairs(classGroups) do
-		if #group.sets > 0 then
-			hasSets = true
-			break
-		end
-	end
-
-	local summaryMessage = nil
-	if not hasSets then
-		summaryMessage = T("LOOT_SETS_NO_MATCHING", "No incomplete collectible sets match the current instance and class filter.")
-	end
-
-	return {
-		message = summaryMessage,
-		classGroups = classGroups,
-	}
+	return addon.LootSets.BuildCurrentInstanceSetSummary(data, {
+		selectedInstance = selectedInstance,
+		classFiles = GetSelectedLootClassFiles(),
+		getClassDisplayName = GetClassDisplayName,
+		getLootItemSetIDs = GetLootItemSetIDs,
+		classMatchesSetInfo = ClassMatchesSetInfo,
+		getSetProgress = GetSetProgress,
+	})
 end
 
 local function SetLootPanelTab(tabKey)
 	if not lootPanel then
 		return
 	end
-	lootPanelState.currentTab = tabKey == "sets" and "sets" or "loot"
+	if tabKey == "sets" then
+		lootPanelState.currentTab = "sets"
+	else
+		lootPanelState.currentTab = "loot"
+	end
 	lootPanel.lootTabButton:SetEnabled(lootPanelState.currentTab ~= "loot")
 	lootPanel.setsTabButton:SetEnabled(lootPanelState.currentTab ~= "sets")
 	ResetLootPanelScrollPosition()
@@ -3559,8 +4140,26 @@ InitializeLootPanel = function()
 	end)
 	lootPanel:Hide()
 	ApplyDefaultFrameStyle(lootPanel)
+	if lootPanel.background then
+		lootPanel.background:SetColorTexture(0.07, 0.06, 0.04, 0.95)
+	end
 	if lootPanel.headerBackground then
-		lootPanel.headerBackground:SetHeight(28)
+		lootPanel.headerBackground:ClearAllPoints()
+		lootPanel.headerBackground:SetPoint("TOPLEFT", 3, -3)
+		lootPanel.headerBackground:SetPoint("TOPRIGHT", -3, -3)
+		lootPanel.headerBackground:SetHeight(24)
+		lootPanel.headerBackground:SetColorTexture(0.16, 0.13, 0.07, 0.98)
+	end
+	if lootPanel.border then
+		lootPanel.border:ClearAllPoints()
+		lootPanel.border:SetPoint("TOPLEFT", -1, 1)
+		lootPanel.border:SetPoint("BOTTOMRIGHT", 1, -1)
+		lootPanel.border:SetBackdrop({
+			edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+			edgeSize = 12,
+			insets = { left = 2, right = 2, top = 2, bottom = 2 },
+		})
+		lootPanel.border:SetBackdropBorderColor(0.56, 0.46, 0.17, 0.92)
 	end
 
 	lootPanel.titleDivider = lootPanel:CreateTexture(nil, "ARTWORK")
@@ -3674,25 +4273,26 @@ InitializeLootPanel = function()
 		GameTooltip:Hide()
 	end)
 
-	lootPanel.title = lootPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	lootPanel.title = lootPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	lootPanel.title:SetJustifyH("LEFT")
+	lootPanel.title:SetWordWrap(false)
 	lootPanel.title:SetText(T("LOOT_UNKNOWN_INSTANCE", "未知副本"))
 
 	lootPanel.instanceSelectorButton = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
-	lootPanel.instanceSelectorButton:SetHeight(26)
+	lootPanel.instanceSelectorButton:SetHeight(24)
 	ApplyLootHeaderButtonStyle(lootPanel.instanceSelectorButton)
 	lootPanel.instanceSelectorButton:SetScript("OnClick", function(self)
 		BuildLootPanelInstanceMenu(self)
 	end)
-	lootPanel.instanceSelectorButton:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他团队副本..."))
-	lootPanel.instanceSelectorButton.customText = lootPanel.instanceSelectorButton:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	lootPanel.instanceSelectorButton:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."))
+	lootPanel.instanceSelectorButton.customText = lootPanel.instanceSelectorButton:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	lootPanel.instanceSelectorButton.customText:SetJustifyH("LEFT")
 	lootPanel.instanceSelectorButton.customText:SetPoint("LEFT", lootPanel.instanceSelectorButton, "LEFT", 10, 0)
 	lootPanel.instanceSelectorButton.customText:SetPoint("RIGHT", lootPanel.instanceSelectorButton, "RIGHT", -24, 0)
-	lootPanel.instanceSelectorButton.customText:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他团队副本..."))
+	lootPanel.instanceSelectorButton.customText:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."))
 	lootPanel.instanceSelectorButton.arrow = lootPanel.instanceSelectorButton:CreateTexture(nil, "ARTWORK")
-	lootPanel.instanceSelectorButton.arrow:SetSize(14, 14)
-	lootPanel.instanceSelectorButton.arrow:SetPoint("RIGHT", -6, 0)
+	lootPanel.instanceSelectorButton.arrow:SetSize(12, 12)
+	lootPanel.instanceSelectorButton.arrow:SetPoint("RIGHT", -5, 0)
 	lootPanel.instanceSelectorButton.arrow:SetTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
 	lootPanel.instanceSelectorButton.arrow:SetTexCoord(0, 1, 0, 1)
 	lootPanel.instanceSelectorButton.icon = lootPanel.instanceSelectorButton.arrow
@@ -3700,8 +4300,8 @@ InitializeLootPanel = function()
 	UpdateLootHeaderLayout()
 
 	lootPanel.debugButton = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
-	lootPanel.debugButton:SetSize(96, 24)
-	lootPanel.debugButton:SetPoint("TOPLEFT", 16, -48)
+	lootPanel.debugButton:SetSize(92, 22)
+	lootPanel.debugButton:SetPoint("TOPLEFT", 12, -40)
 	lootPanel.debugButton:SetText(T("LOOT_BUTTON_SELECT_DEBUG", "选择调试"))
 	lootPanel.debugButton:SetScript("OnClick", function()
 		lootPanel.debugEditBox:SetFocus()
@@ -3711,22 +4311,22 @@ InitializeLootPanel = function()
 	lootPanel.debugButton:Hide()
 
 	lootPanel.lootTabButton = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
-	lootPanel.lootTabButton:SetSize(72, 22)
-	lootPanel.lootTabButton:SetPoint("BOTTOMLEFT", 16, 16)
+	lootPanel.lootTabButton:SetSize(62, 20)
+	lootPanel.lootTabButton:SetPoint("BOTTOMLEFT", 12, 12)
 	lootPanel.lootTabButton:SetText(T("LOOT_TAB_LOOT", "Loot"))
 	lootPanel.lootTabButton:SetScript("OnClick", function()
 		SetLootPanelTab("loot")
 	end)
 
 	lootPanel.setsTabButton = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
-	lootPanel.setsTabButton:SetSize(72, 22)
-	lootPanel.setsTabButton:SetPoint("LEFT", lootPanel.lootTabButton, "RIGHT", 8, 0)
+	lootPanel.setsTabButton:SetSize(62, 20)
+	lootPanel.setsTabButton:SetPoint("LEFT", lootPanel.lootTabButton, "RIGHT", 6, 0)
 	lootPanel.setsTabButton:SetText(T("LOOT_TAB_SETS", "Sets"))
 	lootPanel.setsTabButton:SetScript("OnClick", function()
 		SetLootPanelTab("sets")
 	end)
 
-	lootPanel.classScopeButton:SetPoint("TOPLEFT", lootPanel, "TOPLEFT", 304, -46)
+	lootPanel.classScopeButton:SetPoint("TOPLEFT", lootPanel, "TOPLEFT", 260, -38)
 
 	lootPanel.tabDivider = lootPanel:CreateTexture(nil, "ARTWORK")
 	lootPanel.tabDivider:SetColorTexture(0.55, 0.55, 0.60, 0.45)
@@ -3736,17 +4336,18 @@ InitializeLootPanel = function()
 	lootPanel.tabDivider:Hide()
 
 	lootPanel.scrollFrame = CreateFrame("ScrollFrame", nil, lootPanel, "UIPanelScrollFrameTemplate")
-	lootPanel.scrollFrame:SetPoint("TOPLEFT", 16, -92)
-	lootPanel.scrollFrame:SetPoint("BOTTOMRIGHT", -24, 56)
+	lootPanel.scrollFrame:SetPoint("TOPLEFT", 12, -72)
+	lootPanel.scrollFrame:SetPoint("BOTTOMRIGHT", -16, 42)
 
 	lootPanel.content = CreateFrame("Frame", nil, lootPanel.scrollFrame)
 	lootPanel.content:SetSize(360, 1)
 	lootPanel.scrollFrame:SetScrollChild(lootPanel.content)
+	addon.ApplyCompactScrollBarLayout(lootPanel.scrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
 	lootPanel.rows = {}
 
 	lootPanel.debugScrollFrame = CreateFrame("ScrollFrame", nil, lootPanel, "UIPanelScrollFrameTemplate")
-	lootPanel.debugScrollFrame:SetPoint("BOTTOMLEFT", 16, 56)
-	lootPanel.debugScrollFrame:SetPoint("BOTTOMRIGHT", -24, 88)
+	lootPanel.debugScrollFrame:SetPoint("BOTTOMLEFT", 12, 42)
+	lootPanel.debugScrollFrame:SetPoint("BOTTOMRIGHT", -16, 72)
 	lootPanel.debugScrollFrame:Hide()
 
 	lootPanel.debugEditBox = CreateFrame("EditBox", nil, lootPanel.debugScrollFrame)
@@ -3765,74 +4366,49 @@ InitializeLootPanel = function()
 	end)
 	lootPanel.debugScrollFrame:SetScrollChild(lootPanel.debugEditBox)
 	lootPanel.debugEditBox:Hide()
+	addon.ApplyCompactScrollBarLayout(lootPanel.debugScrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
 
 	lootPanel.resizeButton = CreateFrame("Button", nil, lootPanel)
 	lootPanel.resizeButton:SetSize(16, 16)
-	lootPanel.resizeButton:SetPoint("BOTTOMRIGHT", -4, 4)
+	lootPanel.resizeButton:SetPoint("BOTTOMRIGHT", -3, 3)
 	lootPanel.resizeButton.texture = lootPanel.resizeButton:CreateTexture(nil, "ARTWORK")
 	lootPanel.resizeButton.texture:SetAllPoints()
-	local function UpdateLootResizeButtonTexture(button, state)
-		local texture = button and button.texture
-		if not texture then return end
-
-		local useElvUITexture
-		if IsAddonLoadedCompat("ElvUI") and ElvUI then
-			local E = unpack(ElvUI)
-			useElvUITexture = E and E.Media and E.Media.Textures and E.Media.Textures.Resize2
-		end
-
-		texture:SetTexCoord(0, 1, 0, 1)
-		if useElvUITexture then
-			texture:SetTexture(useElvUITexture)
-			if state == "down" then
-				texture:SetVertexColor(0.75, 0.75, 0.75, 1)
-			elseif state == "hover" then
-				texture:SetVertexColor(1, 1, 1, 1)
-			else
-				texture:SetVertexColor(1, 1, 1, 0.8)
-			end
-			return
-		end
-
-		if state == "down" then
-			texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Down")
-		elseif state == "hover" then
-			texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Highlight")
-		else
-			texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Up")
-		end
-	end
-	UpdateLootResizeButtonTexture(lootPanel.resizeButton, "normal")
+	UpdateResizeButtonTexture(lootPanel.resizeButton, "normal")
 	lootPanel.resizeButton:RegisterForDrag("LeftButton")
 	lootPanel.resizeButton:SetScript("OnEnter", function(self)
-		UpdateLootResizeButtonTexture(self, "hover")
+		UpdateResizeButtonTexture(self, "hover")
 	end)
 	lootPanel.resizeButton:SetScript("OnLeave", function(self)
-		UpdateLootResizeButtonTexture(self, "normal")
+		UpdateResizeButtonTexture(self, "normal")
 	end)
 	lootPanel.resizeButton:SetScript("OnMouseDown", function(self)
-		UpdateLootResizeButtonTexture(self, "down")
+		UpdateResizeButtonTexture(self, "down")
 	end)
 	lootPanel.resizeButton:SetScript("OnMouseUp", function(self)
-		UpdateLootResizeButtonTexture(self, self:IsMouseOver() and "hover" or "normal")
-		lootPanel:StopMovingOrSizing()
+		UpdateResizeButtonTexture(self, self:IsMouseOver() and "hover" or "normal")
 	end)
 	lootPanel.resizeButton:SetScript("OnDragStart", function(self)
-		UpdateLootResizeButtonTexture(self, "down")
+		self.isSizing = true
+		UpdateResizeButtonTexture(self, "down")
 		lootPanel:StartSizing("BOTTOMRIGHT")
 	end)
 	lootPanel.resizeButton:SetScript("OnDragStop", function(self)
-		UpdateLootResizeButtonTexture(self, self:IsMouseOver() and "hover" or "normal")
+		self.isSizing = nil
+		UpdateResizeButtonTexture(self, self:IsMouseOver() and "hover" or "normal")
 		lootPanel:StopMovingOrSizing()
 	end)
 	lootPanel.resizeButton:SetScript("OnHide", function(self)
-		UpdateLootResizeButtonTexture(self, "normal")
-		lootPanel:StopMovingOrSizing()
+		local wasSizing = self.isSizing
+		self.isSizing = nil
+		UpdateResizeButtonTexture(self, "normal")
+		if wasSizing then
+			lootPanel:StopMovingOrSizing()
+		end
 	end)
 
 	UpdateLootPanelLayout()
 	ApplyElvUISkin()
-	SetLootPanelTab(lootPanelState.currentTab or "loot")
+	SetLootPanelTab((lootPanelState.currentTab == "sets") and "sets" or "loot")
 end
 
 ToggleLootPanel = function()
@@ -3841,6 +4417,7 @@ ToggleLootPanel = function()
 		lootPanel:Hide()
 		return
 	end
+	PreferCurrentLootPanelSelectionOnOpen()
 	ResetLootPanelSessionState(true)
 	RefreshLootPanel()
 	lootPanel:Show()
@@ -3882,22 +4459,20 @@ UpdateLootHeaderLayout = function()
 	end
 
 	local isElvUIStyle = (CodexExampleAddonDB.settings and CodexExampleAddonDB.settings.panelStyle) == "elvui"
-	local panelWidth = math.max(360, lootPanel:GetWidth() or 420)
-	local leftInset = 16
-	local closeWidth = 24
-	local toolWidth = 20
-	local gap = 4
-	local titleGap = 8
-	local selectorTopOffset = isElvUIStyle and -44 or -46
-	local selectorHeight = isElvUIStyle and 28 or 26
-	local selectorWidth = isElvUIStyle and 172 or 164
-	local scopeButtonWidth = isElvUIStyle and 120 or 120
+	local leftInset = isElvUIStyle and 14 or 12
+	local toolWidth = isElvUIStyle and 20 or 18
+	local gap = isElvUIStyle and 4 or 3
+	local titleGap = isElvUIStyle and 8 or 6
+	local selectorTopOffset = isElvUIStyle and -42 or -38
+	local selectorHeight = isElvUIStyle and 28 or 24
+	local selectorWidth = isElvUIStyle and 196 or 202
+	local scopeButtonWidth = isElvUIStyle and 126 or 126
 	local headerAnchor = lootPanel.headerBackground or lootPanel
-	local headerCenterOffset = 0
+	local headerCenterOffset = isElvUIStyle and 0 or -1
 
 	lootPanel.closeButton:ClearAllPoints()
-	lootPanel.closeButton:SetSize(20, 20)
-	lootPanel.closeButton:SetPoint("CENTER", headerAnchor, "RIGHT", -11, headerCenterOffset)
+	lootPanel.closeButton:SetSize(toolWidth, toolWidth)
+	lootPanel.closeButton:SetPoint("CENTER", headerAnchor, "RIGHT", isElvUIStyle and -11 or -10, headerCenterOffset)
 
 	lootPanel.configButton:ClearAllPoints()
 	lootPanel.configButton:SetSize(toolWidth, toolWidth)
@@ -3909,25 +4484,565 @@ UpdateLootHeaderLayout = function()
 
 	lootPanel.infoButton:ClearAllPoints()
 	lootPanel.infoButton:SetSize(toolWidth, toolWidth)
-	lootPanel.infoButton:SetPoint("CENTER", headerAnchor, "LEFT", leftInset + 10, headerCenterOffset)
+	lootPanel.infoButton:SetPoint("CENTER", headerAnchor, "LEFT", leftInset + 8, headerCenterOffset)
 
 	lootPanel.title:ClearAllPoints()
 	lootPanel.title:SetPoint("LEFT", lootPanel.infoButton, "RIGHT", titleGap, 0)
-	lootPanel.title:SetPoint("RIGHT", lootPanel.refreshButton, "LEFT", -8, 0)
+	lootPanel.title:SetPoint("RIGHT", lootPanel.refreshButton, "LEFT", -6, 0)
 	lootPanel.title:SetPoint("CENTER", headerAnchor, "CENTER", 0, headerCenterOffset)
 
 	if lootPanel.instanceSelectorButton then
 		lootPanel.instanceSelectorButton:ClearAllPoints()
-		lootPanel.instanceSelectorButton:SetPoint("TOPLEFT", lootPanel, "TOPLEFT", 16, selectorTopOffset)
+		lootPanel.instanceSelectorButton:SetPoint("TOPLEFT", lootPanel, "TOPLEFT", 12, selectorTopOffset)
 		lootPanel.instanceSelectorButton:SetWidth(selectorWidth)
 		lootPanel.instanceSelectorButton:SetHeight(selectorHeight)
 	end
 	if lootPanel.classScopeButton then
 		lootPanel.classScopeButton:ClearAllPoints()
-		lootPanel.classScopeButton:SetPoint("LEFT", lootPanel.instanceSelectorButton, "RIGHT", 8, 0)
+		lootPanel.classScopeButton:SetPoint("LEFT", lootPanel.instanceSelectorButton, "RIGHT", 6, 0)
 		lootPanel.classScopeButton:SetWidth(scopeButtonWidth)
-		lootPanel.classScopeButton:SetHeight(isElvUIStyle and 28 or 26)
+		lootPanel.classScopeButton:SetHeight(isElvUIStyle and 28 or 24)
 	end
+end
+
+UpdateResizeButtonTexture = function(button, state)
+	local texture = button and button.texture
+	if not texture then
+		return
+	end
+
+	local useElvUITexture
+	if IsAddonLoadedCompat("ElvUI") and ElvUI then
+		local E = unpack(ElvUI)
+		useElvUITexture = E and E.Media and E.Media.Textures and E.Media.Textures.Resize2
+	end
+
+	texture:SetTexCoord(0, 1, 0, 1)
+	if useElvUITexture then
+		texture:SetTexture(useElvUITexture)
+		if state == "down" then
+			texture:SetVertexColor(0.75, 0.75, 0.75, 1)
+		elseif state == "hover" then
+			texture:SetVertexColor(1, 1, 1, 1)
+		else
+			texture:SetVertexColor(1, 1, 1, 0.8)
+		end
+		return
+	end
+
+	if state == "down" then
+		texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Down")
+	elseif state == "hover" then
+		texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Highlight")
+	else
+		texture:SetTexture("Interface\\CHATFRAME\\UI-ChatIM-SizeGrabber-Up")
+	end
+end
+
+UpdateDashboardPanelLayout = function()
+	if not dashboardPanel then
+		return
+	end
+
+	local contentWidth = math.max(320, (dashboardPanel:GetWidth() or 760) - 54)
+	if dashboardPanel.content then
+		dashboardPanel.content:SetWidth(contentWidth)
+	end
+	if dashboardPanel.setsModeButton and dashboardPanel.collectiblesModeButton then
+		dashboardPanel.setsModeButton:ClearAllPoints()
+		dashboardPanel.setsModeButton:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 12)
+		dashboardPanel.collectiblesModeButton:ClearAllPoints()
+		dashboardPanel.collectiblesModeButton:SetPoint("LEFT", dashboardPanel.setsModeButton, "RIGHT", 6, 0)
+	end
+	if dashboardPanel.bulkScanButton and dashboardPanel.collectiblesModeButton then
+		dashboardPanel.bulkScanButton:ClearAllPoints()
+		dashboardPanel.bulkScanButton:SetPoint("LEFT", dashboardPanel.collectiblesModeButton, "RIGHT", 8, 0)
+	end
+	if dashboardPanel.scrollFrame then
+		dashboardPanel.scrollFrame:ClearAllPoints()
+		dashboardPanel.scrollFrame:SetPoint("TOPLEFT", 12, -40)
+		dashboardPanel.scrollFrame:SetPoint("BOTTOMRIGHT", -16, 40)
+		addon.ApplyCompactScrollBarLayout(dashboardPanel.scrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
+	end
+end
+
+function addon.GetDashboardTitle(instanceType)
+	if instanceType == "party" then
+		return T("TRACK_HEADER_DUNGEON", "地下城幻化统计看板")
+	end
+	return T("TRACK_HEADER", "团队副本幻化统计看板")
+end
+
+function addon.GetDashboardSubtitle(instanceType)
+	if instanceType == "party" then
+		return T("DASHBOARD_SUBTITLE_DUNGEON", "仅显示已缓存的地下城。使用下方按钮切换统计指标。职业筛选只影响列顺序；当你打开某个地下城时，该副本的缓存会同步更新所有职业。")
+	end
+	return T("DASHBOARD_SUBTITLE", "仅显示已缓存的团队副本。使用下方按钮切换统计指标。")
+end
+
+function addon.GetDashboardBulkScanEmptyText(instanceType)
+	if instanceType == "party" then
+		return T("DASHBOARD_BULK_SCAN_EMPTY_DUNGEON", "没有可扫描的地下城。")
+	end
+	return T("DASHBOARD_BULK_SCAN_EMPTY", "没有可扫描的团队副本。")
+end
+
+function addon.GetDashboardBulkScanProgressText(instanceType)
+	if instanceType == "party" then
+		return T("DASHBOARD_BULK_SCAN_PROGRESS_DUNGEON", "地下城统计扫描进度：%d/%d %s (%s)")
+	end
+	return T("DASHBOARD_BULK_SCAN_PROGRESS", "团队副本统计扫描进度：%d/%d %s (%s)")
+end
+
+function addon.GetDashboardBulkScanCompleteText(instanceType)
+	if instanceType == "party" then
+		return T("DASHBOARD_BULK_SCAN_COMPLETE_DUNGEON", "地下城统计扫描完成：%d 个副本。")
+	end
+	return T("DASHBOARD_BULK_SCAN_COMPLETE", "团队副本统计扫描完成：%d 个副本。")
+end
+
+function addon.GetDashboardBulkScanHintText(instanceType)
+	if instanceType == "party" then
+		return T("DASHBOARD_BULK_SCAN_HINT_DUNGEON", "逐个扫描每个地下城的所有可用难度，并预计算收集状态与套装进度，耗时较长。建议在主城内、非战斗、角色空闲时执行。")
+	end
+	return T("DASHBOARD_BULK_SCAN_HINT", "逐个扫描每个团队副本的最高难度，耗时较长。建议在主城内、非战斗、角色空闲时执行。")
+end
+
+function addon.GetDashboardBulkScanConfirmText(instanceType)
+	if instanceType == "party" then
+		return T("DASHBOARD_BULK_SCAN_CONFIRM_DUNGEON", "全量扫描会逐个地下城扫描所有可用难度，并预计算收集状态与套装进度。整体耗时较长，并可能在扫描过程中产生卡顿。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？")
+	end
+	return T("DASHBOARD_BULK_SCAN_CONFIRM", "全量扫描会逐个团队副本扫描最高难度，整体耗时较长，并可能在扫描过程中产生卡顿。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？")
+end
+
+local function GetDashboardBulkScanSelections(instanceType)
+	local selections = BuildLootPanelInstanceSelections() or {}
+	if tostring(instanceType or "raid") == "party" then
+		local queue = {}
+		for _, selection in ipairs(selections) do
+			if not selection.isCurrent and tostring(selection.instanceType or "") == "party" then
+				queue[#queue + 1] = selection
+			end
+		end
+		table.sort(queue, function(a, b)
+			local expansionOrderA = GetExpansionOrder(tostring(a.expansionName or "Other"))
+			local expansionOrderB = GetExpansionOrder(tostring(b.expansionName or "Other"))
+			if expansionOrderA ~= expansionOrderB then
+				return expansionOrderA > expansionOrderB
+			end
+			local instanceOrderA = tonumber(a.instanceOrder) or 999
+			local instanceOrderB = tonumber(b.instanceOrder) or 999
+			if instanceOrderA ~= instanceOrderB then
+				return instanceOrderA > instanceOrderB
+			end
+			local difficultyOrderA = GetRaidDifficultyDisplayOrder(a.difficultyID)
+			local difficultyOrderB = GetRaidDifficultyDisplayOrder(b.difficultyID)
+			if difficultyOrderA ~= difficultyOrderB then
+				return difficultyOrderA < difficultyOrderB
+			end
+			local nameA = tostring(a.instanceName or "")
+			local nameB = tostring(b.instanceName or "")
+			if nameA ~= nameB then
+				return nameA < nameB
+			end
+			return (tonumber(a.difficultyID) or 0) < (tonumber(b.difficultyID) or 0)
+		end)
+		return queue
+	end
+
+	local highestByInstanceKey = {}
+	for _, selection in ipairs(selections) do
+		if not selection.isCurrent and tostring(selection.instanceType or "") == tostring(instanceType or "raid") then
+			local instanceKey = string.format("%s::%s", tostring(selection.journalInstanceID or 0), tostring(selection.instanceName or ""))
+			local existing = highestByInstanceKey[instanceKey]
+			local selectionOrder = GetRaidDifficultyScanPriority(selection.difficultyID)
+			local existingOrder = existing and GetRaidDifficultyScanPriority(existing.difficultyID) or -1
+			if not existing
+				or selectionOrder > existingOrder
+				or (selectionOrder == existingOrder and (tonumber(selection.difficultyID) or 0) > (tonumber(existing.difficultyID) or 0)) then
+				highestByInstanceKey[instanceKey] = selection
+			end
+		end
+	end
+
+	local queue = {}
+	for _, selection in pairs(highestByInstanceKey) do
+		queue[#queue + 1] = selection
+	end
+	table.sort(queue, function(a, b)
+		local expansionOrderA = GetExpansionOrder(tostring(a.expansionName or "Other"))
+		local expansionOrderB = GetExpansionOrder(tostring(b.expansionName or "Other"))
+		if expansionOrderA ~= expansionOrderB then
+			return expansionOrderA > expansionOrderB
+		end
+		local raidOrderA = tonumber(a.instanceOrder) or 999
+		local raidOrderB = tonumber(b.instanceOrder) or 999
+		if raidOrderA ~= raidOrderB then
+			return raidOrderA > raidOrderB
+		end
+		return tostring(a.instanceName or "") < tostring(b.instanceName or "")
+	end)
+	return queue
+end
+
+local function ContinueDashboardBulkScan()
+	local scanState = addon.dashboardBulkScanState
+	if not scanState or not scanState.active then
+		return
+	end
+
+	scanState.index = (scanState.index or 0) + 1
+	local selection = scanState.queue and scanState.queue[scanState.index] or nil
+	if not selection then
+		scanState.active = false
+		Print(string.format(addon.GetDashboardBulkScanCompleteText(scanState.instanceType), tonumber(scanState.total) or 0))
+		RefreshDashboardPanel()
+		return
+	end
+
+	local dashboardData = API.CollectCurrentInstanceLootData({
+		T = T,
+		findJournalInstanceByInstanceInfo = FindJournalInstanceByInstanceInfo,
+		getSelectedLootClassIDs = GetSelectedLootClassIDs,
+		getLootFilterClassIDs = GetDashboardClassIDs,
+		deriveLootTypeKey = DeriveLootTypeKey,
+		targetInstance = selection,
+	})
+	local selectionKey = BuildLootPanelSelectionKey(selection)
+	local retryCount = scanState.retries and scanState.retries[selectionKey] or 0
+	if dashboardData and dashboardData.missingItemData and retryCount < 1 then
+		scanState.retries = scanState.retries or {}
+		scanState.retries[selectionKey] = retryCount + 1
+		scanState.index = math.max(0, (scanState.index or 1) - 1)
+		if C_Timer and C_Timer.After then
+			C_Timer.After(0.35, ContinueDashboardBulkScan)
+		else
+			ContinueDashboardBulkScan()
+		end
+		return
+	end
+	if scanState.retries then
+		scanState.retries[selectionKey] = nil
+	end
+	if addon.RaidDashboard and addon.RaidDashboard.UpdateSnapshot then
+		addon.RaidDashboard.UpdateSnapshot(selection, dashboardData, {
+			classFiles = GetDashboardClassFiles(),
+		})
+	end
+
+	Print(string.format(
+		addon.GetDashboardBulkScanProgressText(scanState.instanceType),
+		tonumber(scanState.index) or 0,
+		tonumber(scanState.total) or 0,
+		tostring(selection.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本")),
+		tostring(selection.difficultyName or T("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度"))
+	))
+	RefreshDashboardPanel()
+
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, ContinueDashboardBulkScan)
+	else
+		ContinueDashboardBulkScan()
+	end
+end
+
+local function StartDashboardBulkScan(skipConfirm)
+	if addon.dashboardBulkScanState and addon.dashboardBulkScanState.active then
+		return
+	end
+
+	local instanceType = dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
+	local queue = GetDashboardBulkScanSelections(instanceType)
+	if #queue == 0 then
+		Print(addon.GetDashboardBulkScanEmptyText(instanceType))
+		return
+	end
+
+	if not skipConfirm and type(StaticPopupDialogs) == "table" and type(StaticPopup_Show) == "function" then
+		StaticPopupDialogs.CODEXEXAMPLE_DASHBOARD_BULK_SCAN_CONFIRM = StaticPopupDialogs.CODEXEXAMPLE_DASHBOARD_BULK_SCAN_CONFIRM or {
+			text = "",
+			button1 = ACCEPT,
+			button2 = CANCEL,
+			OnAccept = function()
+				StartDashboardBulkScan(true)
+			end,
+			timeout = 0,
+			whileDead = true,
+			hideOnEscape = true,
+			preferredIndex = STATICPOPUP_NUMDIALOGS,
+		}
+		StaticPopupDialogs.CODEXEXAMPLE_DASHBOARD_BULK_SCAN_CONFIRM.text = addon.GetDashboardBulkScanConfirmText(instanceType)
+		StaticPopup_Show("CODEXEXAMPLE_DASHBOARD_BULK_SCAN_CONFIRM")
+		return
+	end
+
+	if addon.RaidDashboard and addon.RaidDashboard.ClearStoredData then
+		addon.RaidDashboard.ClearStoredData()
+	end
+
+	addon.dashboardBulkScanState = {
+		active = true,
+		index = 0,
+		total = #queue,
+		queue = queue,
+		instanceType = instanceType,
+		retries = {},
+	}
+	RefreshDashboardPanel()
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, ContinueDashboardBulkScan)
+	else
+		ContinueDashboardBulkScan()
+	end
+end
+
+RefreshDashboardPanel = function()
+	if not dashboardPanel or not dashboardPanel.content or not dashboardPanel.scrollFrame then
+		return
+	end
+	local instanceType = dashboardPanel.dashboardInstanceType or "raid"
+	local metricMode = dashboardPanel.dashboardMetricMode == "collectibles" and "collectibles" or "sets"
+	if dashboardPanel.title then
+		dashboardPanel.title:SetText(addon.GetDashboardTitle(instanceType))
+	end
+	if dashboardPanel.subtitle then
+		dashboardPanel.subtitle:SetText(addon.GetDashboardSubtitle(instanceType))
+	end
+	if dashboardPanel.setsModeButton then
+		dashboardPanel.setsModeButton:SetEnabled(metricMode ~= "sets")
+	end
+	if dashboardPanel.collectiblesModeButton then
+		dashboardPanel.collectiblesModeButton:SetEnabled(metricMode ~= "collectibles")
+	end
+	if dashboardPanel.bulkScanButton then
+		dashboardPanel.bulkScanButton:SetEnabled(not (addon.dashboardBulkScanState and addon.dashboardBulkScanState.active))
+	end
+	if addon.RaidDashboard and addon.RaidDashboard.RenderContent then
+		addon.RaidDashboard.RenderContent(dashboardPanel, dashboardPanel.content, dashboardPanel.scrollFrame)
+	end
+end
+
+InitializeDashboardPanel = function()
+	if dashboardPanel then
+		return
+	end
+
+	local point = CodexExampleAddonDB.dashboardPanelPoint or { point = "CENTER", relativePoint = "CENTER", x = 60, y = 0 }
+	local size = CodexExampleAddonDB.dashboardPanelSize or { width = 760, height = 520 }
+	dashboardPanel = CreateFrame("Frame", "CodexExampleAddonDashboardPanel", UIParent, "BackdropTemplate")
+	if type(UISpecialFrames) == "table" then
+		local alreadyRegistered = false
+		for _, frameName in ipairs(UISpecialFrames) do
+			if frameName == "CodexExampleAddonDashboardPanel" then
+				alreadyRegistered = true
+				break
+			end
+		end
+		if not alreadyRegistered then
+			UISpecialFrames[#UISpecialFrames + 1] = "CodexExampleAddonDashboardPanel"
+		end
+	end
+	dashboardPanel:SetSize(math.max(620, tonumber(size.width) or 760), math.max(420, tonumber(size.height) or 520))
+	dashboardPanel:SetPoint(point.point or "CENTER", UIParent, point.relativePoint or "CENTER", tonumber(point.x) or 60, tonumber(point.y) or 0)
+	dashboardPanel:SetFrameStrata("DIALOG")
+	dashboardPanel:SetClampedToScreen(true)
+	dashboardPanel:EnableMouse(true)
+	dashboardPanel:SetMovable(true)
+	dashboardPanel:SetResizable(true)
+	if dashboardPanel.SetResizeBounds then
+		dashboardPanel:SetResizeBounds(620, 420, 1200, 900)
+	elseif dashboardPanel.SetMinResize and dashboardPanel.SetMaxResize then
+		dashboardPanel:SetMinResize(620, 420)
+		dashboardPanel:SetMaxResize(1200, 900)
+	end
+	dashboardPanel:RegisterForDrag("LeftButton")
+	dashboardPanel:SetScript("OnDragStart", function(self)
+		self:StartMoving()
+	end)
+	dashboardPanel:SetScript("OnDragStop", function(self)
+		self:StopMovingOrSizing()
+		local p, _, rp, x, y = self:GetPoint(1)
+		CodexExampleAddonDB.dashboardPanelPoint = {
+			point = p or "CENTER",
+			relativePoint = rp or "CENTER",
+			x = x or 60,
+			y = y or 0,
+		}
+	end)
+	dashboardPanel:SetScript("OnSizeChanged", function(self, width, height)
+		CodexExampleAddonDB.dashboardPanelSize = {
+			width = math.floor(width + 0.5),
+			height = math.floor(height + 0.5),
+		}
+		UpdateDashboardPanelLayout()
+		if self:IsShown() then
+			RefreshDashboardPanel()
+		end
+	end)
+	dashboardPanel:Hide()
+
+	ApplyDefaultFrameStyle(dashboardPanel)
+	if dashboardPanel.background then
+		dashboardPanel.background:SetColorTexture(0.07, 0.06, 0.04, 0.95)
+	end
+	if dashboardPanel.headerBackground then
+		dashboardPanel.headerBackground:ClearAllPoints()
+		dashboardPanel.headerBackground:SetPoint("TOPLEFT", 3, -3)
+		dashboardPanel.headerBackground:SetPoint("TOPRIGHT", -3, -3)
+		dashboardPanel.headerBackground:SetHeight(24)
+		dashboardPanel.headerBackground:SetColorTexture(0.16, 0.13, 0.07, 0.98)
+	end
+	if dashboardPanel.border then
+		dashboardPanel.border:ClearAllPoints()
+		dashboardPanel.border:SetPoint("TOPLEFT", -1, 1)
+		dashboardPanel.border:SetPoint("BOTTOMRIGHT", 1, -1)
+		dashboardPanel.border:SetBackdrop({
+			edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+			edgeSize = 12,
+			insets = { left = 2, right = 2, top = 2, bottom = 2 },
+		})
+		dashboardPanel.border:SetBackdropBorderColor(0.56, 0.46, 0.17, 0.92)
+	end
+
+	dashboardPanel.closeButton = CreateFrame("Button", nil, dashboardPanel, "UIPanelCloseButton")
+	dashboardPanel.closeButton:SetSize(18, 18)
+	dashboardPanel.closeButton:SetPoint("TOPRIGHT", dashboardPanel, "TOPRIGHT", -4, -4)
+
+	dashboardPanel.refreshButton = CreateFrame("Button", nil, dashboardPanel)
+	dashboardPanel.refreshButton:SetSize(18, 18)
+	ApplyLootHeaderIconToolButtonStyle(dashboardPanel.refreshButton)
+	dashboardPanel.refreshButton.icon = dashboardPanel.refreshButton:CreateTexture(nil, "ARTWORK")
+	dashboardPanel.refreshButton.icon:SetSize(13, 13)
+	dashboardPanel.refreshButton.icon:SetPoint("CENTER")
+	dashboardPanel.refreshButton.icon:SetTexture("Interface\\Buttons\\UI-RefreshButton")
+	dashboardPanel.refreshButton.icon:SetVertexColor(0.95, 0.90, 0.72, 0.95)
+	dashboardPanel.refreshButton.keepCustomIconColor = true
+	dashboardPanel.refreshButton:SetPoint("RIGHT", dashboardPanel.closeButton, "LEFT", -4, 0)
+	dashboardPanel.refreshButton:SetScript("OnClick", function()
+		if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+			addon.RaidDashboard.InvalidateCache()
+		end
+		RefreshDashboardPanel()
+	end)
+	SetLootHeaderButtonVisualState(dashboardPanel.refreshButton, "normal")
+
+	dashboardPanel.infoButton = CreateFrame("Button", nil, dashboardPanel)
+	dashboardPanel.infoButton:SetSize(20, 20)
+	ApplyLootHeaderIconToolButtonStyle(dashboardPanel.infoButton)
+	dashboardPanel.infoButton.icon = dashboardPanel.infoButton:CreateTexture(nil, "ARTWORK")
+	dashboardPanel.infoButton.icon:SetSize(15, 15)
+	dashboardPanel.infoButton.icon:SetPoint("CENTER")
+	dashboardPanel.infoButton.icon:SetTexture("Interface\\FriendsFrame\\InformationIcon")
+	SetLootHeaderButtonVisualState(dashboardPanel.infoButton, "normal")
+	dashboardPanel.infoButton:SetPoint("LEFT", dashboardPanel, "TOPLEFT", 10, -16)
+	dashboardPanel.infoButton:SetScript("OnEnter", function(self)
+		ShowDashboardInfoTooltip(self)
+	end)
+	dashboardPanel.infoButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+
+	dashboardPanel.title = dashboardPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	dashboardPanel.title:SetPoint("LEFT", dashboardPanel.infoButton, "RIGHT", 6, 0)
+	dashboardPanel.title:SetPoint("RIGHT", dashboardPanel.refreshButton, "LEFT", -8, 0)
+	dashboardPanel.title:SetJustifyH("LEFT")
+	dashboardPanel.title:SetWordWrap(false)
+	dashboardPanel.title:SetText(addon.GetDashboardTitle("raid"))
+
+	dashboardPanel.subtitle = dashboardPanel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	dashboardPanel.subtitle:SetPoint("TOPLEFT", dashboardPanel, "TOPLEFT", 12, -28)
+	dashboardPanel.subtitle:SetPoint("TOPRIGHT", dashboardPanel, "TOPRIGHT", -16, -28)
+	dashboardPanel.subtitle:SetJustifyH("LEFT")
+	dashboardPanel.subtitle:SetText(addon.GetDashboardSubtitle("raid"))
+	dashboardPanel.subtitle:Hide()
+
+	dashboardPanel.dashboardMetricMode = dashboardPanel.dashboardMetricMode or "sets"
+	dashboardPanel.dashboardInstanceType = dashboardPanel.dashboardInstanceType or "raid"
+
+	dashboardPanel.setsModeButton = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
+	dashboardPanel.setsModeButton:SetSize(62, 20)
+	dashboardPanel.setsModeButton:SetText(T("DASHBOARD_SETS", "套装散件"))
+	dashboardPanel.setsModeButton:SetScript("OnClick", function()
+		dashboardPanel.dashboardMetricMode = "sets"
+		RefreshDashboardPanel()
+	end)
+
+	dashboardPanel.collectiblesModeButton = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
+	dashboardPanel.collectiblesModeButton:SetSize(74, 20)
+	dashboardPanel.collectiblesModeButton:SetText(T("DASHBOARD_ALL_ITEMS", "所有散件"))
+	dashboardPanel.collectiblesModeButton:SetScript("OnClick", function()
+		dashboardPanel.dashboardMetricMode = "collectibles"
+		RefreshDashboardPanel()
+	end)
+
+	dashboardPanel.bulkScanButton = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
+	dashboardPanel.bulkScanButton:SetSize(84, 20)
+	dashboardPanel.bulkScanButton:SetText(T("DASHBOARD_BUTTON_BULK_SCAN", "全量扫描"))
+	dashboardPanel.bulkScanButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:ClearLines()
+		GameTooltip:AddLine(T("DASHBOARD_BUTTON_BULK_SCAN", "全量扫描"), 1, 0.82, 0)
+		GameTooltip:AddLine(addon.GetDashboardBulkScanHintText(dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"), 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	dashboardPanel.bulkScanButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	dashboardPanel.bulkScanButton:SetScript("OnClick", function()
+		StartDashboardBulkScan()
+	end)
+
+	dashboardPanel.scrollFrame = CreateFrame("ScrollFrame", nil, dashboardPanel, "UIPanelScrollFrameTemplate")
+	dashboardPanel.content = CreateFrame("Frame", nil, dashboardPanel.scrollFrame)
+	dashboardPanel.content:SetSize(680, 1)
+	dashboardPanel.scrollFrame:SetScrollChild(dashboardPanel.content)
+	addon.ApplyCompactScrollBarLayout(dashboardPanel.scrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
+
+	dashboardPanel.resizeButton = CreateFrame("Button", nil, dashboardPanel)
+	dashboardPanel.resizeButton:SetSize(16, 16)
+	dashboardPanel.resizeButton:SetPoint("BOTTOMRIGHT", -3, 3)
+	dashboardPanel.resizeButton.texture = dashboardPanel.resizeButton:CreateTexture(nil, "ARTWORK")
+	dashboardPanel.resizeButton.texture:SetAllPoints()
+	UpdateResizeButtonTexture(dashboardPanel.resizeButton, "normal")
+	dashboardPanel.resizeButton:RegisterForDrag("LeftButton")
+	dashboardPanel.resizeButton:SetScript("OnEnter", function(self)
+		UpdateResizeButtonTexture(self, "hover")
+	end)
+	dashboardPanel.resizeButton:SetScript("OnLeave", function(self)
+		UpdateResizeButtonTexture(self, "normal")
+	end)
+	dashboardPanel.resizeButton:SetScript("OnMouseDown", function(self)
+		UpdateResizeButtonTexture(self, "down")
+	end)
+	dashboardPanel.resizeButton:SetScript("OnMouseUp", function(self)
+		UpdateResizeButtonTexture(self, self:IsMouseOver() and "hover" or "normal")
+	end)
+	dashboardPanel.resizeButton:SetScript("OnDragStart", function(self)
+		self.isSizing = true
+		UpdateResizeButtonTexture(self, "down")
+		dashboardPanel:StartSizing("BOTTOMRIGHT")
+	end)
+	dashboardPanel.resizeButton:SetScript("OnDragStop", function(self)
+		self.isSizing = nil
+		UpdateResizeButtonTexture(self, self:IsMouseOver() and "hover" or "normal")
+		dashboardPanel:StopMovingOrSizing()
+	end)
+
+	UpdateDashboardPanelLayout()
+	ApplyElvUISkin()
+end
+
+ToggleDashboardPanel = function(instanceType)
+	InitializeDashboardPanel()
+	instanceType = instanceType == "party" and "party" or "raid"
+	local sameType = dashboardPanel.dashboardInstanceType == instanceType
+	dashboardPanel.dashboardInstanceType = instanceType
+	if dashboardPanel:IsShown() and sameType then
+		dashboardPanel:Hide()
+		return
+	end
+	RefreshDashboardPanel()
+	dashboardPanel:Show()
 end
 
 local function FormatTimeLeft(seconds)
@@ -3989,180 +5104,91 @@ local function ExtractSavedInstanceProgress(returns)
 	return totalEncounters, progressCount
 end
 
-local function FormatBoolean(value)
-	return value and "true" or "false"
+if TooltipUI and TooltipUI.Configure then
+	TooltipUI.Configure({
+		T = T,
+		Compute = Compute,
+		getCharacters = function()
+			return CodexExampleAddonDB.characters or {}
+		end,
+		getSettings = function()
+			return CodexExampleAddonDB.settings or {}
+		end,
+		getSortedCharacters = Storage.GetSortedCharacters,
+		getExpansionForLockout = GetExpansionForLockout,
+		getExpansionOrder = GetExpansionOrder,
+		normalizeLockoutDisplayName = NormalizeLockoutDisplayName,
+		colorizeLockoutLabel = ColorizeLockoutLabel,
+		colorizeExpansionLabel = ColorizeExpansionLabel,
+		colorizeCharacterName = ColorizeCharacterName,
+		renderLockoutProgress = RenderLockoutProgress,
+	})
 end
 
-FormatLootDebugInfo = function(debugInfo)
-	if not debugInfo then
-		return ""
-	end
-
-	local lines = {
-		"",
-		T("LOOT_DEBUG_HEADER", "调试信息:"),
-		string.format("  mapID = %s", tostring(debugInfo.mapID)),
-		string.format("  instanceName = %s", tostring(debugInfo.instanceName)),
-		string.format("  instanceType = %s", tostring(debugInfo.instanceType)),
-		string.format("  difficultyID = %s", tostring(debugInfo.difficultyID)),
-		string.format("  difficultyName = %s", tostring(debugInfo.difficultyName)),
-		string.format("  instanceID = %s", tostring(debugInfo.instanceID)),
-		string.format("  lfgDungeonID = %s", tostring(debugInfo.lfgDungeonID)),
-		string.format("  journalInstanceID = %s", tostring(debugInfo.journalInstanceID)),
-		string.format("  resolution = %s", tostring(debugInfo.resolution)),
-	}
-
-	return table.concat(lines, "\n")
-end
-
-local function FormatDebugDump(dump)
-	if not dump then
-		return T("DEBUG_EMPTY", "No debug logs yet.\nSwitch to the Debug page and click \"Collect Logs\".")
-	end
-
-	local lines = {}
-	local rawInstances = dump.rawSavedInstanceInfo and dump.rawSavedInstanceInfo.instances or {}
-	local normalizedLockouts = dump.normalizedLockouts and dump.normalizedLockouts.lockouts or {}
-	local currentLootDebug = dump.currentLootDebug or {}
-	local setSummaryDebug = dump.setSummaryDebug or {}
-
-	lines[#lines + 1] = T("DEBUG_COPY_HINT", "Tip: click \"Collect Logs\" to auto-select the text, then press Ctrl+C to copy.")
-	lines[#lines + 1] = ""
-	lines[#lines + 1] = "== Raw GetSavedInstanceInfo =="
-	lines[#lines + 1] = string.format("count = %d", #rawInstances)
-	lines[#lines + 1] = ""
-	for _, instance in ipairs(rawInstances) do
-		local returns = instance.returns or {}
-		lines[#lines + 1] = string.format("[%d] %s", instance.index or 0, tostring(returns[1] or "Unknown"))
-		lines[#lines + 1] = string.format("  returns[4]=%s difficultyID", tostring(returns[4]))
-		lines[#lines + 1] = string.format("  returns[5]=%s locked", tostring(returns[5]))
-		lines[#lines + 1] = string.format("  returns[8]=%s isRaid", tostring(returns[8]))
-		lines[#lines + 1] = string.format("  returns[10]=%s difficultyName", tostring(returns[10]))
-		lines[#lines + 1] = string.format("  returns[11]=%s numEncounters", tostring(returns[11]))
-		lines[#lines + 1] = string.format("  returns[12]=%s encounterProgress", tostring(returns[12]))
-		lines[#lines + 1] = string.format("  returns[14]=%s instanceId", tostring(returns[14]))
-		lines[#lines + 1] = ""
-	end
-
-	lines[#lines + 1] = "== Normalized Lockouts =="
-	lines[#lines + 1] = string.format("count = %d", #normalizedLockouts)
-	lines[#lines + 1] = ""
-	for _, lockout in ipairs(normalizedLockouts) do
-		lines[#lines + 1] = string.format(
-			"%s | %s | raid=%s | progress=%s | reset=%s | extended=%s",
-			tostring(lockout.name or "Unknown"),
-			tostring(lockout.difficultyName or "Unknown"),
-			FormatBoolean(lockout.isRaid),
-			RenderLockoutProgress(lockout),
-			tostring(lockout.resetSeconds or 0),
-			FormatBoolean(lockout.extended)
-		)
-	end
-
-	lines[#lines + 1] = ""
-	lines[#lines + 1] = "== Current Loot Encounter Debug =="
-	lines[#lines + 1] = string.format("instanceName = %s", tostring(currentLootDebug.instanceName))
-	lines[#lines + 1] = string.format("instanceType = %s", tostring(currentLootDebug.instanceType))
-	lines[#lines + 1] = string.format("difficultyID = %s", tostring(currentLootDebug.difficultyID))
-	lines[#lines + 1] = string.format("difficultyName = %s", tostring(currentLootDebug.difficultyName))
-	lines[#lines + 1] = string.format("instanceID = %s", tostring(currentLootDebug.instanceID))
-	lines[#lines + 1] = string.format("journalInstanceID = %s", tostring(currentLootDebug.journalInstanceID))
-	lines[#lines + 1] = string.format("resolution = %s", tostring(currentLootDebug.resolution))
-	lines[#lines + 1] = ""
-	lines[#lines + 1] = "-- Journal Encounters --"
-	for _, encounter in ipairs(currentLootDebug.journalEncounters or {}) do
-		lines[#lines + 1] = string.format("[%d] %s", tonumber(encounter.index) or 0, tostring(encounter.name))
-	end
-	lines[#lines + 1] = ""
-	lines[#lines + 1] = "-- Current Instance Lock Encounters --"
-	for _, encounter in ipairs(currentLootDebug.currentInstanceEncounters or {}) do
-		lines[#lines + 1] = string.format("[%d] %s | killed=%s", tonumber(encounter.index) or 0, tostring(encounter.name), FormatBoolean(encounter.isKilled))
-	end
-	lines[#lines + 1] = ""
-	lines[#lines + 1] = "-- Saved Instance Encounters --"
-	for _, encounter in ipairs(currentLootDebug.savedInstanceEncounters or {}) do
-		lines[#lines + 1] = string.format("[%d] %s | killed=%s", tonumber(encounter.index) or 0, tostring(encounter.name), FormatBoolean(encounter.isKilled))
-	end
-
-	local probe = currentLootDebug.selectedInstanceDifficultyProbe
-	if probe then
-		lines[#lines + 1] = ""
-		lines[#lines + 1] = "== Selected Loot Panel Instance Difficulty Probe =="
-		lines[#lines + 1] = string.format("instanceName = %s", tostring(probe.instanceName))
-		lines[#lines + 1] = string.format("instanceType = %s", tostring(probe.instanceType))
-		lines[#lines + 1] = string.format("journalInstanceID = %s", tostring(probe.journalInstanceID))
-		lines[#lines + 1] = string.format("selectedDifficultyID = %s", tostring(probe.selectedDifficultyID))
-		lines[#lines + 1] = string.format("selectedDifficultyName = %s", tostring(probe.selectedDifficultyName))
-		lines[#lines + 1] = ""
-		for _, candidate in ipairs(probe.candidates or {}) do
-			lines[#lines + 1] = string.format(
-				"  difficultyID=%s | difficultyName=%s | isValid=%s",
-				tostring(candidate.difficultyID),
-				tostring(candidate.difficultyName),
-				FormatBoolean(candidate.isValid)
-			)
-		end
-	end
-
-	if setSummaryDebug.classFiles or setSummaryDebug.items then
-		lines[#lines + 1] = ""
-		lines[#lines + 1] = "== Loot Set Summary Debug =="
-		lines[#lines + 1] = string.format("classScopeMode = %s", tostring(setSummaryDebug.classScopeMode))
-		lines[#lines + 1] = string.format("classFiles = %s", table.concat(setSummaryDebug.classFiles or {}, ", "))
-		lines[#lines + 1] = string.format("encounterCount = %s", tostring(setSummaryDebug.encounterCount or 0))
-		lines[#lines + 1] = string.format("matchedSetCount = %s", tostring(setSummaryDebug.matchedSetCount or 0))
-		lines[#lines + 1] = ""
-		for _, item in ipairs(setSummaryDebug.items or {}) do
-			lines[#lines + 1] = string.format(
-				"item=%s | sourceID=%s | typeKey=%s | passesTypeFilter=%s | setIDs=%s",
-				tostring(item.name or "Unknown"),
-				tostring(item.sourceID),
-				tostring(item.typeKey),
-				FormatBoolean(item.passesTypeFilter),
-				table.concat(item.setIDs or {}, ",")
-			)
-			for _, setEntry in ipairs(item.sets or {}) do
-				lines[#lines + 1] = string.format(
-					"  setID=%s | name=%s | progress=%s/%s | completed=%s | matches=%s",
-					tostring(setEntry.setID),
-					tostring(setEntry.name),
-					tostring(setEntry.collected),
-					tostring(setEntry.total),
-					FormatBoolean(setEntry.completed),
-					table.concat(setEntry.matchingClasses or {}, ",")
-				)
+if DebugTools and DebugTools.Configure then
+	DebugTools.Configure({
+		T = T,
+		API = API,
+		getDB = function()
+			return CodexExampleAddonDB
+		end,
+		getDebugLogSections = function()
+			local settings = CodexExampleAddonDB and CodexExampleAddonDB.settings or nil
+			return settings and settings.debugLogSections or {}
+		end,
+		CharacterKey = CharacterKey,
+		ExtractSavedInstanceProgress = ExtractSavedInstanceProgress,
+		findJournalInstanceByInstanceInfo = FindJournalInstanceByInstanceInfo,
+		getSelectedLootPanelInstance = GetSelectedLootPanelInstance,
+		getLootPanelRenderDebugHistory = function()
+			local copy = {}
+			for index, entry in ipairs(addon.lootPanelRenderDebugHistory or {}) do
+				copy[index] = entry
 			end
-		end
-		if #(setSummaryDebug.setAppearances or {}) > 0 then
-			lines[#lines + 1] = ""
-			lines[#lines + 1] = "== Loot Set Primary Appearances Debug =="
-			for _, setEntry in ipairs(setSummaryDebug.setAppearances or {}) do
-				lines[#lines + 1] = string.format("setID=%s | name=%s", tostring(setEntry.setID), tostring(setEntry.name))
-				for _, appearance in ipairs(setEntry.appearances or {}) do
-					lines[#lines + 1] = string.format(
-						"  sourceID=%s | name=%s | slot=%s | slotName=%s | collected=%s | equipLoc=%s | itemLink=%s | icon=%s",
-						tostring(appearance.sourceID),
-						tostring(appearance.name),
-						tostring(appearance.slot),
-						tostring(appearance.slotName),
-						FormatBoolean(appearance.collected),
-						tostring(appearance.equipLoc),
-						tostring(appearance.itemLink),
-						tostring(appearance.icon)
-					)
-				end
+			return copy
+		end,
+		buildLootPanelInstanceSelections = BuildLootPanelInstanceSelections,
+		getLootPanelSelectedInstanceKey = function()
+			return lootPanelState and lootPanelState.selectedInstanceKey or nil
+		end,
+		getSelectedLootClassFiles = GetSelectedLootClassFiles,
+		getSelectedLootClassIDs = GetSelectedLootClassIDs,
+		collectCurrentInstanceLootData = CollectCurrentInstanceLootData,
+		getLootItemCollectionStateDebug = GetLootItemCollectionStateDebug,
+		getLootItemSourceID = GetLootItemSourceID,
+		getLootItemSetIDs = GetLootItemSetIDs,
+		lootItemMatchesTypeFilter = LootItemMatchesTypeFilter,
+		getSetProgress = GetSetProgress,
+		classMatchesSetInfo = ClassMatchesSetInfo,
+		getClassScopeMode = function()
+			return lootPanelState.classScopeMode
+		end,
+		getAppearanceSourceDisplayInfo = function(sourceID)
+			return addon.LootSets and addon.LootSets.GetAppearanceSourceDisplayInfo and addon.LootSets.GetAppearanceSourceDisplayInfo(sourceID) or nil
+		end,
+		getStoredDashboardCache = function()
+			return CodexExampleAddonDB and CodexExampleAddonDB.raidDashboardCache or nil
+		end,
+		getDashboardClassFiles = GetDashboardClassFiles,
+		getDashboardClassIDs = GetDashboardClassIDs,
+		getEligibleClassesForLootItem = GetEligibleClassesForLootItem,
+		deriveLootTypeKey = DeriveLootTypeKey,
+		isKnownRaidInstanceName = function(name)
+			if not name or name == "" then
+				return false
 			end
-		end
-	end
-
-	return table.concat(lines, "\n")
+			return FindJournalInstanceByInstanceInfo(name, nil, "raid") ~= nil
+		end,
+		getRaidTierTag = GetRaidTierTag,
+		renderLockoutProgress = RenderLockoutProgress,
+	})
 end
 
 local function CaptureAndShowDebugDump()
 	if RequestRaidInfo then
 		RequestRaidInfo()
 	end
-	lastDebugDump = CaptureEncounterDebugDump()
+	lastDebugDump = DebugTools and DebugTools.CaptureEncounterDebugDump and DebugTools.CaptureEncounterDebugDump() or nil
 	if SetPanelView then
 		SetPanelView("debug")
 	end
@@ -4179,266 +5205,49 @@ local function CaptureAndShowDebugDump()
 		CodexExampleAddonPanelScrollChild:SetFocus()
 		CodexExampleAddonPanelScrollChild:HighlightText()
 	end
-	Print(string.format(T("MESSAGE_DEBUG_CAPTURED", "Debug logs collected and selected (%d instances). Press Ctrl+C to copy."), #lastDebugDump.lastEncounterDump.instances))
+	if lastDebugDump then
+		Print(string.format(T("MESSAGE_DEBUG_CAPTURED", "Debug logs collected and selected (%d instances). Press Ctrl+C to copy."), #lastDebugDump.lastEncounterDump.instances))
+	end
 end
 
-CaptureEncounterDebugDump = function()
-	local dump = API.CaptureEncounterDebugDump({
-		CharacterKey = CharacterKey,
-		ExtractSavedInstanceProgress = ExtractSavedInstanceProgress,
-		findJournalInstanceByInstanceInfo = FindJournalInstanceByInstanceInfo,
-		getSelectedLootPanelInstance = GetSelectedLootPanelInstance,
-		writeDebugTemp = function(key, value)
-			CodexExampleAddonDB.debugTemp[key] = value
-		end,
-	})
-	local data = CollectCurrentInstanceLootData()
-	local setSummaryDebug = {
-		classScopeMode = lootPanelState.classScopeMode,
-		classFiles = GetSelectedLootClassFiles(),
-		encounterCount = #(data and data.encounters or {}),
-		matchedSetCount = 0,
-		items = {},
-		setAppearances = {},
+local function GetDebugLogSectionDefinitions()
+	return {
+		{ key = "rawSavedInstanceInfo", label = "Raw GetSavedInstanceInfo" },
+		{ key = "currentLootDebug", label = "Current Loot Encounter Debug" },
+		{ key = "lootPanelSelectionDebug", label = "Loot Panel Selection Debug" },
+		{ key = "lootPanelRenderTimingDebug", label = "Loot Panel Render Timing Debug" },
+		{ key = "selectedDifficultyProbe", label = "Selected Loot Panel Instance Difficulty Probe" },
+		{ key = "normalizedLockouts", label = "Normalized Lockouts" },
+		{ key = "setSummaryDebug", label = "Loot Set Summary Debug" },
+		{ key = "dashboardSetPieceDebug", label = "Dashboard Set Piece Metric Debug" },
+		{ key = "lootApiRawDebug", label = "Loot API Raw Debug" },
+		{ key = "collectionStateDebug", label = "Loot Collection State Debug" },
+		{ key = "dashboardSnapshotDebug", label = "Dashboard Snapshot Debug" },
+		{ key = "dashboardSnapshotWriteDebug", label = "Dashboard Snapshot Write Debug" },
 	}
-	local seenSetIDs = {}
-	for _, encounter in ipairs((data and data.encounters) or {}) do
-		for _, item in ipairs(encounter.loot or {}) do
-			local itemDebug = {
-				name = item.name,
-				sourceID = GetLootItemSourceID(item),
-				typeKey = item.typeKey,
-				passesTypeFilter = LootItemMatchesTypeFilter(item),
-				setIDs = GetLootItemSetIDs(item),
-				sets = {},
-			}
-			for _, setID in ipairs(itemDebug.setIDs) do
-				local setInfo = C_TransmogSets and C_TransmogSets.GetSetInfo and C_TransmogSets.GetSetInfo(setID) or nil
-				local collected, total = GetSetProgress(setID)
-				local matchingClasses = {}
-				for _, classFile in ipairs(setSummaryDebug.classFiles or {}) do
-					if setInfo and ClassMatchesSetInfo(classFile, setInfo) then
-						matchingClasses[#matchingClasses + 1] = classFile
-					end
-				end
-				if #matchingClasses > 0 then
-					setSummaryDebug.matchedSetCount = setSummaryDebug.matchedSetCount + 1
-				end
-				itemDebug.sets[#itemDebug.sets + 1] = {
-					setID = setID,
-					name = setInfo and setInfo.name or nil,
-					collected = collected,
-					total = total,
-					completed = total > 0 and collected >= total,
-					matchingClasses = matchingClasses,
-				}
-				if not seenSetIDs[setID] then
-					seenSetIDs[setID] = true
-					local appearanceEntries = {}
-					if C_TransmogSets and C_TransmogSets.GetSetPrimaryAppearances then
-						local appearances = C_TransmogSets.GetSetPrimaryAppearances(setID)
-						if type(appearances) == "table" then
-							for _, appearance in ipairs(appearances) do
-								local sourceID = tonumber(appearance and appearance.sourceID) or 0
-								local sourceInfo = addon.LootSets.GetAppearanceSourceDisplayInfo(sourceID)
-								appearanceEntries[#appearanceEntries + 1] = {
-									sourceID = sourceID,
-									name = appearance and appearance.name or nil,
-									slot = appearance and appearance.slot or nil,
-									slotName = appearance and appearance.slotName or nil,
-									collected = appearance and (appearance.collected or appearance.appearanceIsCollected) and true or false,
-									itemLink = sourceInfo and sourceInfo.link or nil,
-									equipLoc = sourceInfo and sourceInfo.equipLoc or nil,
-									icon = sourceInfo and sourceInfo.icon or nil,
-								}
-							end
-						end
-					end
-					setSummaryDebug.setAppearances[#setSummaryDebug.setAppearances + 1] = {
-						setID = setID,
-						name = setInfo and setInfo.name or nil,
-						appearances = appearanceEntries,
-					}
-				end
-			end
-			if itemDebug.sourceID or #(itemDebug.setIDs or {}) > 0 then
-				setSummaryDebug.items[#setSummaryDebug.items + 1] = itemDebug
-			end
-		end
-	end
-	dump.setSummaryDebug = setSummaryDebug
-	CodexExampleAddonDB.debugTemp.setSummaryDebug = setSummaryDebug
-	return dump
 end
 
-local function ReleaseTooltip()
-	if tooltipFrame and QTip and tooltipFrame.GetName and tooltipFrame:GetName() == "CodexExampleAddonTooltip" then
-		QTip:Release(tooltipFrame)
-	end
-	tooltipFrame = nil
-	GameTooltip:Hide()
-end
+local function GetDebugLogSectionLayout()
+	local definitions = GetDebugLogSectionDefinitions()
+	local columns = 2
+	local rowHeight = 24
+	local rows = math.max(1, math.ceil(#definitions / columns))
+	local buttonsTopOffset = -86
+	local buttonsBottomOffset = math.abs(buttonsTopOffset) + ((rows - 1) * rowHeight) + 24
+	local listHeaderOffset = -(buttonsBottomOffset + 12)
+	local scrollTopOffset = -(buttonsBottomOffset + 34)
+	local scrollBottomMagnitude = 460
+	local scrollHeight = math.max(120, scrollBottomMagnitude - math.abs(scrollTopOffset))
 
-GetSortedCharacters = function()
-	return Storage.GetSortedCharacters(CodexExampleAddonDB.characters or {})
-end
-
-local function LockoutMatchesSettings(lockout, settings)
-	return Compute.LockoutMatchesSettings(lockout, settings)
-end
-
-local function GetVisibleLockouts(info, settings)
-	return Compute.GetVisibleLockouts(info, settings)
-end
-
-local function IsClassFilterActive(settings)
-	return Compute.IsClassFilterActive(settings)
-end
-
-local function CharacterMatchesSettings(info, settings)
-	return Compute.CharacterMatchesSettings(info, settings)
-end
-
-local function SortLockoutsByDifficulty(a, b)
-	return Compute.SortLockoutsByDifficulty(a, b)
-end
-
-local function FormatTooltipCellLockout(lockout)
-	if not lockout then
-		return "-"
-	end
-	local line = RenderLockoutProgress(lockout)
-	if lockout.extended then
-		line = line .. " Ext"
-	end
-	return line
-end
-
-local function GetDifficultyTooltipColor(difficultyName, difficultyID)
-	difficultyName = string.lower(tostring(difficultyName or ""))
-	difficultyID = tonumber(difficultyID) or 0
-
-	if difficultyID == 17 or difficultyID == 7 or difficultyName:find("随机") or difficultyName:find("raid finder") then
-		return ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[2] or { hex = "|cff1eff00" }
-	end
-	if difficultyID == 14 or difficultyID == 3 or difficultyID == 4 or difficultyID == 9
-		or difficultyName:find("普通") or difficultyName:find("10人") or difficultyName:find("25人") or difficultyName:find("40人") then
-		return ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[3] or { hex = "|cff0070dd" }
-	end
-	if difficultyID == 15 or difficultyID == 5 or difficultyID == 6
-		or difficultyName:find("英雄") then
-		return ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[4] or { hex = "|cffa335ee" }
-	end
-	if difficultyID == 16 or difficultyID == 8 or difficultyID == 23
-		or difficultyName:find("史诗") or difficultyName:find("mythic") then
-		return ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[5] or { hex = "|cffff8000" }
-	end
-
-	return ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[1] or { hex = "|cffffffff" }
-end
-
-local function BuildTooltipInstanceLabel(instanceInfo)
-	local baseName = NormalizeLockoutDisplayName(instanceInfo and instanceInfo.name)
-	local difficultyName = tostring(instanceInfo and instanceInfo.difficultyName or "")
-	if difficultyName ~= "" and difficultyName ~= T("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度") then
-		local difficultyColor = GetDifficultyTooltipColor(difficultyName, instanceInfo and instanceInfo.difficultyID)
-		local coloredDifficulty = string.format("%s%s|r", tostring(difficultyColor.hex or "|cffffffff"), difficultyName)
-		baseName = string.format("%s (%s)", baseName, coloredDifficulty)
-	end
-	return ColorizeLockoutLabel(baseName, instanceInfo and instanceInfo.isRaid)
-end
-
-local function BuildTooltipMatrix(settings, maxCharacters)
-	return Compute.BuildTooltipMatrix(CodexExampleAddonDB.characters or {}, settings, maxCharacters, {
-		getSortedCharacters = Storage.GetSortedCharacters,
-		getExpansionForLockout = GetExpansionForLockout,
-		getExpansionOrder = GetExpansionOrder,
-	})
-end
-
-local function ShowQTipTooltip(owner, settings, maxCharacters)
-	local visibleCharacters, tooltipRows = BuildTooltipMatrix(settings, maxCharacters)
-	local columnArgs = { "LEFT" }
-	local zebraIndex = 0
-	for _ = 1, #visibleCharacters do
-		columnArgs[#columnArgs + 1] = "CENTER"
-	end
-
-	ReleaseTooltip()
-	tooltipFrame = QTip:Acquire("CodexExampleAddonTooltip", #columnArgs, unpack(columnArgs))
-	tooltipFrame:Clear()
-	tooltipFrame:SetAutoHideDelay(0.15, owner)
-	tooltipFrame:SmartAnchorTo(owner)
-	tooltipFrame:SetClampedToScreen(true)
-	tooltipFrame:SetScale(1)
-	tooltipFrame:SetCellMarginH(8)
-	tooltipFrame:SetCellMarginV(3)
-
-local titleLine = tooltipFrame:AddHeader(T("TOOLTIP_TITLE", "幻化追踪"))
-tooltipFrame:SetCell(titleLine, 1, T("TOOLTIP_TITLE", "幻化追踪"), nil, "LEFT", #columnArgs)
-	tooltipFrame:AddSeparator(4, 0.25, 0.25, 0.3, 1)
-
-	local headerCells = { T("TOOLTIP_COLUMN_INSTANCE", "Instance") }
-	for _, entry in ipairs(visibleCharacters) do
-		headerCells[#headerCells + 1] = string.format("%s\nLv%d", ColorizeCharacterName(entry.info.name or entry.key, entry.info.className), tonumber(entry.info.level) or 0)
-	end
-	tooltipFrame:AddHeader(unpack(headerCells))
-
-	if #visibleCharacters == 0 then
-		local line = tooltipFrame:AddLine(T("TOOLTIP_NO_TRACKED_CHARACTERS", "No tracked characters yet."))
-		tooltipFrame:SetCell(line, 1, T("TOOLTIP_NO_TRACKED_CHARACTERS", "No tracked characters yet."), nil, "LEFT", #columnArgs)
-	else
-		local currentExpansion
-		for _, rowInfo in ipairs(tooltipRows) do
-			if currentExpansion ~= rowInfo.expansionName then
-				if currentExpansion ~= nil then
-					tooltipFrame:AddSeparator(2, 0.28, 0.28, 0.34, 0.9)
-				end
-				currentExpansion = rowInfo.expansionName
-				local groupLine = tooltipFrame:AddLine()
-				tooltipFrame:SetCell(groupLine, 1, ColorizeExpansionLabel(currentExpansion), nil, "LEFT", #columnArgs)
-				tooltipFrame:SetLineColor(groupLine, 0.18, 0.18, 0.22, 0.9)
-			end
-			local line = tooltipFrame:AddLine()
-			zebraIndex = zebraIndex + 1
-			tooltipFrame:SetCell(line, 1, BuildTooltipInstanceLabel(rowInfo))
-			if zebraIndex % 2 == 1 then
-				tooltipFrame:SetLineColor(line, 0.08, 0.08, 0.1, 0.72)
-			else
-				tooltipFrame:SetLineColor(line, 0.13, 0.13, 0.16, 0.72)
-			end
-
-			for columnIndex, entry in ipairs(visibleCharacters) do
-				local matchingLockout
-				for _, lockout in ipairs(entry.lockouts) do
-					if lockout.name == rowInfo.name
-						and (lockout.isRaid and true or false) == rowInfo.isRaid
-						and (tonumber(lockout.difficultyID) or 0) == (tonumber(rowInfo.difficultyID) or 0) then
-						matchingLockout = lockout
-						break
-					end
-				end
-				local cellText = FormatTooltipCellLockout(matchingLockout)
-				tooltipFrame:SetCell(line, columnIndex + 1, cellText, nil, "CENTER")
-			end
-		end
-	end
-
-	tooltipFrame:AddSeparator(6, 0, 0, 0, 0)
-	local hint = tooltipFrame:AddLine()
-	tooltipFrame:SetCell(hint, 1, T("TOOLTIP_LEFT_CLICK", "Left-click: show or hide the tracker"), nil, "LEFT", #columnArgs)
-	hint = tooltipFrame:AddLine()
-	tooltipFrame:SetCell(hint, 1, T("TOOLTIP_RIGHT_CLICK_REFRESH", "Right-click: refresh saved lockouts"), nil, "LEFT", #columnArgs)
-	hint = tooltipFrame:AddLine()
-	tooltipFrame:SetCell(hint, 1, T("TOOLTIP_DRAG_MOVE", "Drag: move this icon"), nil, "LEFT", #columnArgs)
-
-	tooltipFrame:Show()
-end
-
-ShowMinimapTooltip = function(owner)
-	local settings = CodexExampleAddonDB.settings or {}
-	local maxCharacters = tonumber(settings.maxCharacters) or 10
-	ShowQTipTooltip(owner, settings, maxCharacters)
+	return {
+		definitions = definitions,
+		columns = columns,
+		columnWidth = 170,
+		rowHeight = rowHeight,
+		listHeaderOffset = listHeaderOffset,
+		scrollTopOffset = scrollTopOffset,
+		scrollHeight = scrollHeight,
+	}
 end
 
 CaptureSavedInstances = function()
@@ -4504,70 +5313,18 @@ CaptureSavedInstances = function()
 	CodexExampleAddonDB.characters[key] = character
 	InvalidateLootPanelSelectionCache()
 	InvalidateLootDataCache()
+	if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+		addon.RaidDashboard.InvalidateCache()
+	end
 	return character
-end
-
-local function BuildDisplayRows()
-	wipe(displayRows)
-
-	local settings = CodexExampleAddonDB.settings
-	if not settings.maxCharacters then
-		settings.maxCharacters = 10
-	end
-	local characters = Storage.GetSortedCharacters(CodexExampleAddonDB.characters or {})
-
-	local shownCharacters = 0
-	for _, entry in ipairs(characters) do
-		if shownCharacters >= settings.maxCharacters then
-			break
-		end
-
-		local info = entry.info
-		if CharacterMatchesSettings(info, settings) then
-			displayRows[#displayRows + 1] = string.format("%s - %s  Lv%d  %s", ColorizeCharacterName(info.name or entry.key, info.className), info.realm or "", info.level or 0, date("%Y-%m-%d %H:%M", info.lastUpdated or time()))
-
-			local visibleCount = 0
-			local currentExpansion
-			for _, lockout in ipairs(info.lockouts or {}) do
-				if LockoutMatchesSettings(lockout, settings) then
-					local expansionName = GetExpansionForLockout(lockout)
-					if currentExpansion ~= expansionName then
-						if currentExpansion ~= nil then
-							displayRows[#displayRows + 1] = "  ------------------------------"
-						end
-						currentExpansion = expansionName
-						displayRows[#displayRows + 1] = string.format("  %s", ColorizeExpansionLabel("[" .. currentExpansion .. "]"))
-					end
-					local lockoutName = ColorizeLockoutLabel(NormalizeLockoutDisplayName(lockout.name), lockout.isRaid)
-					local extended = lockout.extended and T("LABEL_EXTENDED", "  Extended") or ""
-					displayRows[#displayRows + 1] = string.format("  %s (%s) - %s%s", lockoutName, lockout.difficultyName, RenderLockoutProgress(lockout), extended)
-					visibleCount = visibleCount + 1
-				end
-			end
-
-			if visibleCount == 0 then
-				displayRows[#displayRows + 1] = T("TEXT_NO_MATCHING_LOCKOUTS", "  No matching lockouts.")
-			end
-
-			displayRows[#displayRows + 1] = ""
-			shownCharacters = shownCharacters + 1
-		end
-	end
-
-	if #displayRows == 0 then
-		displayRows[1] = T("TEXT_NO_TRACKED_CHARACTERS", "No tracked characters yet.")
-		displayRows[2] = T("TEXT_REFRESH_GUIDE", "Click Refresh after logging in or entering / leaving an instance.")
-	end
 end
 
 RefreshPanelText = function()
 	if not panel then return end
 	local text
 	if currentPanelView == "debug" then
-		text = FormatDebugDump(lastDebugDump or CodexExampleAddonDB.debugTemp)
-	elseif currentPanelView == "track" then
-		BuildDisplayRows()
-		text = table.concat(displayRows, "\n")
+		local debugFormatter = DebugTools and DebugTools.FormatDebugDump
+		text = debugFormatter and debugFormatter(lastDebugDump or CodexExampleAddonDB.debugTemp) or ""
 	elseif currentPanelView == "classes" or currentPanelView == "loot" or currentPanelView == "config" then
 		text = ""
 	else
@@ -4575,6 +5332,62 @@ RefreshPanelText = function()
 	end
 	CodexExampleAddonPanelScrollChild:SetText(text)
 	CodexExampleAddonPanelScrollChild:SetCursorPosition(0)
+end
+
+function addon.UpdateDebugLogSectionUI(settings)
+	if not panel then
+		return
+	end
+	settings = settings or {}
+	settings.debugLogSections = settings.debugLogSections or {}
+	local isDebugView = currentPanelView == "debug"
+
+	panel.debugLogSectionButtons = panel.debugLogSectionButtons or {}
+	if not panel.debugLogSectionsHeader then
+		panel.debugLogSectionsHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	end
+
+	local layout = GetDebugLogSectionLayout()
+	local definitions = layout.definitions
+
+	panel.debugLogSectionsHeader:ClearAllPoints()
+	panel.debugLogSectionsHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
+	panel.debugLogSectionsHeader:SetText(T("DEBUG_SECTION_HEADER", "日志分段"))
+	panel.debugLogSectionsHeader:SetShown(isDebugView)
+
+	for index, definition in ipairs(definitions) do
+		local button = panel.debugLogSectionButtons[index]
+		if not button then
+			button = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+			button:SetSize(24, 24)
+			button.text = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			button.text:SetPoint("LEFT", button, "RIGHT", 2, 0)
+			panel.debugLogSectionButtons[index] = button
+		end
+		local columnIndex = (index - 1) % layout.columns
+		local rowIndex = math.floor((index - 1) / layout.columns)
+		button:ClearAllPoints()
+		button:SetPoint("TOPLEFT", panel, "TOPLEFT", 156 + (columnIndex * layout.columnWidth), -86 - (rowIndex * layout.rowHeight))
+		button.text:SetText(definition.label)
+		button.text:SetWidth(layout.columnWidth - 26)
+		button.text:SetJustifyH("LEFT")
+		button:SetChecked(settings.debugLogSections[definition.key] and true or false)
+		button:SetScript("OnClick", function(self)
+			settings.debugLogSections[definition.key] = self:GetChecked() and true or false
+			RefreshPanelText()
+		end)
+		button:SetShown(isDebugView)
+		if button.text then
+			button.text:SetShown(isDebugView)
+		end
+	end
+
+	for index = #definitions + 1, #(panel.debugLogSectionButtons or {}) do
+		panel.debugLogSectionButtons[index]:Hide()
+		if panel.debugLogSectionButtons[index].text then
+			panel.debugLogSectionButtons[index].text:Hide()
+		end
+	end
 end
 
 local function UpdateClassFilterUI(settings)
@@ -4742,7 +5555,6 @@ local function UpdateLootTypeFilterUI(settings)
 				else
 					settings.selectedLootTypes[typeKey] = nil
 				end
-				UpdateLootTypeFilterButtons()
 				RefreshLootPanel()
 			end)
 			button:Show()
@@ -4777,12 +5589,26 @@ local function UpdateLootTypeFilterUI(settings)
 	content:SetHeight(math.max(1, -yOffset + 4))
 end
 
+local function InitializePanelNavigation()
+	CodexExampleAddonPanelNavConfigButton:SetText(T("NAV_CONFIG", "General"))
+	CodexExampleAddonPanelNavClassButton:SetText(T("NAV_CLASS", "Classes"))
+	CodexExampleAddonPanelNavLootButton:SetText(T("NAV_LOOT", "Loot Types"))
+	CodexExampleAddonPanelNavDebugButton:SetText(T("NAV_DEBUG", "Debug"))
+
+	CodexExampleAddonPanelNavConfigButton:ClearAllPoints()
+	CodexExampleAddonPanelNavConfigButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -102)
+	CodexExampleAddonPanelNavClassButton:ClearAllPoints()
+	CodexExampleAddonPanelNavClassButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -164)
+	CodexExampleAddonPanelNavLootButton:ClearAllPoints()
+	CodexExampleAddonPanelNavLootButton:SetPoint("TOPLEFT", CodexExampleAddonPanelNavClassButton, "BOTTOMLEFT", 0, -8)
+	CodexExampleAddonPanelNavDebugButton:ClearAllPoints()
+	CodexExampleAddonPanelNavDebugButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -250)
+end
+
 SetPanelView = function(view)
 	if not panel then return end
 	if view == "debug" then
 		currentPanelView = "debug"
-	elseif view == "track" then
-		currentPanelView = "track"
 	elseif view == "classes" then
 		currentPanelView = "classes"
 	elseif view == "loot" then
@@ -4792,7 +5618,6 @@ SetPanelView = function(view)
 	end
 
 	local isDebug = currentPanelView == "debug"
-	local isTrack = currentPanelView == "track"
 	local isClasses = currentPanelView == "classes"
 	local isLoot = currentPanelView == "loot"
 	local isConfig = currentPanelView == "config"
@@ -4802,6 +5627,7 @@ SetPanelView = function(view)
 	local classScrollChild = CodexExampleAddonPanelClassScrollChild
 	local itemScrollFrame = CodexExampleAddonPanelItemScrollFrame
 	local itemScrollChild = CodexExampleAddonPanelItemScrollChild
+	local debugSectionHeader = panel.debugLogSectionsHeader
 
 	CodexExampleAddonPanelConfigHeader:SetShown(isConfig)
 	if CodexExampleAddonPanelConfigDescription then
@@ -4810,7 +5636,6 @@ SetPanelView = function(view)
 	CodexExampleAddonPanelConfigFiltersHeader:SetShown(isConfig)
 	CodexExampleAddonPanelConfigLootHeader:SetShown(isConfig)
 	CodexExampleAddonPanelStyleHeader:SetShown(isConfig)
-	CodexExampleAddonPanelTrackHeader:SetShown(isTrack)
 	CodexExampleAddonPanelClassHeader:SetShown(isClasses)
 	CodexExampleAddonPanelItemHeader:SetShown(isLoot)
 	CodexExampleAddonPanelCheckbox1:SetShown(isConfig)
@@ -4820,21 +5645,29 @@ SetPanelView = function(view)
 	CodexExampleAddonPanelCheckbox5:SetShown(isConfig)
 	CodexExampleAddonPanelStyleDropdownButton:SetShown(isConfig)
 	CodexExampleAddonPanelSlider:SetShown(false)
-	CodexExampleAddonPanelTransmogButton:SetShown(isLoot)
 	classScrollFrame:SetShown(isClasses)
 	classScrollChild:SetShown(isClasses)
 	itemScrollFrame:SetShown(isLoot)
 	itemScrollChild:SetShown(isLoot)
-	CodexExampleAddonPanelResetButton:SetShown(isTrack)
-	scrollFrame:SetShown(isTrack or isDebug)
-	scrollChild:SetShown(isTrack or isDebug)
+	CodexExampleAddonPanelResetButton:SetShown(false)
+	scrollFrame:SetShown(isDebug)
+	scrollChild:SetShown(isDebug)
 	CodexExampleAddonPanelListHeader:SetShown(isDebug)
 	CodexExampleAddonPanelListHeader:SetText(T("DEBUG_HEADER", "Debug Output"))
+	if debugSectionHeader then
+		debugSectionHeader:SetShown(isDebug)
+	end
+	for _, button in ipairs(panel.debugLogSectionButtons or {}) do
+		button:SetShown(isDebug)
+		if button.text then
+			button.text:SetShown(isDebug)
+		end
+	end
 	CodexExampleAddonPanelRefreshButton:SetText(isDebug and T("BUTTON_COLLECT_DEBUG", "Collect Logs") or T("BUTTON_REFRESH", "Refresh"))
-	CodexExampleAddonPanelRefreshButton:SetShown(isTrack or isDebug)
+	CodexExampleAddonPanelRefreshButton:SetShown(isDebug)
+	scrollFrame:SetScrollChild(scrollChild)
 
 	CodexExampleAddonPanelNavConfigButton:SetEnabled(not isConfig)
-	CodexExampleAddonPanelNavTrackButton:SetEnabled(not isTrack)
 	CodexExampleAddonPanelNavClassButton:SetEnabled(not isClasses)
 	CodexExampleAddonPanelNavLootButton:SetEnabled(not isLoot)
 	CodexExampleAddonPanelNavDebugButton:SetEnabled(not isDebug)
@@ -4844,13 +5677,10 @@ SetPanelView = function(view)
 	itemScrollFrame:ClearAllPoints()
 	CodexExampleAddonPanelListHeader:ClearAllPoints()
 	if isDebug then
-		CodexExampleAddonPanelListHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
-		scrollFrame:SetSize(500, 376)
-		scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -84)
-		scrollChild:SetWidth(478)
-	elseif isTrack then
-		scrollFrame:SetSize(500, 376)
-		scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -84)
+		local debugLayout = GetDebugLogSectionLayout()
+		CodexExampleAddonPanelListHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, debugLayout.listHeaderOffset)
+		scrollFrame:SetSize(500, debugLayout.scrollHeight)
+		scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, debugLayout.scrollTopOffset)
 		scrollChild:SetWidth(478)
 	elseif isClasses then
 		CodexExampleAddonPanelClassHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
@@ -4862,9 +5692,8 @@ SetPanelView = function(view)
 		end
 	elseif isLoot then
 		CodexExampleAddonPanelItemHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
-		CodexExampleAddonPanelTransmogButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -84)
-		itemScrollFrame:SetSize(456, 328)
-		itemScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -116)
+		itemScrollFrame:SetSize(456, 360)
+		itemScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -84)
 		itemScrollChild:SetWidth(432)
 		if itemScrollFrame.ScrollBar then
 			itemScrollFrame.ScrollBar:Hide()
@@ -4906,6 +5735,7 @@ SetPanelView = function(view)
 
 	UpdateClassFilterUI(CodexExampleAddonDB.settings or {})
 	UpdateLootTypeFilterUI(CodexExampleAddonDB.settings or {})
+	addon.UpdateDebugLogSectionUI(CodexExampleAddonDB.settings or {})
 	RefreshPanelText()
 end
 
@@ -4930,21 +5760,7 @@ InitializePanel = function()
 	CodexExampleAddonPanelNavHeader:SetText(T("NAV_SECTIONS", "Sections"))
 	CodexExampleAddonPanelNavFiltersHeader:SetText(T("NAV_FILTERS", "Filters"))
 	CodexExampleAddonPanelNavDebugHeader:SetText(T("NAV_DEBUG_GROUP", "Debug"))
-	CodexExampleAddonPanelNavConfigButton:SetText(T("NAV_CONFIG", "General"))
-	CodexExampleAddonPanelNavTrackButton:SetText(T("NAV_TRACK", "Tracking"))
-	CodexExampleAddonPanelNavClassButton:SetText(T("NAV_CLASS", "Classes"))
-	CodexExampleAddonPanelNavLootButton:SetText(T("NAV_LOOT", "Loot Types"))
-	CodexExampleAddonPanelNavDebugButton:SetText(T("NAV_DEBUG", "Debug"))
-	CodexExampleAddonPanelNavConfigButton:ClearAllPoints()
-	CodexExampleAddonPanelNavConfigButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -102)
-	CodexExampleAddonPanelNavClassButton:ClearAllPoints()
-	CodexExampleAddonPanelNavClassButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -164)
-	CodexExampleAddonPanelNavLootButton:ClearAllPoints()
-	CodexExampleAddonPanelNavLootButton:SetPoint("TOPLEFT", CodexExampleAddonPanelNavClassButton, "BOTTOMLEFT", 0, -8)
-	CodexExampleAddonPanelNavTrackButton:ClearAllPoints()
-	CodexExampleAddonPanelNavTrackButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -250)
-	CodexExampleAddonPanelNavDebugButton:ClearAllPoints()
-	CodexExampleAddonPanelNavDebugButton:SetPoint("TOPLEFT", CodexExampleAddonPanelNavTrackButton, "BOTTOMLEFT", 0, -8)
+	InitializePanelNavigation()
 	CodexExampleAddonPanelConfigHeader:SetText(T("CONFIG_HEADER", "Config"))
 	if CodexExampleAddonPanelConfigDescription then
 		CodexExampleAddonPanelConfigDescription:SetText(T("CONFIG_DESCRIPTION", "Track current-instance loot, set pieces, and collection status."))
@@ -4952,11 +5768,9 @@ InitializePanel = function()
 	CodexExampleAddonPanelConfigFiltersHeader:SetText(T("CONFIG_FILTERS_HEADER", "Tracking Filters"))
 	CodexExampleAddonPanelConfigLootHeader:SetText(T("CONFIG_LOOT_HEADER", "Loot Display"))
 	CodexExampleAddonPanelStyleHeader:SetText(T("STYLE_HEADER", "风格"))
-	CodexExampleAddonPanelTrackHeader:SetText(T("TRACK_HEADER", "Tracked Lockouts"))
 	CodexExampleAddonPanelClassHeader:SetText(T("CLASS_FILTER_HEADER", "Classes"))
 	CodexExampleAddonPanelItemHeader:SetText(T("ITEM_FILTER_HEADER", "Item Types"))
 	CodexExampleAddonPanelResetButton:SetText(T("BUTTON_CLEAR_DATA", "Clear Data"))
-	UpdateLootTypeFilterButtons()
 
 	_G["CodexExampleAddonPanelCheckbox1Text"]:SetText(T("CHECKBOX_SHOW_RAIDS", "Show raids"))
 	_G["CodexExampleAddonPanelCheckbox2Text"]:SetText(T("CHECKBOX_SHOW_DUNGEONS", "Show dungeons"))
@@ -4989,7 +5803,13 @@ InitializePanel = function()
 	end)
 	CodexExampleAddonPanelCheckbox5:SetScript("OnClick", function(self)
 		settings.collectSameAppearance = self:GetChecked() and true or false
+		if addon.RaidDashboard and addon.RaidDashboard.ClearStoredData then
+			addon.RaidDashboard.ClearStoredData()
+		elseif addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+			addon.RaidDashboard.InvalidateCache()
+		end
 		RefreshLootPanel()
+		RefreshPanelText()
 	end)
 	CodexExampleAddonPanelStyleDropdownButton:SetScript("OnClick", function(self)
 		BuildStyleMenu(self)
@@ -5022,17 +5842,10 @@ InitializePanel = function()
 	CodexExampleAddonPanelItemScrollChild:SetSize(196, 328)
 	CodexExampleAddonPanelItemScrollFrame:SetScrollChild(CodexExampleAddonPanelItemScrollChild)
 	UpdateLootTypeFilterUI(settings)
-
-	CodexExampleAddonPanelTransmogButton:SetScript("OnClick", function()
-		SelectTransmoggableLootTypes()
-	end)
+	addon.UpdateDebugLogSectionUI(settings)
 
 	CodexExampleAddonPanelNavConfigButton:SetScript("OnClick", function()
 		SetPanelView("config")
-	end)
-
-	CodexExampleAddonPanelNavTrackButton:SetScript("OnClick", function()
-		SetPanelView("track")
 	end)
 
 	CodexExampleAddonPanelNavClassButton:SetScript("OnClick", function()
@@ -5056,6 +5869,9 @@ InitializePanel = function()
 			RequestRaidInfo()
 		end
 		CaptureSavedInstances()
+		if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+			addon.RaidDashboard.InvalidateCache()
+		end
 		RefreshPanelText()
 		Print(T("MESSAGE_LOCKOUTS_REFRESHED", "Lockouts refreshed."))
 	end)
@@ -5064,6 +5880,11 @@ InitializePanel = function()
 		CodexExampleAddonDB.characters = {}
 		InvalidateLootPanelSelectionCache()
 		InvalidateLootDataCache()
+		if addon.RaidDashboard and addon.RaidDashboard.ClearStoredData then
+			addon.RaidDashboard.ClearStoredData()
+		elseif addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+			addon.RaidDashboard.InvalidateCache()
+		end
 		RefreshPanelText()
 		Print(T("MESSAGE_STORED_SNAPSHOTS_CLEARED", "Stored snapshots cleared."))
 	end)
@@ -5104,36 +5925,57 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
 	elseif event == "UPDATE_INSTANCE_INFO" then
 		CaptureSavedInstances()
 		InvalidateLootDataCache()
+		if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+			addon.RaidDashboard.InvalidateCache()
+		end
 		QueueLootPanelCacheWarmup()
 		RefreshPanelText()
 	elseif event == "GET_ITEM_INFO_RECEIVED" then
-		if lootDataCache and lootDataCache.data and lootDataCache.data.missingItemData then
+		local shouldRefreshLootPanel = lootDataCache and lootDataCache.data and lootDataCache.data.missingItemData and true or false
+		if shouldRefreshLootPanel then
 			InvalidateLootDataCache()
 			QueueLootPanelCacheWarmup()
-		end
-		if lootPanel and lootPanel:IsShown() then
-			RefreshLootPanel()
+			if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+				addon.RaidDashboard.InvalidateCache()
+			end
+			if lootPanel and lootPanel:IsShown() and not addon.lootItemInfoRefreshPending and C_Timer and C_Timer.After then
+				addon.lootItemInfoRefreshPending = true
+				C_Timer.After(0.05, function()
+					addon.lootItemInfoRefreshPending = nil
+					if lootPanel and lootPanel:IsShown() then
+						RefreshLootPanel()
+					end
+				end)
+			elseif lootPanel and lootPanel:IsShown() then
+				RefreshLootPanel()
+			end
 		end
 	elseif event == "ENCOUNTER_END" then
 		if arg5 == 1 then
 			RecordEncounterKill(arg2)
 			InvalidateLootDataCache()
+			if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+				addon.RaidDashboard.InvalidateCache()
+			end
 			QueueLootPanelCacheWarmup()
 			if lootPanel and lootPanel:IsShown() then
 				RefreshLootPanel()
 			end
 		end
 	elseif event == "TRANSMOG_COLLECTION_UPDATED" then
+		if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+			addon.RaidDashboard.InvalidateCache()
+		end
 		if lootPanel and lootPanel:IsShown() then
 			RefreshLootPanel()
 		end
 	end
 end)
 
-SLASH_CODEXEXAMPLEADDON1 = "/cea"
-SLASH_CODEXEXAMPLEADDON2 = "/codexexample"
-SLASH_CODEXEXAMPLEADDON3 = "/iit"
-SlashCmdList.CODEXEXAMPLEADDON = function(msg)
+SLASH_TRANSMOGTRACKER1 = "/iit"
+SLASH_TRANSMOGTRACKER2 = "/tmtrack"
+SLASH_TRANSMOGTRACKER3 = "/transmogtracker"
+SlashCmdList.TRANSMOGTRACKER = function(msg)
 	local command = string.lower(strtrim(msg or ""))
 	if command == "debug" then
 		CaptureAndShowDebugDump()
