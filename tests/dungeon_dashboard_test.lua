@@ -1,7 +1,10 @@
 local addon = {}
 
-assert(loadfile("API.lua"))("MogTracker", addon)
-assert(loadfile("RaidDashboard.lua"))("MogTracker", addon)
+assert(loadfile("src/core/API.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/RaidDashboardShared.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/RaidDashboardData.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/RaidDashboardTooltip.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/RaidDashboard.lua"))("MogTracker", addon)
 
 local RaidDashboard = assert(addon.RaidDashboard)
 

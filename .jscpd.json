@@ -1,0 +1,19 @@
+{
+  "threshold": 6,
+  "min-lines": 6,
+  "min-tokens": 70,
+  "reporters": [
+    "consoleFull"
+  ],
+  "format": [
+    "lua",
+    "powershell",
+    "markup"
+  ],
+  "ignore": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/.npm-cache/**"
+  ],
+  "absolute": false
+}

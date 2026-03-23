@@ -1,6 +1,7 @@
-local addonName, addon = ...
+local _, addon = ...
 
 local API = addon.API or {}
+local DifficultyRules = addon.DifficultyRules or {}
 addon.API = API
 
 local runtimeOverrides
@@ -229,7 +230,13 @@ function API.BuildCurrentEncounterKillMap(context)
 		return state
 	end
 
-	local instanceName, _, difficultyID, _, _, _, _, currentInstanceID = GetInstanceInfo and GetInstanceInfo() or nil
+	local instanceName, difficultyID, currentInstanceID
+	if GetInstanceInfo then
+		local instanceInfo = { GetInstanceInfo() }
+		instanceName = instanceInfo[1]
+		difficultyID = instanceInfo[3]
+		currentInstanceID = instanceInfo[8]
+	end
 	if targetInstance and not targetInstance.isCurrent then
 		instanceName = targetInstance.instanceName
 		difficultyID = targetInstance.difficultyID
@@ -588,7 +595,14 @@ function API.CaptureEncounterDebugDump(context)
 			selectedDifficultyName = selectedInstance.difficultyName,
 			candidates = {},
 		}
-		for _, difficultyID in ipairs({ 1, 2, 3, 4, 5, 6, 7, 8, 9, 14, 15, 16, 17, 23, 24, 33 }) do
+		local difficultyCandidates = {}
+		for _, difficultyID in ipairs(DifficultyRules.DUNGEON_DIFFICULTY_CANDIDATES or {}) do
+			difficultyCandidates[#difficultyCandidates + 1] = difficultyID
+		end
+		for _, difficultyID in ipairs(DifficultyRules.RAID_DIFFICULTY_CANDIDATES or {}) do
+			difficultyCandidates[#difficultyCandidates + 1] = difficultyID
+		end
+		for _, difficultyID in ipairs(difficultyCandidates) do
 			local difficultyName = GetDifficultyInfo and GetDifficultyInfo(difficultyID) or nil
 			local ejValid
 			if C_EncounterJournal and C_EncounterJournal.IsValidInstanceDifficulty then

@@ -1,6 +1,10 @@
 local addon = {}
 
-local dashboardChunk = assert(loadfile("RaidDashboard.lua"))
+assert(loadfile("src/core/API.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/RaidDashboardShared.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/RaidDashboardData.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/RaidDashboardTooltip.lua"))("MogTracker", addon)
+local dashboardChunk = assert(loadfile("src/dashboard/RaidDashboard.lua"))
 dashboardChunk("MogTracker", addon)
 
 local RaidDashboard = assert(addon.RaidDashboard)
@@ -125,7 +129,7 @@ assert(RaidDashboard.UpdateSnapshot(selection, data, { classFiles = { "EVOKER", 
 local built = RaidDashboard.BuildData()
 local evokerCollected, evokerTotal, hunterCollected, hunterTotal, shamanCollected, shamanTotal, totalCollected, totalTotal
 for _, row in ipairs(built.rows or {}) do
-	if row.type == "raid" and row.instanceName == "奥迪尔" then
+	if row.type == "instance" and row.instanceName == "奥迪尔" then
 		for _, difficultyRow in ipairs(row.difficultyRows or {}) do
 			if tonumber(difficultyRow.difficultyID) == 16 then
 				evokerCollected = difficultyRow.byClass.EVOKER.setCollected

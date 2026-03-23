@@ -1,4 +1,4 @@
-local addonName, addon = ...
+local _, addon = ...
 
 local Storage = addon.Storage or {}
 addon.Storage = Storage
@@ -35,6 +35,7 @@ local function BuildDefaultDebugLogSections()
 		rawSavedInstanceInfo = true,
 		normalizedLockouts = false,
 		currentLootDebug = true,
+		minimapTooltipDebug = true,
 		lootPanelSelectionDebug = false,
 		lootPanelRenderTimingDebug = true,
 		selectedDifficultyProbe = true,
@@ -100,6 +101,7 @@ end
 
 function Storage.NormalizeSettings(settings)
 	settings = settings or {}
+	local defaultDebugLogSections = BuildDefaultDebugLogSections()
 
 	if settings.showExpired == nil then
 		settings.showExpired = false
@@ -172,6 +174,11 @@ function Storage.NormalizeSettings(settings)
 	for sectionKey, value in pairs(settings.debugLogSections) do
 		settings.debugLogSections[sectionKey] = value and true or false
 	end
+	for sectionKey, defaultValue in pairs(defaultDebugLogSections) do
+		if settings.debugLogSections[sectionKey] == nil then
+			settings.debugLogSections[sectionKey] = defaultValue and true or false
+		end
+	end
 
 	settings.enableHints = nil
 	settings.showNotifications = nil
@@ -185,10 +192,14 @@ function Storage.NormalizeCharacterData(characters)
 	local normalized = {}
 	for key, info in pairs(characters or {}) do
 		if type(info) == "table" then
+			local normalizedClassName = tostring(info.className or "")
+			if normalizedClassName == "" then
+				normalizedClassName = "UNKNOWN"
+			end
 			local character = {
 				name = info.name or key,
 				realm = info.realm or "",
-				className = info.className or "UNKNOWN",
+				className = normalizedClassName,
 				level = tonumber(info.level) or 0,
 				lastUpdated = tonumber(info.lastUpdated) or 0,
 				lockouts = {},
@@ -340,6 +351,7 @@ function Storage.InitializeDefaults(db, dbVersion)
 		end
 	end
 	db.lootCollapseCache = db.lootCollapseCache or {}
+	db.dashboardBulkScanResume = nil
 	db.settings = Storage.NormalizeSettings(db.settings)
 	db.characters = Storage.NormalizeCharacterData(db.characters)
 	db.raidDashboardCache = Storage.NormalizeRaidDashboardCache(db.raidDashboardCache)

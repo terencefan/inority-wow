@@ -1,4 +1,4 @@
-local source = assert(io.open("Core.lua", "r")):read("*a")
+local source = assert(io.open("src/core/Core.lua", "r")):read("*a")
 
 local function extractFunction(name)
 	local startPos = assert(source:find("local function " .. name, 1, true), "function not found: " .. name)

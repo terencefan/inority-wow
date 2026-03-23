@@ -1,9 +1,12 @@
 local addon = {}
 
-local storageChunk = assert(loadfile("Storage.lua"))
+local storageChunk = assert(loadfile("src/core/Storage.lua"))
 storageChunk("MogTracker", addon)
 
-local dashboardChunk = assert(loadfile("RaidDashboard.lua"))
+assert(loadfile("src/dashboard/RaidDashboardShared.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/RaidDashboardData.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/RaidDashboardTooltip.lua"))("MogTracker", addon)
+local dashboardChunk = assert(loadfile("src/dashboard/RaidDashboard.lua"))
 dashboardChunk("MogTracker", addon)
 
 local Storage = assert(addon.Storage)
@@ -36,7 +39,7 @@ local cache = Storage.NormalizeRaidDashboardCache({
 			expansionName = "经典旧世",
 			expansionOrder = 1,
 			raidOrder = 1,
-			rulesVersion = 17,
+			rulesVersion = 19,
 			collectSameAppearance = true,
 			difficultyData = {
 				[9] = {
@@ -107,7 +110,7 @@ end
 local data = RaidDashboard.BuildData()
 local priestCollected, priestTotal
 for _, row in ipairs(data.rows or {}) do
-	if row.type == "raid" and row.instanceName == "熔火之心" then
+	if row.type == "instance" and row.instanceName == "熔火之心" then
 		for _, difficultyRow in ipairs(row.difficultyRows or {}) do
 			if tonumber(difficultyRow.difficultyID) == 9 then
 				local priestMetric = difficultyRow.byClass and difficultyRow.byClass.PRIEST or nil

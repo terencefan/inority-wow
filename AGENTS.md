@@ -4,6 +4,7 @@
 - The postmortem should capture four things when possible: the symptom, the root cause, the repair pattern, and the preventative check for next time.
 - This applies across tasks, not only WoW addon work.
 - Prefer putting cross-cutting behavior rules here in global rules; put domain-specific repair patterns in the relevant skill.
+- After extracting a real module from a runtime/orchestrator file, update `README.md` in the same patch so the documented architecture and module ownership stay current.
 
 ## Postmortems
 
@@ -258,6 +259,20 @@
 - Root cause: the dashboard reader iterates every cached difficulty entry instead of reducing them to the one difficulty that represents the raid for that surface.
 - Repair pattern: keep snapshot storage broad if useful, but choose one difficulty at read time; for highest-difficulty raid views, select the minimum display-order difficulty and ignore the rest.
 - Preventative check: when rendering cached `difficultyData`, decide explicitly whether the surface is per-difficulty or per-raid before looping all entries.
+
+### Legacy raid size ordering should prefer larger lockout variants
+
+- Symptom: an old raid summary picks 10-player rows as the "highest" view even when a 25-player variant is cached too.
+- Root cause: the display-order table treats old 10-player and 25-player difficulties in the wrong relative order inside the same normal/heroic family.
+- Repair pattern: in highest-difficulty reducers, rank legacy 25-player variants ahead of their 10-player counterparts while still keeping heroic ahead of normal.
+- Preventative check: when changing raid difficulty ordering, verify one legacy raid with both 10/25 variants and one modern raid before shipping.
+
+### Shared difficulty rules should not be duplicated across readers
+
+- Symptom: display behavior and scan behavior drift apart in accidental ways after one difficulty mapping is updated but the other copy is not.
+- Root cause: the same difficulty IDs are maintained in separate hardcoded tables for separate consumers, so a legitimate change only lands in one of them.
+- Repair pattern: keep one shared difficulty-rules table and let readers ask for the field they need, such as `displayOrder` or `scanPriority`.
+- Preventative check: when the same enum-to-metadata mapping appears twice in addon code, consolidate it before changing semantics in only one copy.
 
 ### Long-running scans should persist completion state, not transient cursor state
 
@@ -713,3 +728,115 @@
 - Root cause: the new dependency was added to a downstream module contract, but the actual `Configure(...)` call site in the main orchestrator never passed it in.
 - Repair pattern: after changing a module to depend on a new provider, update every real `Configure(...)` call site in the app bootstrap and not just the test/mock wiring.
 - Preventative check: when a refactor introduces a new injected dependency, search for all `Configure(` call sites and verify each one passes the new field before considering the change complete.
+
+### Luacheck catches refactor coupling bugs before runtime does
+
+- Symptom: after splitting a large Lua file, the code still parses, but moved modules or earlier helpers quietly reference names that are no longer in scope.
+- Root cause: the extraction preserved syntax while leaving hidden coupling behind, such as missing exports on the module table or missing predeclarations for helpers now referenced before definition.
+- Repair pattern: run `luacheck` immediately after the split, treat undefined-variable findings in the touched area as likely real dependency bugs, and fix them by exporting the helper explicitly or by converting the helper to a predeclared local assigned later.
+- Preventative check: for every Lua module split, do one lint pass before cleanup work and resolve `undefined variable` findings before spending time on lower-signal unused-local warnings.
+
+### Passive UI refresh paths must not widen scan scope
+
+- Symptom: simply opening or refreshing a panel causes `script ran too long`, especially when the visible view only needs one filtered result set.
+- Root cause: a passive UI refresh reused the same data path to also compute a wider secondary dataset, such as all-class dashboard snapshots, so one user action silently triggered multiple full EJ loot scans.
+- Repair pattern: keep the interactive panel refresh limited to the exact scope needed for that view, and reserve broader scans for explicit bulk-update, debug, or background-only paths.
+- Preventative check: when a UI refresh wants to update cached summaries too, compare the summary scan scope against the visible view scope; if the summary is broader, do not run it synchronously on the same user interaction.
+
+### PowerShell wrappers must fail on native command exit codes
+
+- Symptom: a project check script appears to pass even though nested `lua`, `luac`, or formatter commands printed real failures.
+- Root cause: PowerShell does not automatically stop on non-zero exit codes from native executables, so wrappers that only set `$ErrorActionPreference = "Stop"` still swallow tool failures.
+- Repair pattern: route native tool invocations through a small helper that checks `$LASTEXITCODE` after every call and throws on non-zero status.
+- Preventative check: after adding a new PowerShell wrapper around `lua`, `luac`, `git`, formatters, or linters, force one failing command path and confirm the wrapper itself exits non-zero.
+
+### Static analyzers need environment-specific tuning before they become gates
+
+- Symptom: after wiring a new static analyzer into a project check, the tool floods the repo with false positives and developers stop trusting or running it.
+- Root cause: the analyzer is evaluating default language/runtime assumptions instead of the real project environment, such as WoW's dynamic globals, Lua 5.1 behavior, or framework-provided tables.
+- Repair pattern: add project-local stubs/library files, whitelist true environment globals, and disable only the low-signal diagnostics that remain structurally incompatible with the runtime before making the analyzer part of the default check path.
+- Preventative check: after first enabling a new analyzer, run it across the whole repo once and tune config until the remaining output is actionable; only then wire it into the standard developer loop.
+
+### Duplicate-code detectors should start in baseline mode
+
+- Symptom: after adding a duplicate-code detector to the default check path, every routine run starts failing on long-standing clones and the team stops using the check script entirely.
+- Root cause: the detector was introduced as a hard gate before the repository had an accepted baseline or an exclusion strategy for generated/test-heavy areas.
+- Repair pattern: first wire the detector in report-only mode, scope it to real source paths, exclude generated/vendor/cache directories, and add an explicit opt-in flag for failing on clones once the baseline is understood.
+- Preventative check: when introducing a new structural-quality tool like `jscpd`, run one full baseline pass, review the biggest buckets, and only then decide whether the default developer loop should warn or fail.
+
+### Numeric file splits are not real module boundaries
+
+- Symptom: a huge source file is technically split into smaller files, but the codebase is still hard to navigate because the new files are named by sequence and carry no ownership or responsibility signal.
+- Root cause: the split optimized only for line-count compliance and preserved execution order, without first defining domain boundaries such as selection, rendering, dashboard state, or event orchestration.
+- Repair pattern: when a large Lua file still needs one combined execution scope, split it into responsibility-named source modules that preserve load order while making each file's ownership obvious.
+- Preventative check: before splitting any oversized file, write down the target responsibility map first; if the proposed filenames are still `Part01`/`Chunk02`, the design is probably not modular enough yet.
+
+### Prefix-based TOC edits can delete required siblings
+
+- Symptom: after replacing one family of addon load entries, a required foundational file vanishes from `.toc` even though it was not meant to be retired.
+- Root cause: the edit used a broad filename pattern such as `Core*.lua`, which also matched sibling files like metadata or config modules that still needed to load.
+- Repair pattern: when bulk-rewriting `.toc` entries, explicitly preserve non-retired siblings or match the exact retired filenames instead of a loose prefix.
+- Preventative check: after any scripted `.toc` rewrite, diff the remaining load list and verify that foundational files like metadata, rules, and config modules are still present in the expected order.
+
+### Real module extractions need README updates
+
+- Symptom: code is already split into explicit modules, but `README.md` still describes the old monolithic runtime file or stale ownership boundaries.
+- Root cause: the refactor treated architecture docs as optional follow-up work, so `.toc` load order and module ownership changed without updating the human-facing map of the codebase.
+- Repair pattern: whenever a new true module is introduced, update the README architecture diagram, module-responsibility section, and module inventory in the same patch.
+- Preventative check: before closing a modularization change, compare `README.md` against `.toc` and the currently loaded `src/core/*.lua` modules, and fix any stale references to superseded runtime files or wrappers.
+
+### Configure-time helper captures can freeze `nil` dependencies
+
+- Symptom: a module crashes later with errors like `attempt to call field 'x' (a nil value)` even though helper `x` is defined somewhere in the orchestrator file.
+- Root cause: the orchestrator passed `x = SomeHelper` into `Configure(...)` before `SomeHelper` had been assigned, so the module captured `nil` at configuration time.
+- Repair pattern: for helpers defined later in a long Lua orchestrator, either predeclare and assign them before `Configure(...)`, or inject `function(...) return SomeHelper(...) end` wrappers so lookup happens at call time.
+- Preventative check: after any `Configure(...)` refactor in a long Lua file, inspect every injected helper that is defined below the configure site and convert eager value capture into predeclaration or wrapper injection before testing.
+
+### Late module bindings in runtime files can fall back to missing globals
+
+- Symptom: addon startup crashes with `attempt to index global 'X' (a nil value)` even though module `X` is loaded and configured later in the same runtime file.
+- Root cause: earlier wiring code referenced `X` before any local binding like `local X = addon.X` existed, so Lua resolved the name as a global and got `nil`.
+- Repair pattern: bind shared runtime modules before the first consumer and reuse that same local for later `Configure(...)` calls instead of redeclaring it farther down the file.
+- Preventative check: after reordering a long Lua runtime/orchestrator file, search each module symbol and verify its first read happens after its local binding, especially around helper aliases and module `Configure(...)` sections.
+
+### Progress-bearing lockouts should not be dropped just because the live lock expired
+
+- Symptom: UI summaries such as minimap tooltips lose raid progress rows even though raw `GetSavedInstanceInfo` still reports meaningful encounter progress for those raids.
+- Root cause: persistence or filtering keyed only off `locked` / `resetSeconds`, so entries with `progress > 0` but no active lock were discarded before the summary layer built its matrix.
+- Repair pattern: persist lockouts when they still carry meaningful gameplay state like non-zero progress, then let the display layer decide whether expired-but-progress-bearing entries stay visible for that surface.
+- Preventative check: whenever ingesting Blizzard lockout data, test one active lock and one historical raid with `progress > 0` but `locked = false`; verify both survive to the UI layer if the feature is meant to summarize existing progress rather than only active lockouts.
+
+### Summary surfaces should not inherit editor/filter scope by accident
+
+- Symptom: account-wide summaries like minimap tooltips show no characters or no rows even though the underlying saved data exists.
+- Root cause: the summary builder reused shared settings wholesale, so unrelated editor filters such as `selectedClasses` from the loot panel silently filtered the summary dataset down to zero.
+- Repair pattern: build an explicit settings copy for each summary surface and clear filters that are not part of that surface's semantics before calling shared compute helpers.
+- Preventative check: whenever a shared compute function is reused by both detail views and summaries, verify which settings are truly semantic for each surface and test one case where an unrelated filter is active.
+
+### Shared compute helpers should tolerate missing optional callbacks
+
+- Symptom: a debug path or secondary UI crashes inside a shared compute helper with errors like `attempt to call field 'x' (a nil value)`.
+- Root cause: the helper assumed every caller would inject the full callback set, even though some callers only needed partial behavior and passed a sparse `options` table.
+- Repair pattern: normalize `options` at the start of shared compute helpers and provide conservative fallbacks for optional callbacks such as sorters or label resolvers.
+- Preventative check: when moving logic into a reusable compute function, test at least one primary caller and one debug/secondary caller with partial dependencies before considering the helper stable.
+
+### Lua `and/or` wrappers can silently drop extra return values
+
+- Symptom: a helper that should return two numbers like `progress, total` instead returns `total, 0`, making progress-like fields look stuck at zero.
+- Root cause: code used `return cond and fn(...) or 0, 0`; in Lua that expression only preserves the first return value from `fn(...)`, so the second value is replaced by the fallback literal.
+- Repair pattern: when forwarding a multi-return helper, use an explicit `if` block and `return fn(...)` directly instead of `and/or` shorthand.
+- Preventative check: if a wrapper forwards multiple values from a dependency or Blizzard API, ban ternary-style `and/or` and verify both first and second return values with a real payload.
+
+### Placeholder identity fields must be repaired on later writes
+
+- Symptom: a character briefly shows the correct class or realm while logged in, but later appears as `UNKNOWN` or as `名字 - 服务器` again once viewed as a stored alt.
+- Root cause: old SavedVariables were normalized with placeholder identity fields, and later incremental writes reused the existing table without replacing those placeholders with the newly observed real values.
+- Repair pattern: whenever a live update knows the real `name`, `realm`, or `className`, overwrite stored placeholder values such as empty strings, `UNKNOWN`, or combined `name - realm` strings instead of preserving them.
+- Preventative check: for any persisted identity record, test one migration case from incomplete legacy data and verify that logging into the character upgrades the stored fields permanently.
+
+### Empty strings in SavedVariables are data, not nil
+
+- Symptom: fallback logic like `value or "UNKNOWN"` appears to run, but UI fields still render as blank and downstream lookups fail.
+- Root cause: in Lua, `""` is truthy, so empty strings bypass `or`-based fallback logic and survive normalization as if they were valid values.
+- Repair pattern: when normalizing persisted text fields, coerce `""` explicitly to `nil` or to the intended fallback sentinel before storing the normalized value.
+- Preventative check: for any SavedVariables normalization path, test both `nil` and `""` inputs; if they should behave the same, handle them explicitly rather than relying on `or`.

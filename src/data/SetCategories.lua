@@ -1,4 +1,4 @@
-local addonName, addon = ...
+local _, addon = ...
 
 local SetCategories = addon.SetCategories or {}
 addon.SetCategories = SetCategories
@@ -114,7 +114,7 @@ end
 
 local function BuildCachedSetSourceCategories()
 	local getStoredDashboardCache = dependencies.getStoredDashboardCache or dependencies.getStoredCache
-	local getRaidDifficultyScanPriority = dependencies.getRaidDifficultyScanPriority
+	local getRaidDifficultyDisplayOrder = dependencies.getRaidDifficultyDisplayOrder
 	local categoriesBySetID = {}
 
 	local function MarkSetCategory(setID, categoryKey)
@@ -158,17 +158,17 @@ local function BuildCachedSetSourceCategories()
 			if type(entry) == "table" and tostring(entry.instanceType or instanceType) == tostring(instanceType) then
 				if tostring(instanceType) == "raid" then
 					local bestDifficultyEntry = nil
-					local bestPriority = -1
+					local bestDisplayOrder = math.huge
 					local bestDifficultyID = -1
 					for difficultyID, difficultyEntry in pairs(entry.difficultyData or {}) do
 						if type(difficultyEntry) == "table" then
-							local priority = getRaidDifficultyScanPriority and getRaidDifficultyScanPriority(difficultyID) or (tonumber(difficultyID) or 0)
+							local displayOrder = getRaidDifficultyDisplayOrder and getRaidDifficultyDisplayOrder(difficultyID) or 999
 							local numericDifficultyID = tonumber(difficultyID) or 0
 							if not bestDifficultyEntry
-								or priority > bestPriority
-								or (priority == bestPriority and numericDifficultyID > bestDifficultyID) then
+								or displayOrder < bestDisplayOrder
+								or (displayOrder == bestDisplayOrder and numericDifficultyID > bestDifficultyID) then
 								bestDifficultyEntry = difficultyEntry
-								bestPriority = priority
+								bestDisplayOrder = displayOrder
 								bestDifficultyID = numericDifficultyID
 							end
 						end

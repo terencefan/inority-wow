@@ -1,6 +1,7 @@
-local addonName, addon = ...
+local _, addon = ...
 
 local TooltipUI = addon.TooltipUI or {}
+local DifficultyRules = addon.DifficultyRules or {}
 addon.TooltipUI = TooltipUI
 
 local dependencies = {}
@@ -30,6 +31,18 @@ local function GetSettings()
 	return fn and fn() or {}
 end
 
+local function BuildTooltipSettings()
+	local source = GetSettings() or {}
+	local settings = {}
+	for key, value in pairs(source) do
+		settings[key] = value
+	end
+	settings.selectedClasses = nil
+	settings.onlyActiveLockouts = true
+	settings.excludeExtendedLockouts = true
+	return settings
+end
+
 local function BuildTooltipMatrix(settings, maxCharacters)
 	local compute = dependencies.Compute or addon.Compute
 	if not (compute and compute.BuildTooltipMatrix) then
@@ -42,6 +55,22 @@ local function BuildTooltipMatrix(settings, maxCharacters)
 		getExpansionForLockout = dependencies.getExpansionForLockout,
 		getExpansionOrder = dependencies.getExpansionOrder,
 	})
+end
+
+local function FilterTooltipCharactersWithData(visibleCharacters)
+	local filtered = {}
+	for _, entry in ipairs(visibleCharacters or {}) do
+		local hasAnyData = false
+		if entry and type(entry.lockoutLookup) == "table" and next(entry.lockoutLookup) ~= nil then
+			hasAnyData = true
+		elseif entry and type(entry.lockouts) == "table" and #entry.lockouts > 0 then
+			hasAnyData = true
+		end
+		if hasAnyData then
+			filtered[#filtered + 1] = entry
+		end
+	end
+	return filtered
 end
 
 local function FormatTooltipCellLockout(lockout)
@@ -69,20 +98,21 @@ end
 local function GetDifficultyTooltipColor(difficultyName, difficultyID)
 	difficultyName = string.lower(tostring(difficultyName or ""))
 	difficultyID = tonumber(difficultyID) or 0
+	local qualityIndex = DifficultyRules.GetDifficultyColorQualityIndex and DifficultyRules.GetDifficultyColorQualityIndex(difficultyID) or nil
+	if qualityIndex and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[qualityIndex] then
+		return ITEM_QUALITY_COLORS[qualityIndex]
+	end
 
-	if difficultyID == 17 or difficultyID == 7 or difficultyName:find("随机") or difficultyName:find("raid finder") then
+	if difficultyName:find("随机") or difficultyName:find("raid finder") then
 		return ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[2] or { hex = "|cff1eff00" }
 	end
-	if difficultyID == 14 or difficultyID == 3 or difficultyID == 4 or difficultyID == 9
-		or difficultyName:find("普通") or difficultyName:find("10人") or difficultyName:find("25人") or difficultyName:find("40人") then
+	if difficultyName:find("普通") or difficultyName:find("10人") or difficultyName:find("25人") or difficultyName:find("40人") then
 		return ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[3] or { hex = "|cff0070dd" }
 	end
-	if difficultyID == 15 or difficultyID == 5 or difficultyID == 6
-		or difficultyName:find("英雄") then
+	if difficultyName:find("英雄") then
 		return ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[4] or { hex = "|cffa335ee" }
 	end
-	if difficultyID == 16 or difficultyID == 8 or difficultyID == 23
-		or difficultyName:find("史诗") or difficultyName:find("mythic") then
+	if difficultyName:find("史诗") or difficultyName:find("mythic") then
 		return ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[5] or { hex = "|cffff8000" }
 	end
 
@@ -126,6 +156,74 @@ function TooltipUI.BuildTooltipCharacterCellText(instanceInfo, entry)
 	return table.concat(lines, "\n")
 end
 
+local function SplitCharacterKey(entryKey)
+	local key = tostring(entryKey or "")
+	local name, realm = key:match("^(.-) %- (.+)$")
+	if name and realm then
+		return name, realm
+	end
+	return key, ""
+end
+
+local function ResolveTooltipCharacterIdentity(entry)
+	local info = entry and entry.info or {}
+	local fallbackName, fallbackRealm = SplitCharacterKey(entry and entry.key)
+	local storedName = tostring(info.name or "")
+	local storedRealm = tostring(info.realm or "")
+	local splitName, splitRealm = SplitCharacterKey(storedName)
+
+	local characterNameText = storedName ~= "" and storedName or fallbackName
+	local realmName = storedRealm ~= "" and storedRealm or fallbackRealm
+	if splitRealm ~= "" then
+		characterNameText = splitName
+		if realmName == "" then
+			realmName = splitRealm
+		end
+	end
+
+	return characterNameText, realmName, tostring(info.className or "")
+end
+
+local function ResolveTooltipHeaderTextColor(className)
+	if RAID_CLASS_COLORS and className and className ~= "" and className ~= "UNKNOWN" and RAID_CLASS_COLORS[className] then
+		local color = RAID_CLASS_COLORS[className]
+		return color.r or 1, color.g or 1, color.b or 1
+	end
+	return 1, 1, 1
+end
+
+local function ApplyTooltipHeaderCell(tooltip, lineNum, colNum, text, r, g, b, a)
+	local line = tooltip and tooltip.lines and tooltip.lines[lineNum] or nil
+	local cell = line and line.cells and line.cells[colNum] or nil
+	local fontString = cell and cell.fontString or nil
+	if not fontString then
+		return
+	end
+	fontString:SetText(tostring(text or ""))
+	fontString:SetTextColor(r or 1, g or 1, b or 1, a or 1)
+end
+
+local function BuildTooltipHeaderColumns(visibleCharacters)
+	local columns = {}
+	for _, entry in ipairs(visibleCharacters or {}) do
+		local name, realm, className = ResolveTooltipCharacterIdentity(entry)
+		columns[#columns + 1] = {
+			name = name,
+			realm = realm,
+			className = className,
+		}
+	end
+	return columns
+end
+
+local function ApplyTooltipHeaderStyles(tooltip, headerLine, realmLine, headerColumns)
+	for columnIndex, column in ipairs(headerColumns or {}) do
+		local r, g, b = ResolveTooltipHeaderTextColor(column.className)
+		ApplyTooltipHeaderCell(tooltip, headerLine, columnIndex + 2, column.name, r, g, b, 1)
+		ApplyTooltipHeaderCell(tooltip, realmLine, columnIndex + 2, column.realm, 0.56, 0.56, 0.56, 1)
+	end
+end
+
 function TooltipUI.HideTooltip()
 	if tooltipFrame and QTip and tooltipFrame.GetName and tooltipFrame:GetName() == "MogTrackerTooltip" then
 		QTip:Release(tooltipFrame)
@@ -139,12 +237,18 @@ function TooltipUI.ShowMinimapTooltip(owner)
 		return
 	end
 
-	local settings = GetSettings()
+	local syncCurrentCharacter = dependencies.syncCurrentCharacter
+	if type(syncCurrentCharacter) == "function" then
+		syncCurrentCharacter()
+	end
+
+	local settings = BuildTooltipSettings()
 	local maxCharacters = tonumber(settings.maxCharacters) or 10
 	local visibleCharacters, tooltipRows = BuildTooltipMatrix(settings, maxCharacters)
+	visibleCharacters = FilterTooltipCharactersWithData(visibleCharacters)
+	local headerColumns = BuildTooltipHeaderColumns(visibleCharacters)
 	local columnArgs = { "LEFT", "LEFT" }
 	local zebraIndex = 0
-	local colorizeCharacterName = dependencies.colorizeCharacterName
 	local colorizeExpansionLabel = dependencies.colorizeExpansionLabel
 
 	for _ = 1, #visibleCharacters do
@@ -165,15 +269,19 @@ function TooltipUI.ShowMinimapTooltip(owner)
 	tooltipFrame:SetCell(titleLine, 1, Translate("TOOLTIP_TITLE", "幻化追踪"), nil, "LEFT", #columnArgs)
 	tooltipFrame:AddSeparator(4, 0.25, 0.25, 0.3, 1)
 
-	local headerCells = {
-		Translate("TOOLTIP_COLUMN_INSTANCE", "Instance"),
-		Translate("TOOLTIP_COLUMN_DIFFICULTY", "Difficulty"),
-	}
-	for _, entry in ipairs(visibleCharacters) do
-		local characterName = colorizeCharacterName and colorizeCharacterName(entry.info.name or entry.key, entry.info.className) or tostring(entry.info.name or entry.key)
-		headerCells[#headerCells + 1] = characterName
+	local headerLine = tooltipFrame:AddLine()
+	tooltipFrame:SetCell(headerLine, 1, Translate("TOOLTIP_COLUMN_INSTANCE", "Instance"), nil, "LEFT")
+	tooltipFrame:SetCell(headerLine, 2, Translate("TOOLTIP_COLUMN_DIFFICULTY", "Difficulty"), nil, "LEFT")
+	for columnIndex, column in ipairs(headerColumns) do
+		tooltipFrame:SetCell(headerLine, columnIndex + 2, column.name, nil, "CENTER")
 	end
-	tooltipFrame:AddHeader(unpack(headerCells))
+
+	local realmLine = tooltipFrame:AddLine()
+	tooltipFrame:SetCell(realmLine, 1, "", nil, "LEFT")
+	tooltipFrame:SetCell(realmLine, 2, "", nil, "LEFT")
+	for columnIndex, column in ipairs(headerColumns) do
+		tooltipFrame:SetCell(realmLine, columnIndex + 2, column.realm, nil, "CENTER")
+	end
 
 	if #visibleCharacters == 0 then
 		local line = tooltipFrame:AddLine(Translate("TOOLTIP_NO_TRACKED_CHARACTERS", "No tracked characters yet."))
@@ -221,6 +329,15 @@ function TooltipUI.ShowMinimapTooltip(owner)
 	hint = tooltipFrame:AddLine()
 	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_CTRL_LEFT_CLICK", "Ctrl + Left-click: show or hide the config panel"), nil, "LEFT", #columnArgs)
 
+	ApplyTooltipHeaderStyles(tooltipFrame, headerLine, realmLine, headerColumns)
 	tooltipFrame:Show()
+	ApplyTooltipHeaderStyles(tooltipFrame, headerLine, realmLine, headerColumns)
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, function()
+			if tooltipFrame and tooltipFrame:IsShown() then
+				ApplyTooltipHeaderStyles(tooltipFrame, headerLine, realmLine, headerColumns)
+			end
+		end)
+	end
 end
 

@@ -1,6 +1,7 @@
-local addonName, addon = ...
+local _, addon = ...
 
 local Compute = addon.Compute or {}
+local DifficultyRules = addon.DifficultyRules or {}
 addon.Compute = Compute
 
 function Compute.GetSelectedLootClassIDs(settings, getClassIDByFile)
@@ -43,8 +44,19 @@ function Compute.GetSelectedLootClassFiles(settings, selectableClasses)
 end
 
 function Compute.LockoutMatchesSettings(lockout, settings)
-	if (lockout.resetSeconds or 0) <= 0 and not settings.showExpired then
+	if settings and settings.onlyActiveLockouts and (tonumber(lockout and lockout.resetSeconds) or 0) <= 0 then
 		return false
+	end
+
+	if settings and settings.excludeExtendedLockouts and lockout and lockout.extended then
+		return false
+	end
+
+	if (lockout.resetSeconds or 0) <= 0 and not settings.showExpired then
+		local progress = tonumber(lockout and lockout.progress) or 0
+		if not (lockout and lockout.isRaid and progress > 0) then
+			return false
+		end
 	end
 
 	return true
@@ -85,28 +97,39 @@ function Compute.SortLockoutsByDifficulty(a, b)
 end
 
 function Compute.GetTooltipDifficultyOrder(difficultyID)
-	local orderByID = {
-		[17] = 1,
-		[7] = 2,
-		[14] = 3,
-		[15] = 4,
-		[16] = 5,
-		[24] = 6,
-		[33] = 7,
-		[3] = 8,
-		[4] = 9,
-		[5] = 10,
-		[6] = 11,
-		[9] = 12,
-	}
-	return orderByID[tonumber(difficultyID) or 0] or 999
+	if DifficultyRules.GetTooltipDifficultyOrder then
+		return DifficultyRules.GetTooltipDifficultyOrder(difficultyID)
+	end
+	return 999
 end
 
 function Compute.BuildTooltipMatrix(charactersByKey, settings, maxCharacters, options)
+	options = type(options) == "table" and options or {}
+	local getSortedCharacters = type(options.getSortedCharacters) == "function" and options.getSortedCharacters or function(characters)
+		local entries = {}
+		for key, info in pairs(characters or {}) do
+			entries[#entries + 1] = {
+				key = key,
+				info = info,
+			}
+		end
+		table.sort(entries, function(a, b)
+			local aUpdated = tonumber(a.info and a.info.lastUpdated) or 0
+			local bUpdated = tonumber(b.info and b.info.lastUpdated) or 0
+			return aUpdated > bUpdated
+		end)
+		return entries
+	end
+	local getExpansionForLockout = type(options.getExpansionForLockout) == "function" and options.getExpansionForLockout or function()
+		return "Other"
+	end
+	local getExpansionOrder = type(options.getExpansionOrder) == "function" and options.getExpansionOrder or function()
+		return 999
+	end
 	local visibleCharacters = {}
 	local instanceMap = {}
 	local tooltipRows = {}
-	local sortedCharacters = options.getSortedCharacters(charactersByKey)
+	local sortedCharacters = getSortedCharacters(charactersByKey)
 
 	for _, entry in ipairs(sortedCharacters) do
 		if #visibleCharacters >= maxCharacters then
@@ -138,7 +161,7 @@ function Compute.BuildTooltipMatrix(charactersByKey, settings, maxCharacters, op
 						key = rowKey,
 						name = lockout.name or "Unknown",
 						isRaid = lockout.isRaid and true or false,
-						expansionName = options.getExpansionForLockout(lockout),
+						expansionName = getExpansionForLockout(lockout),
 						difficulties = {},
 					}
 				end
@@ -162,7 +185,7 @@ function Compute.BuildTooltipMatrix(charactersByKey, settings, maxCharacters, op
 
 	table.sort(instanceOrder, function(a, b)
 		if a.expansionName ~= b.expansionName then
-			return options.getExpansionOrder(a.expansionName) > options.getExpansionOrder(b.expansionName)
+			return getExpansionOrder(a.expansionName) > getExpansionOrder(b.expansionName)
 		end
 		if a.isRaid ~= b.isRaid then
 			return a.isRaid

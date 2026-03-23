@@ -1,0 +1,13 @@
+{
+  "name": "mogtracker",
+  "version": "1.0.0",
+  "description": "一个用于追踪角色副本锁定、当前副本掉落、套装缺失与可收集进度的魔兽世界插件。",
+  "scripts": {
+    "jscpd": "jscpd --config .jscpd.json src Locale tests tools"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "devDependencies": {
+    "jscpd": "^4.0.8"
+  }
+}

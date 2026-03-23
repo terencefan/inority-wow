@@ -1,4 +1,4 @@
-local addonName, addon = ...
+local _, addon = ...
 
 local LootSets = addon.LootSets or {}
 addon.LootSets = LootSets
@@ -242,9 +242,13 @@ function LootSets.GetAppearanceSourceDisplayInfo(sourceID)
 	local icon
 	if itemLink and itemLink ~= "" then
 		if C_Item and C_Item.GetItemInfoInstant then
-			_, _, _, equipLoc, icon = C_Item.GetItemInfoInstant(itemLink)
+			local _, _, _, resolvedEquipLoc, resolvedIcon = C_Item.GetItemInfoInstant(itemLink)
+			equipLoc = resolvedEquipLoc
+			icon = resolvedIcon
 		elseif GetItemInfoInstant then
-			_, _, _, equipLoc, icon = GetItemInfoInstant(itemLink)
+			local _, _, _, resolvedEquipLoc, resolvedIcon = GetItemInfoInstant(itemLink)
+			equipLoc = resolvedEquipLoc
+			icon = resolvedIcon
 		end
 	end
 
