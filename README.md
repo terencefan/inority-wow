@@ -17,30 +17,30 @@ flowchart TD
     TOC["Addon TOC (幻化追踪)"]
     Locale["Locale/*.lua"]
     XML["src/ui/UI.xml / Bindings.xml"]
-    Core["src/core/CoreRuntime.lua\nruntime state + remaining pure helpers + public addon entrypoints"]
-    CoreWiring["src/core/CoreFeatureWiring.lua\ncontroller/module dependency wiring + registration order"]
+    Core["src/runtime/CoreRuntime.lua\nruntime state + remaining pure helpers + public addon entrypoints"]
+    CoreWiring["src/runtime/CoreFeatureWiring.lua\ncontroller/module dependency wiring + registration order"]
     Storage["src/core/Storage.lua\nSavedVariables defaults / normalize / sorting"]
     Compute["src/core/Compute.lua\nfilters / tooltip matrix / pure aggregation"]
     API["src/core/API.lua\nWoW API adapters / loot scans / debug capture / mock hooks"]
     ClassLogic["src/core/ClassLogic.lua\nclass metadata / difficulty labels / class colors"]
-    InstanceMetadata["src/core/InstanceMetadata.lua\nEJ instance resolution / expansion normalization / selection cache metadata"]
+    InstanceMetadata["src/metadata/InstanceMetadata.lua\nEJ instance resolution / expansion normalization / selection cache metadata"]
     EncounterState["src/core/EncounterState.lua\nboss kill cache / encounter collapsed state / reset handling"]
     CollectionState["src/core/CollectionState.lua\ncollection-state resolution / loot visibility filters / session markers"]
-    LootSelection["src/core/LootSelection.lua\nloot-panel selection keys / menus / lockout progress tooltip"]
-    BulkScan["src/core/DashboardBulkScan.lua\ndashboard bulk-scan queue / state machine / progress updates"]
-    DashboardPanel["src/core/DashboardPanelController.lua\ndashboard frame lifecycle / layout / visibility"]
-    ConfigDebug["src/core/ConfigDebugData.lua\ndebug capture / saved-instance sync / debug section ui"]
-    ConfigPanel["src/core/ConfigPanelController.lua\nconfig panel lifecycle / navigation / filter ui"]
-    EventsCommands["src/core/EventsCommandController.lua\nevent registration / slash commands / debug command routing"]
+    LootSelection["src/loot/LootSelection.lua\nloot-panel selection keys / menus / lockout progress tooltip"]
+    BulkScan["src/dashboard/bulk/DashboardBulkScan.lua\ndashboard bulk-scan queue / state machine / progress updates"]
+    DashboardPanel["src/dashboard/DashboardPanelController.lua\ndashboard frame lifecycle / layout / visibility"]
+    ConfigDebug["src/config/ConfigDebugData.lua\ndebug capture / saved-instance sync / debug section ui"]
+    ConfigPanel["src/config/ConfigPanelController.lua\nconfig panel lifecycle / navigation / filter ui"]
+    EventsCommands["src/runtime/EventsCommandController.lua\nevent registration / slash commands / debug command routing"]
     UIChrome["src/core/UIChromeController.lua\nminimap button / frame chrome / ElvUI skinning"]
-    LootFilter["src/core/LootFilterController.lua\nloot filter menus / collectible family lookups"]
+    LootFilter["src/loot/LootFilterController.lua\nloot filter menus / collectible family lookups"]
     SetBridge["src/core/SetDashboardBridge.lua\nset helpers / LootSets wiring / dashboard bridge"]
-    LootData["src/core/LootDataController.lua\nloot data cache / warmup / expansion lookup / encounter collapse state"]
-    LootPanel["src/core/LootPanelController.lua\nloot frame lifecycle / header layout / tabs / dropdown shell"]
-    LootRows["src/core/LootPanelRows.lua\nloot row widgets / collection visuals / encounter header state"]
-    LootRender["src/core/LootPanelRenderer.lua\nloot panel row orchestration / loot+set tab rendering"]
-    LootSets["src/data/LootSets.lua\nset summary / missing pieces / ATT soft integration"]
-    Dashboard["src/dashboard/RaidDashboard.lua\noffline raid snapshot aggregation"]
+    LootData["src/loot/LootDataController.lua\nloot data cache / warmup / expansion lookup / encounter collapse state"]
+    LootPanel["src/loot/LootPanelController.lua\nloot frame lifecycle / header layout / tabs / dropdown shell"]
+    LootRows["src/loot/LootPanelRows.lua\nloot row widgets / collection visuals / encounter header state"]
+    LootRender["src/loot/LootPanelRenderer.lua\nloot panel row orchestration / loot+set tab rendering"]
+    LootSets["src/loot/sets/LootSets.lua\nset summary / missing pieces / ATT soft integration"]
+    Dashboard["src/dashboard/raid/RaidDashboard.lua\noffline raid snapshot aggregation"]
     DB[("MogTrackerDB\ncompat aliases: TransmogTrackerDB, CodexExampleAddonDB")]
     Blizzard["Blizzard WoW APIs\nEJ / SavedInstances / C_Item / C_Transmog* / C_MountJournal / C_PetJournal"]
     ElvUI["ElvUI skin hooks\n(optional)"]
@@ -112,12 +112,62 @@ flowchart TD
     Core -. optional skinning .-> ElvUI
 ```
 
+## EventsCommandController 交互图
+
+```mermaid
+flowchart TD
+    WoW["WoW Event System\nADDON_LOADED / PLAYER_LOGIN / UPDATE_INSTANCE_INFO\nGET_ITEM_INFO_RECEIVED / ENCOUNTER_END / TRANSMOG_COLLECTION_UPDATED"]
+    Slash["Slash Commands\n/iit /tmtrack /mogtracker /transmogtracker\nand debug subcommands"]
+    Wiring["src/runtime/CoreFeatureWiring.lua\nConfigure(...) + Register*"]
+    ECC["src/runtime/EventsCommandController.lua\nregister + dispatch only"]
+
+    Storage["Storage\nInitializeDefaults"]
+    ConfigDebug["ConfigDebugData\nCaptureAndShowDebugDump"]
+    ConfigPanel["ConfigPanelController\nSetPanelView / RefreshPanelText"]
+    LootPanel["LootPanelController / Renderer\nInitializeLootPanel / RefreshLootPanel"]
+    LootData["LootDataController\nInvalidateLootDataCache / QueueLootPanelCacheWarmup"]
+    Encounter["EncounterState\nRecordEncounterKill / HandleManualInstanceReset\nPruneExpiredBossKillCaches"]
+    UIChrome["UIChromeController\nCreateMinimapButton"]
+    Dashboard["Raid dashboard cache\nInvalidateRaidDashboardCache"]
+    DB[("MogTrackerDB")]
+
+    WoW --> ECC
+    Slash --> ECC
+    Wiring --> ECC
+
+    ECC --> Storage
+    ECC --> ConfigDebug
+    ECC --> ConfigPanel
+    ECC --> LootPanel
+    ECC --> LootData
+    ECC --> Encounter
+    ECC --> UIChrome
+    ECC --> Dashboard
+    ECC --> DB
+
+    Storage <--> DB
+    ConfigDebug <--> DB
+    Encounter <--> DB
+    Dashboard <--> DB
+```
+
+- 事件链：
+  - `ADDON_LOADED` 初始化默认值。
+  - `PLAYER_LOGIN` 触发 UI 初始化、锁定采集、小地图按钮创建和 cache warmup。
+  - `UPDATE_INSTANCE_INFO` / `GET_ITEM_INFO_RECEIVED` / `ENCOUNTER_END` / `TRANSMOG_COLLECTION_UPDATED` 负责缓存失效和界面刷新。
+- 命令链：
+  - 普通 slash 命令默认打开主配置面板。
+  - `debug` 系列命令走 `ConfigDebugData` / `DebugTools` 采集，再切到 debug 页并聚焦输出框。
+- 模块定位：
+  - `EventsCommandController` 只做“外部输入 -> 内部动作分发”，不承载业务计算。
+  - 因为它主要连接 WoW 事件系统和 slash 命令系统，所以归到 `src/runtime/` 而不是 `src/core/`。
+
 ## 模块职责
 
-- `src/core/CoreRuntime.lua`
+- `src/runtime/CoreRuntime.lua`
   - 当前运行时入口。
   - 负责运行时状态、少量纯 helper、以及暴露给 addon 其余部分的顶层入口。
-- `src/core/CoreFeatureWiring.lua`
+- `src/runtime/CoreFeatureWiring.lua`
   - 负责核心模块接线。
   - 包括 controller / data module 的 `Configure(...)` 顺序、跨模块依赖注入、slash/event 注册，以及少量公开别名回写。
 - `src/core/API.lua`
@@ -128,61 +178,76 @@ flowchart TD
   - 包含职业过滤、锁定过滤、tooltip 矩阵聚合等不直接创建 UI 的逻辑。
 - `src/core/Storage.lua`
   - 负责 `SavedVariables` 默认值、版本迁移、归一化和角色排序。
+- `src/metadata/CoreMetadata.lua`
+  - 负责全局静态元数据。
+  - 包括职业列表、职业分组、掉落类型分组和类掩码常量。
+- `src/metadata/DifficultyRules.lua`
+  - 负责副本难度语义规则。
+  - 包括显示顺序、tooltip 顺序、颜色质量映射和难度归类辅助。
 - `src/core/ClassLogic.lua`
   - 负责职业元数据、职业显示名、职业颜色和副本难度显示辅助。
-- `src/core/InstanceMetadata.lua`
+- `src/metadata/InstanceMetadata.lua`
   - 负责资料片名归一化、EJ 实例定位、实例选择缓存和副本元数据解析。
 - `src/core/EncounterState.lua`
   - 负责击杀周期、当前副本 boss 击杀缓存、手动重置副本后的状态清理、遭遇折叠缓存。
 - `src/core/CollectionState.lua`
   - 负责物品收集状态解析。
   - 包括幻化 / 坐骑 / 宠物的 collected state、session baseline、掉落过滤和 boss fully-collected 判断。
-- `src/core/LootSelection.lua`
+- `src/loot/LootSelection.lua`
   - 负责掉落面板实例选择逻辑。
   - 包括 selection key、cache key、实例菜单构建、dashboard 跳转打开、角色锁定进度 tooltip。
-- `src/core/DashboardBulkScan.lua`
+- `src/dashboard/bulk/DashboardBulkScan.lua`
   - 负责独立看板的全量扫描状态机。
   - 包括扫描队列构建、进度推进、重试、完成收尾，以及配置页批量更新按钮状态。
-- `src/core/DashboardPanelController.lua`
+- `src/dashboard/DashboardPanelController.lua`
   - 负责独立统计看板窗口本身。
   - 包括 frame 初始化、布局、显隐切换、刷新和 info tooltip。
-- `src/core/ConfigDebugData.lua`
+- `src/config/ConfigDebugData.lua`
   - 负责主配置面板里的调试数据链路。
   - 包括 debug dump 采集、SavedInstances 捕获、debug 分段 UI 和主面板文本刷新。
-- `src/core/ConfigPanelController.lua`
+- `src/config/ConfigPanelController.lua`
   - 负责主配置面板窗口本体。
   - 包括 panel 初始化、分栏导航、职业/物品过滤 UI、样式入口和批量更新按钮区。
-- `src/core/EventsCommandController.lua`
+- `src/runtime/EventsCommandController.lua`
   - 负责运行时事件和 slash 命令入口。
   - 包括 `ADDON_LOADED / PLAYER_LOGIN / UPDATE_INSTANCE_INFO` 等事件注册，以及 debug / 面板打开命令分发。
 - `src/core/UIChromeController.lua`
   - 负责插件通用 UI 外壳。
   - 包括 minimap 按钮、默认 frame chrome、header button 视觉规则、滚动条布局和 ElvUI 皮肤接管。
-- `src/core/LootFilterController.lua`
+- `src/loot/LootFilterController.lua`
   - 负责掉落过滤辅助层。
   - 包括职业/专精/类型 dropdown 菜单，以及坐骑/宠物家族的收集状态查询辅助。
 - `src/core/SetDashboardBridge.lua`
   - 负责套装与看板桥接层。
   - 包括 transmog source/set 解析、套装进度、`LootSets` 依赖接线，以及 `Raid/Set/Pvp Dashboard` 的配置注入。
-- `src/core/LootDataController.lua`
+- `src/loot/LootDataController.lua`
   - 负责掉落面板相关的数据控制层。
   - 包括当前副本 loot data cache、warmup、团本/地下城资料片归类，以及 encounter 折叠状态切换。
-- `src/core/LootPanelController.lua`
+- `src/loot/LootPanelController.lua`
   - 负责掉落面板窗口本身。
   - 包括 frame 初始化、header/tool 按钮、tab 切换、布局、自定义下拉菜单壳和显隐切换。
-- `src/core/LootPanelRows.lua`
+- `src/loot/LootPanelRows.lua`
   - 负责掉落面板里的行级 widget 和视觉状态。
   - 包括 loot row 创建、collection/newly-collected 高亮、职业图标、encounter header 视觉和自动折叠基线。
-- `src/core/LootPanelRenderer.lua`
-- `src/core/CoreFeatureWiring.lua`
+- `src/loot/LootPanelRenderer.lua`
   - 负责掉落面板内容渲染。
   - 包括 `掉落 / 套装` 两个 tab 的内容构建、error/empty state、set summary 组装和 render debug 记录。
-- `src/data/LootSets.lua`
+- `src/data/sets/SetCategoryConfig.lua`
+  - 负责套装分类的静态配置。
+- `src/data/sets/SetCategories.lua`
+  - 负责套装分类数据定义。
+- `src/loot/sets/LootSets.lua`
   - 负责掉落面板套装页相关逻辑。
   - 包括套装聚合、缺失部位、当前副本掉落来源映射、AllTheThings 软增强等。
-- `src/dashboard/RaidDashboard.lua`
+- `src/dashboard/raid/RaidDashboard.lua`
   - 负责离线统计快照和独立统计看板的数据组织。
   - 只读取和汇总已缓存的团队本摘要，不在打开看板时触发全量采集。
+- `src/dashboard/set/SetDashboard.lua`
+  - 负责套装统计看板的数据聚合与渲染。
+  - 按资料片与来源类型组织套装进度矩阵，并渲染 set dashboard 专属表格。
+- `src/dashboard/pvp/PvpDashboard.lua`
+  - 负责 PVP 套装统计看板的数据聚合与渲染。
+  - 按赛季与 track 分类组织进度矩阵，并渲染 pvp dashboard 专属表格。
 
 ## UI 结构
 
@@ -213,7 +278,7 @@ flowchart TD
    - `API.lua` 负责当前副本识别、EJ 难度切换、掉落扫描和调试抓取。
 4. 业务计算
    - `Compute.lua` 负责角色筛选、锁定矩阵和 tooltip 结构。
-   - `ClassLogic.lua`、`InstanceMetadata.lua`、`EncounterState.lua`、`CollectionState.lua`、`LootSelection.lua` 提供被 UI 和数据层复用的核心能力。
+   - `ClassLogic.lua`、`metadata/InstanceMetadata.lua`、`EncounterState.lua`、`CollectionState.lua`、`LootSelection.lua` 提供被 UI 和数据层复用的核心能力。
    - `LootSets.lua` 负责套装聚合与缺失件来源。
    - `DashboardBulkScan.lua` 负责主动全量扫描路径。
    - `RaidDashboard.lua` 只消费已缓存摘要并构建看板行列数据。
@@ -225,22 +290,22 @@ flowchart TD
 下列文件已经不是 “wrapper source chunk”，而是通过显式 `Configure(...)` 注入依赖、可独立承载职责的真模块：
 
 - `src/core/ClassLogic.lua`
-- `src/core/InstanceMetadata.lua`
+- `src/metadata/InstanceMetadata.lua`
 - `src/core/EncounterState.lua`
 - `src/core/CollectionState.lua`
-- `src/core/LootSelection.lua`
-- `src/core/DashboardBulkScan.lua`
-- `src/core/DashboardPanelController.lua`
-- `src/core/ConfigDebugData.lua`
-- `src/core/ConfigPanelController.lua`
-- `src/core/EventsCommandController.lua`
+- `src/loot/LootSelection.lua`
+- `src/dashboard/bulk/DashboardBulkScan.lua`
+- `src/dashboard/DashboardPanelController.lua`
+- `src/config/ConfigDebugData.lua`
+- `src/config/ConfigPanelController.lua`
+- `src/runtime/EventsCommandController.lua`
 - `src/core/UIChromeController.lua`
-- `src/core/LootFilterController.lua`
+- `src/loot/LootFilterController.lua`
 - `src/core/SetDashboardBridge.lua`
-- `src/core/LootDataController.lua`
-- `src/core/LootPanelController.lua`
-- `src/core/LootPanelRows.lua`
-- `src/core/LootPanelRenderer.lua`
+- `src/loot/LootDataController.lua`
+- `src/loot/LootPanelController.lua`
+- `src/loot/LootPanelRows.lua`
+- `src/loot/LootPanelRenderer.lua`
 
 约定：
 - 每次从 `CoreRuntime.lua` 抽出新的真模块，都要同步更新本节和上面的“模块职责”。
@@ -260,29 +325,35 @@ flowchart TD
 ## Key Files
 
 - [MogTracker.toc](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\MogTracker.toc)
-- [src/core/CoreRuntime.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\CoreRuntime.lua)
+- [src/runtime/CoreRuntime.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\runtime\CoreRuntime.lua)
 - [src/core/API.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\API.lua)
 - [src/core/Compute.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\Compute.lua)
+- [src/metadata/CoreMetadata.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\metadata\CoreMetadata.lua)
+- [src/metadata/DifficultyRules.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\metadata\DifficultyRules.lua)
 - [src/core/ClassLogic.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\ClassLogic.lua)
-- [src/core/InstanceMetadata.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\InstanceMetadata.lua)
+- [src/metadata/InstanceMetadata.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\metadata\InstanceMetadata.lua)
 - [src/core/EncounterState.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\EncounterState.lua)
 - [src/core/CollectionState.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\CollectionState.lua)
-- [src/core/LootSelection.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\LootSelection.lua)
-- [src/core/DashboardBulkScan.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\DashboardBulkScan.lua)
-- [src/core/DashboardPanelController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\DashboardPanelController.lua)
-- [src/core/ConfigDebugData.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\ConfigDebugData.lua)
-- [src/core/ConfigPanelController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\ConfigPanelController.lua)
-- [src/core/EventsCommandController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\EventsCommandController.lua)
+- [src/loot/LootSelection.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootSelection.lua)
+- [src/dashboard/bulk/DashboardBulkScan.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\dashboard\bulk\DashboardBulkScan.lua)
+- [src/dashboard/DashboardPanelController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\dashboard\DashboardPanelController.lua)
+- [src/config/ConfigDebugData.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\config\ConfigDebugData.lua)
+- [src/config/ConfigPanelController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\config\ConfigPanelController.lua)
+- [src/runtime/EventsCommandController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\runtime\EventsCommandController.lua)
 - [src/core/UIChromeController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\UIChromeController.lua)
-- [src/core/LootFilterController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\LootFilterController.lua)
-- [src/core/CoreFeatureWiring.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\CoreFeatureWiring.lua)
+- [src/loot/LootFilterController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootFilterController.lua)
+- [src/runtime/CoreFeatureWiring.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\runtime\CoreFeatureWiring.lua)
 - [src/core/SetDashboardBridge.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\SetDashboardBridge.lua)
-- [src/core/LootDataController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\LootDataController.lua)
-- [src/core/LootPanelController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\LootPanelController.lua)
-- [src/core/LootPanelRows.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\LootPanelRows.lua)
-- [src/core/LootPanelRenderer.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\LootPanelRenderer.lua)
-- [src/data/LootSets.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\data\LootSets.lua)
-- [src/dashboard/RaidDashboard.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\dashboard\RaidDashboard.lua)
+- [src/loot/LootDataController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootDataController.lua)
+- [src/loot/LootPanelController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootPanelController.lua)
+- [src/loot/LootPanelRows.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootPanelRows.lua)
+- [src/loot/LootPanelRenderer.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootPanelRenderer.lua)
+- [src/data/sets/SetCategoryConfig.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\data\sets\SetCategoryConfig.lua)
+- [src/data/sets/SetCategories.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\data\sets\SetCategories.lua)
+- [src/loot/sets/LootSets.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\sets\LootSets.lua)
+- [src/dashboard/raid/RaidDashboard.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\dashboard\raid\RaidDashboard.lua)
+- [src/dashboard/set/SetDashboard.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\dashboard\set\SetDashboard.lua)
+- [src/dashboard/pvp/PvpDashboard.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\dashboard\pvp\PvpDashboard.lua)
 - [src/core/Storage.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\Storage.lua)
 - [src/ui/UI.xml](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\ui\UI.xml)
 
