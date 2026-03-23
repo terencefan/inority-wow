@@ -1,10 +1,10 @@
 local addon = {}
 
 local storageChunk = assert(loadfile("Storage.lua"))
-storageChunk("CodexExampleAddon", addon)
+storageChunk("MogTracker", addon)
 
 local dashboardChunk = assert(loadfile("RaidDashboard.lua"))
-dashboardChunk("CodexExampleAddon", addon)
+dashboardChunk("MogTracker", addon)
 
 local Storage = assert(addon.Storage)
 local RaidDashboard = assert(addon.RaidDashboard)

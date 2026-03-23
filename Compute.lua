@@ -43,11 +43,7 @@ function Compute.GetSelectedLootClassFiles(settings, selectableClasses)
 end
 
 function Compute.LockoutMatchesSettings(lockout, settings)
-	if lockout.isRaid and not settings.showRaids then
-		return false
-	elseif not lockout.isRaid and not settings.showDungeons then
-		return false
-	elseif (lockout.resetSeconds or 0) <= 0 and not settings.showExpired then
+	if (lockout.resetSeconds or 0) <= 0 and not settings.showExpired then
 		return false
 	end
 

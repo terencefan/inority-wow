@@ -23,7 +23,7 @@ flowchart TD
     API["API.lua\nWoW API adapters / loot scans / debug capture / mock hooks"]
     LootSets["LootSets.lua\nset summary / missing pieces / ATT soft integration"]
     Dashboard["RaidDashboard.lua\noffline raid snapshot aggregation"]
-    DB[("TransmogTrackerDB\ncompat alias: CodexExampleAddonDB")]
+    DB[("MogTrackerDB\ncompat aliases: TransmogTrackerDB, CodexExampleAddonDB")]
     Blizzard["Blizzard WoW APIs\nEJ / SavedInstances / C_Item / C_Transmog* / C_MountJournal / C_PetJournal"]
     ElvUI["ElvUI skin hooks\n(optional)"]
     MainUI["Main panel\nGeneral / Filters / Debug"]
@@ -100,7 +100,7 @@ flowchart TD
 ## 数据流
 
 1. `ADDON_LOADED`
-   - `Storage.lua` 归一化 `TransmogTrackerDB`。
+   - `Storage.lua` 归一化 `MogTrackerDB`。
 2. `PLAYER_LOGIN`
    - `Core.lua` 创建 UI。
    - 注册小地图按钮、主面板、小面板和 tooltip。
@@ -126,16 +126,17 @@ flowchart TD
 
 ## Key Files
 
-- [CodexExampleAddon.toc](C:\World of Warcraft\_retail_\Interface\AddOns\CodexExampleAddon\CodexExampleAddon.toc)
-- [Core.lua](C:\World of Warcraft\_retail_\Interface\AddOns\CodexExampleAddon\Core.lua)
-- [API.lua](C:\World of Warcraft\_retail_\Interface\AddOns\CodexExampleAddon\API.lua)
-- [Compute.lua](C:\World of Warcraft\_retail_\Interface\AddOns\CodexExampleAddon\Compute.lua)
-- [LootSets.lua](C:\World of Warcraft\_retail_\Interface\AddOns\CodexExampleAddon\LootSets.lua)
-- [RaidDashboard.lua](C:\World of Warcraft\_retail_\Interface\AddOns\CodexExampleAddon\RaidDashboard.lua)
-- [Storage.lua](C:\World of Warcraft\_retail_\Interface\AddOns\CodexExampleAddon\Storage.lua)
-- [UI.xml](C:\World of Warcraft\_retail_\Interface\AddOns\CodexExampleAddon\UI.xml)
+- [MogTracker.toc](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\MogTracker.toc)
+- [Core.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\Core.lua)
+- [API.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\API.lua)
+- [Compute.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\Compute.lua)
+- [LootSets.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\LootSets.lua)
+- [RaidDashboard.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\RaidDashboard.lua)
+- [Storage.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\Storage.lua)
+- [UI.xml](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\UI.xml)
 
 ## 发布说明
 
-- 正式发布名为 `幻化追踪`。
-- 为了兼容旧版本用户数据，内部仍保留 `CodexExampleAddonDB` 作为 `TransmogTrackerDB` 的兼容别名。
+- 正式发布名为 `MogTracker`。
+- 为了兼容旧版本用户数据，内部仍保留 `TransmogTrackerDB` 与 `CodexExampleAddonDB` 作为 `MogTrackerDB` 的兼容别名。
+

@@ -21,6 +21,299 @@ local function FormatBoolean(value)
 	return value and "true" or "false"
 end
 
+local function NormalizeDebugName(value)
+	value = string.lower(tostring(value or ""))
+	value = value:gsub("%s+", "")
+	return value
+end
+
+local function BuildSetDebugKeywords()
+	if addon.SetCategories and addon.SetCategories.GetPvpKeywords then
+		return addon.SetCategories.GetPvpKeywords()
+	end
+	return {
+		"角斗士",
+		"争斗者",
+		"候选者",
+		"精锐",
+		"荣誉",
+		"pvp精良",
+		"狂野争斗者",
+		"好战争斗者",
+		"暴虐角斗士",
+		"恶毒角斗士",
+		"无情角斗士",
+		"野蛮角斗士",
+		"致命角斗士",
+		"复仇角斗士",
+		"残酷角斗士",
+		"愤怒角斗士",
+		"狂怒角斗士",
+		"仇恨角斗士",
+		"野心角斗士",
+		"邪恶角斗士",
+		"宇宙角斗士",
+		"永恒角斗士",
+		"原始角斗士",
+		"黑曜角斗士",
+		"翠绿角斗士",
+		"龙焰角斗士",
+		"gladiator",
+		"combatant",
+		"aspirant",
+		"elite",
+		"honor",
+		"honorable",
+		"primalist",
+		"obsidian",
+		"verdant",
+		"draconic",
+		"sinful",
+		"cosmic",
+		"eternal",
+		"warmongering",
+		"wild",
+		"pridestalker",
+		"dread",
+		"ferocious",
+		"fierce",
+		"dominant",
+		"malevolent",
+		"grievous",
+		"tyrannical",
+		"primal",
+		"vengeful",
+		"merciless",
+		"brutal",
+		"venomous",
+		"ruthless",
+		"cataclysmic",
+		"vindictive",
+		"raging",
+		"wrathful",
+		"furious",
+		"relentless",
+		"deadly",
+		"hateful",
+		"savage",
+		"dreadful",
+		"cruel",
+	}
+end
+
+local function CollectSetKeywordHits(setInfo, keywords)
+	if addon.SetCategories and addon.SetCategories.CollectPvpKeywordHits then
+		local configuredKeywords = addon.SetCategories.GetPvpKeywords and addon.SetCategories.GetPvpKeywords() or nil
+		if not keywords then
+			return addon.SetCategories.CollectPvpKeywordHits(setInfo)
+		end
+		if configuredKeywords and #configuredKeywords == #keywords then
+			local sameKeywords = true
+			for index, keyword in ipairs(keywords) do
+				if configuredKeywords[index] ~= keyword then
+					sameKeywords = false
+					break
+				end
+			end
+			if sameKeywords then
+				return addon.SetCategories.CollectPvpKeywordHits(setInfo)
+			end
+		end
+	end
+	local haystacks = {
+		string.lower(tostring(setInfo and setInfo.name or "")),
+		string.lower(tostring(setInfo and setInfo.label or "")),
+		string.lower(tostring(setInfo and setInfo.description or "")),
+	}
+	local matchHits = {}
+	for _, keyword in ipairs(keywords or {}) do
+		for _, haystack in ipairs(haystacks) do
+			if haystack ~= "" and string.find(haystack, keyword, 1, true) then
+				local alreadyAdded = false
+				for _, existing in ipairs(matchHits) do
+					if existing == keyword then
+						alreadyAdded = true
+						break
+					end
+				end
+				if not alreadyAdded then
+					matchHits[#matchHits + 1] = keyword
+				end
+				break
+			end
+		end
+	end
+	return matchHits
+end
+
+local function NormalizeSetDebugInfo(setInfo, extra)
+	local normalized = {
+		setID = tonumber(setInfo and setInfo.setID) or 0,
+		name = setInfo and setInfo.name or nil,
+		label = setInfo and setInfo.label or nil,
+		description = setInfo and setInfo.description or nil,
+		classMask = tonumber(setInfo and setInfo.classMask) or 0,
+		requiredFaction = setInfo and setInfo.requiredFaction or nil,
+		expansionID = tonumber(setInfo and setInfo.expansionID) or 0,
+	}
+	if type(extra) == "table" then
+		for key, value in pairs(extra) do
+			normalized[key] = value
+		end
+	end
+	return normalized
+end
+
+local function NormalizeSetInstanceMatchName(value)
+	value = NormalizeDebugName(value)
+	value = value:gsub("[\"“”'%-%.,:：·]", "")
+	value = value:gsub("试练", "试炼")
+	value = value:gsub("團隊", "团队")
+	value = value:gsub("地下城挑戰", "挑战地下城")
+	return value
+end
+
+local function BuildSetCategorySelectionMatchers()
+	local buildLootPanelInstanceSelections = dependencies.buildLootPanelInstanceSelections
+	local matchers = {
+		raid = {},
+		dungeon = {},
+	}
+	if not buildLootPanelInstanceSelections then
+		return matchers
+	end
+	for _, selection in ipairs(buildLootPanelInstanceSelections() or {}) do
+		local instanceType = tostring(selection and selection.instanceType or "")
+		local bucket = nil
+		if instanceType == "raid" then
+			bucket = matchers.raid
+		elseif instanceType == "party" then
+			bucket = matchers.dungeon
+		end
+		if bucket then
+			local rawName = tostring(selection.instanceName or "")
+			local normalizedName = NormalizeSetInstanceMatchName(rawName)
+			if normalizedName ~= "" then
+				bucket[#bucket + 1] = {
+					rawName = rawName,
+					normalizedName = normalizedName,
+				}
+			end
+		end
+	end
+	return matchers
+end
+
+local function FindSetCategorySelectionMatch(value, bucket)
+	local normalizedValue = NormalizeSetInstanceMatchName(value)
+	if normalizedValue == "" then
+		return nil
+	end
+	for _, candidate in ipairs(bucket or {}) do
+		if candidate.normalizedName == normalizedValue then
+			return candidate
+		end
+	end
+	for _, candidate in ipairs(bucket or {}) do
+		if candidate.normalizedName:find(normalizedValue, 1, true) or normalizedValue:find(candidate.normalizedName, 1, true) then
+			return candidate
+		end
+	end
+	return nil
+end
+
+local function IsGenericSetCategoryLabel(value)
+	local normalizedValue = NormalizeSetInstanceMatchName(value)
+	if normalizedValue == "" then
+		return true
+	end
+	local blockedLabels = {
+		"传承护甲",
+		"时尚试炼",
+		"暗月马戏团",
+		"军团入侵",
+		"职业大厅",
+		"时光守卫者",
+		"搏击俱乐部",
+		"传承",
+	}
+	for _, blocked in ipairs(blockedLabels) do
+		if normalizedValue == NormalizeSetInstanceMatchName(blocked) then
+			return true
+		end
+	end
+	return false
+end
+
+local function IsArrayTable(value)
+	if type(value) ~= "table" then
+		return false
+	end
+	local maxIndex = 0
+	for key in pairs(value) do
+		if type(key) ~= "number" or key < 1 or key % 1 ~= 0 then
+			return false
+		end
+		if key > maxIndex then
+			maxIndex = key
+		end
+	end
+	for index = 1, maxIndex do
+		if value[index] == nil then
+			return false
+		end
+	end
+	return true
+end
+
+local function JsonEscapeString(value)
+	value = tostring(value or "")
+	value = value:gsub("\\", "\\\\")
+	value = value:gsub("\"", "\\\"")
+	value = value:gsub("\r", "\\r")
+	value = value:gsub("\n", "\\n")
+	value = value:gsub("\t", "\\t")
+	return value
+end
+
+local function EncodeJsonValue(value)
+	local valueType = type(value)
+	if valueType == "nil" then
+		return "null"
+	end
+	if valueType == "boolean" then
+		return value and "true" or "false"
+	end
+	if valueType == "number" then
+		return tostring(value)
+	end
+	if valueType == "string" then
+		return "\"" .. JsonEscapeString(value) .. "\""
+	end
+	if valueType ~= "table" then
+		return "\"" .. JsonEscapeString(tostring(value)) .. "\""
+	end
+
+	if IsArrayTable(value) then
+		local parts = {}
+		for index = 1, #value do
+			parts[#parts + 1] = EncodeJsonValue(value[index])
+		end
+		return "[" .. table.concat(parts, ",") .. "]"
+	end
+
+	local keys = {}
+	for key in pairs(value) do
+		keys[#keys + 1] = tostring(key)
+	end
+	table.sort(keys)
+	local parts = {}
+	for _, key in ipairs(keys) do
+		parts[#parts + 1] = string.format("\"%s\":%s", JsonEscapeString(key), EncodeJsonValue(value[key]))
+	end
+	return "{" .. table.concat(parts, ",") .. "}"
+end
+
 local function GetEnabledSections()
 	local getDebugLogSections = dependencies.getDebugLogSections
 	local sections = getDebugLogSections and getDebugLogSections() or nil
@@ -82,6 +375,9 @@ function DebugTools.FormatDebugDump(dump)
 	local dashboardSetPieceDebug = dump.dashboardSetPieceDebug or {}
 	local lootApiRawDebug = dump.lootApiRawDebug or {}
 	local dashboardSnapshotWriteDebug = dump.dashboardSnapshotWriteDebug or {}
+	local pvpSetDebug = dump.pvpSetDebug or {}
+	local dungeonDashboardDebug = dump.dungeonDashboardDebug or {}
+	local setCategoryDebug = dump.setCategoryDebug or {}
 
 	lines[#lines + 1] = Translate("DEBUG_COPY_HINT", "Tip: click \"Collect Logs\" to auto-select the text, then press Ctrl+C to copy.")
 	lines[#lines + 1] = ""
@@ -547,13 +843,550 @@ function DebugTools.FormatDebugDump(dump)
 		end
 	end
 
+	if IsSectionEnabled("pvpSetDebug") and ((pvpSetDebug.totalSetCount or 0) > 0 or (pvpSetDebug.error and pvpSetDebug.error ~= "")) then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "== PVP Set Debug =="
+		if pvpSetDebug.error and pvpSetDebug.error ~= "" then
+			lines[#lines + 1] = string.format("error = %s", tostring(pvpSetDebug.error))
+		else
+			lines[#lines + 1] = string.format("totalSetCount = %s", tostring(pvpSetDebug.totalSetCount or 0))
+			lines[#lines + 1] = string.format("matchedKeywordCount = %s", tostring(pvpSetDebug.matchedKeywordCount or 0))
+			lines[#lines + 1] = string.format("unmatchedSampleCount = %s", tostring(pvpSetDebug.unmatchedSampleCount or 0))
+			lines[#lines + 1] = string.format("keywords = %s", table.concat(pvpSetDebug.keywords or {}, ", "))
+			lines[#lines + 1] = ""
+			lines[#lines + 1] = "-- Keyword Matches --"
+			for _, setInfo in ipairs(pvpSetDebug.matches or {}) do
+				lines[#lines + 1] = string.format(
+					"setID=%s | name=%s | label=%s | description=%s | expansionID=%s | classMask=%s | faction=%s | hits=%s",
+					tostring(setInfo.setID),
+					tostring(setInfo.name),
+					tostring(setInfo.label),
+					tostring(setInfo.description),
+					tostring(setInfo.expansionID),
+					tostring(setInfo.classMask),
+					tostring(setInfo.requiredFaction),
+					table.concat(setInfo.matchHits or {}, ",")
+				)
+			end
+			lines[#lines + 1] = ""
+			lines[#lines + 1] = "-- Unmatched Sample --"
+			for _, setInfo in ipairs(pvpSetDebug.unmatchedSample or {}) do
+				lines[#lines + 1] = string.format(
+					"setID=%s | name=%s | label=%s | description=%s | expansionID=%s | classMask=%s | faction=%s",
+					tostring(setInfo.setID),
+					tostring(setInfo.name),
+					tostring(setInfo.label),
+					tostring(setInfo.description),
+					tostring(setInfo.expansionID),
+					tostring(setInfo.classMask),
+					tostring(setInfo.requiredFaction)
+				)
+			end
+		end
+	end
+
+	if IsSectionEnabled("dungeonDashboardDebug") and next(dungeonDashboardDebug) ~= nil then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "== Dungeon Dashboard Debug =="
+		if dungeonDashboardDebug.error and dungeonDashboardDebug.error ~= "" then
+			lines[#lines + 1] = string.format("error = %s", tostring(dungeonDashboardDebug.error))
+		end
+		if dungeonDashboardDebug.dashboardInstanceType then
+			lines[#lines + 1] = string.format("dashboardInstanceType = %s", tostring(dungeonDashboardDebug.dashboardInstanceType))
+		end
+		if dungeonDashboardDebug.instanceQuery then
+			lines[#lines + 1] = string.format("instanceQuery = %s", tostring(dungeonDashboardDebug.instanceQuery))
+		end
+		if dungeonDashboardDebug.selectedInstance then
+			local selectedInstance = dungeonDashboardDebug.selectedInstance
+			lines[#lines + 1] = ""
+			lines[#lines + 1] = "-- Selected Instance --"
+			lines[#lines + 1] = string.format("instanceName = %s", tostring(selectedInstance.instanceName))
+			lines[#lines + 1] = string.format("instanceType = %s", tostring(selectedInstance.instanceType))
+			lines[#lines + 1] = string.format("journalInstanceID = %s", tostring(selectedInstance.journalInstanceID))
+			lines[#lines + 1] = string.format("difficultyID = %s", tostring(selectedInstance.difficultyID))
+			lines[#lines + 1] = string.format("difficultyName = %s", tostring(selectedInstance.difficultyName))
+			lines[#lines + 1] = string.format("instanceOrder = %s", tostring(selectedInstance.instanceOrder))
+			lines[#lines + 1] = string.format("expansionName = %s", tostring(selectedInstance.expansionName))
+		end
+		if dungeonDashboardDebug.expansionInfo then
+			local expansionInfo = dungeonDashboardDebug.expansionInfo
+			lines[#lines + 1] = ""
+			lines[#lines + 1] = "-- Expansion Resolution --"
+			lines[#lines + 1] = string.format("expansionName = %s", tostring(expansionInfo.expansionName))
+			lines[#lines + 1] = string.format("expansionOrder = %s", tostring(expansionInfo.expansionOrder))
+			lines[#lines + 1] = string.format("instanceOrder = %s", tostring(expansionInfo.instanceOrder))
+		end
+		if dungeonDashboardDebug.lockout then
+			local lockout = dungeonDashboardDebug.lockout
+			lines[#lines + 1] = ""
+			lines[#lines + 1] = "-- Current Character Lockout Match --"
+			lines[#lines + 1] = string.format("name = %s", tostring(lockout.name))
+			lines[#lines + 1] = string.format("difficultyID = %s", tostring(lockout.difficultyID))
+			lines[#lines + 1] = string.format("difficultyName = %s", tostring(lockout.difficultyName))
+			lines[#lines + 1] = string.format("progress = %s", tostring(lockout.progress))
+			lines[#lines + 1] = string.format("encounters = %s", tostring(lockout.encounters))
+			lines[#lines + 1] = string.format("isRaid = %s", tostring(lockout.isRaid))
+		end
+		if dungeonDashboardDebug.cacheEntry then
+			local cacheEntry = dungeonDashboardDebug.cacheEntry
+			lines[#lines + 1] = ""
+			lines[#lines + 1] = "-- Stored Cache Entry --"
+			lines[#lines + 1] = string.format("instanceKey = %s", tostring(cacheEntry.instanceKey))
+			lines[#lines + 1] = string.format("instanceName = %s", tostring(cacheEntry.instanceName))
+			lines[#lines + 1] = string.format("instanceType = %s", tostring(cacheEntry.instanceType))
+			lines[#lines + 1] = string.format("journalInstanceID = %s", tostring(cacheEntry.journalInstanceID))
+			lines[#lines + 1] = string.format("expansionName = %s", tostring(cacheEntry.expansionName))
+			lines[#lines + 1] = string.format("instanceOrder = %s", tostring(cacheEntry.instanceOrder))
+			lines[#lines + 1] = string.format("difficultyKeys = %s", table.concat(cacheEntry.difficultyKeys or {}, ","))
+		end
+		if #(dungeonDashboardDebug.cacheCandidates or {}) > 0 then
+			lines[#lines + 1] = ""
+			lines[#lines + 1] = "-- Cache Candidates --"
+			for _, candidate in ipairs(dungeonDashboardDebug.cacheCandidates or {}) do
+				lines[#lines + 1] = string.format(
+					"instanceName = %s | journalInstanceID = %s | expansionName = %s | difficultyKeys = %s",
+					tostring(candidate.instanceName),
+					tostring(candidate.journalInstanceID),
+					tostring(candidate.expansionName),
+					table.concat(candidate.difficultyKeys or {}, ",")
+				)
+			end
+		end
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "-- Dashboard Matching Rows --"
+		for _, row in ipairs(dungeonDashboardDebug.matchingRows or {}) do
+			lines[#lines + 1] = string.format(
+				"instanceName = %s | expansionName = %s | tierTag = %s | difficultyCount = %s",
+				tostring(row.instanceName),
+				tostring(row.expansionName),
+				tostring(row.tierTag),
+				tostring(row.difficultyCount)
+			)
+			for _, difficultyRow in ipairs(row.difficultyRows or {}) do
+				lines[#lines + 1] = string.format(
+					"  difficultyID=%s | difficultyName=%s | progress=%s | encounters=%s | totalSet=%s/%s | totalCollectible=%s/%s",
+					tostring(difficultyRow.difficultyID),
+					tostring(difficultyRow.difficultyName),
+					tostring(difficultyRow.progress),
+					tostring(difficultyRow.encounters),
+					tostring(difficultyRow.setCollected),
+					tostring(difficultyRow.setTotal),
+					tostring(difficultyRow.collectibleCollected),
+					tostring(difficultyRow.collectibleTotal)
+				)
+			end
+		end
+	end
+
+	if IsSectionEnabled("setCategoryDebug") and ((setCategoryDebug.totalSetCount or 0) > 0 or (setCategoryDebug.error and setCategoryDebug.error ~= "")) then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "== Set Category Debug =="
+		if setCategoryDebug.error and setCategoryDebug.error ~= "" then
+			lines[#lines + 1] = string.format("error = %s", tostring(setCategoryDebug.error))
+		else
+			lines[#lines + 1] = string.format("query = %s", tostring(setCategoryDebug.query))
+			lines[#lines + 1] = string.format("totalSetCount = %s", tostring(setCategoryDebug.totalSetCount or 0))
+			lines[#lines + 1] = string.format("matchedSetCount = %s", tostring(setCategoryDebug.matchedSetCount or 0))
+			lines[#lines + 1] = string.format("raidCount = %s", tostring(setCategoryDebug.raidCount or 0))
+			lines[#lines + 1] = string.format("dungeonCount = %s", tostring(setCategoryDebug.dungeonCount or 0))
+			lines[#lines + 1] = string.format("pvpCount = %s", tostring(setCategoryDebug.pvpCount or 0))
+			lines[#lines + 1] = string.format("otherCount = %s", tostring(setCategoryDebug.otherCount or 0))
+			lines[#lines + 1] = string.format("keywords = %s", table.concat(setCategoryDebug.keywords or {}, ", "))
+			lines[#lines + 1] = ""
+			for _, categoryKey in ipairs({ "raid", "dungeon", "pvp", "other" }) do
+				local entries = setCategoryDebug[categoryKey .. "Sample"] or {}
+				lines[#lines + 1] = string.format("-- %s Sample --", string.upper(categoryKey))
+				for _, setInfo in ipairs(entries) do
+					lines[#lines + 1] = string.format(
+						"setID=%s | name=%s | label=%s | description=%s | expansionID=%s | classMask=%s | faction=%s | category=%s | reason=%s | hits=%s",
+						tostring(setInfo.setID),
+						tostring(setInfo.name),
+						tostring(setInfo.label),
+						tostring(setInfo.description),
+						tostring(setInfo.expansionID),
+						tostring(setInfo.classMask),
+						tostring(setInfo.requiredFaction),
+						tostring(setInfo.category),
+						tostring(setInfo.reason),
+						table.concat(setInfo.matchHits or {}, ",")
+					)
+				end
+				if #entries == 0 then
+					lines[#lines + 1] = "(none)"
+				end
+				lines[#lines + 1] = ""
+			end
+		end
+	end
+
+	local setDashboardPreviewDebug = dump.setDashboardPreviewDebug or {}
+	if IsSectionEnabled("setDashboardPreviewDebug") and ((setDashboardPreviewDebug.payloadJson and setDashboardPreviewDebug.payloadJson ~= "") or (setDashboardPreviewDebug.error and setDashboardPreviewDebug.error ~= "")) then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "== Set Dashboard Preview Debug =="
+		if setDashboardPreviewDebug.error and setDashboardPreviewDebug.error ~= "" then
+			lines[#lines + 1] = string.format("error = %s", tostring(setDashboardPreviewDebug.error))
+		else
+			lines[#lines + 1] = string.format("tabOrder = %s", table.concat(setDashboardPreviewDebug.tabOrder or {}, ", "))
+			lines[#lines + 1] = string.format("classFiles = %s", table.concat(setDashboardPreviewDebug.classFiles or {}, ", "))
+			lines[#lines + 1] = ""
+			lines[#lines + 1] = "-- JSON Payload --"
+			lines[#lines + 1] = tostring(setDashboardPreviewDebug.payloadJson or "")
+		end
+	end
+
 	return table.concat(lines, "\n")
+end
+
+function DebugTools.CapturePvpSetDebugDump()
+	local db = dependencies.getDB and dependencies.getDB() or nil
+	local dump = {
+		pvpSetDebug = {
+			keywords = BuildSetDebugKeywords(),
+			totalSetCount = 0,
+			matchedKeywordCount = 0,
+			unmatchedSampleCount = 0,
+			matches = {},
+			unmatchedSample = {},
+		},
+	}
+	local pvpSetDebug = dump.pvpSetDebug
+
+	if not (C_TransmogSets and C_TransmogSets.GetAllSets) then
+		pvpSetDebug.error = "C_TransmogSets.GetAllSets unavailable"
+	else
+		local allSets = C_TransmogSets.GetAllSets() or {}
+		pvpSetDebug.totalSetCount = #allSets
+		for _, setInfo in ipairs(allSets) do
+			local matchHits = CollectSetKeywordHits(setInfo, pvpSetDebug.keywords)
+			local normalized = NormalizeSetDebugInfo(setInfo, {
+				matchHits = matchHits,
+			})
+			if #matchHits > 0 then
+				pvpSetDebug.matches[#pvpSetDebug.matches + 1] = normalized
+			elseif #pvpSetDebug.unmatchedSample < 40 then
+				pvpSetDebug.unmatchedSample[#pvpSetDebug.unmatchedSample + 1] = normalized
+			end
+		end
+		table.sort(pvpSetDebug.matches, function(a, b)
+			if tostring(a.label or "") ~= tostring(b.label or "") then
+				return tostring(a.label or "") < tostring(b.label or "")
+			end
+			if tostring(a.name or "") ~= tostring(b.name or "") then
+				return tostring(a.name or "") < tostring(b.name or "")
+			end
+			return (tonumber(a.setID) or 0) < (tonumber(b.setID) or 0)
+		end)
+		pvpSetDebug.matchedKeywordCount = #pvpSetDebug.matches
+		pvpSetDebug.unmatchedSampleCount = #pvpSetDebug.unmatchedSample
+	end
+
+	if db then
+		db.debugTemp = type(db.debugTemp) == "table" and db.debugTemp or {}
+		db.debugTemp.pvpSetDebug = pvpSetDebug
+	end
+
+	return dump
+end
+
+function DebugTools.CaptureSetCategoryDebugDump(query)
+	local db = dependencies.getDB and dependencies.getDB() or nil
+	local setCategories = addon.SetCategories
+	local classificationContext = setCategories and setCategories.CreateContext and setCategories.CreateContext() or nil
+	local normalizedQuery = strtrim and strtrim(tostring(query or "")) or tostring(query or "")
+	local queryLower = string.lower(normalizedQuery)
+	local dump = {
+		setCategoryDebug = {
+			query = normalizedQuery ~= "" and normalizedQuery or nil,
+			keywords = BuildSetDebugKeywords(),
+			totalSetCount = 0,
+			matchedSetCount = 0,
+			raidCount = 0,
+			dungeonCount = 0,
+			pvpCount = 0,
+			otherCount = 0,
+			raidSample = {},
+			dungeonSample = {},
+			pvpSample = {},
+			otherSample = {},
+		},
+	}
+	local setCategoryDebug = dump.setCategoryDebug
+
+	if not (C_TransmogSets and C_TransmogSets.GetAllSets) then
+		setCategoryDebug.error = "C_TransmogSets.GetAllSets unavailable"
+	else
+		local allSets = C_TransmogSets.GetAllSets() or {}
+		setCategoryDebug.totalSetCount = #allSets
+		for _, setInfo in ipairs(allSets) do
+			local name = tostring(setInfo.name or "")
+			local label = tostring(setInfo.label or "")
+			local description = tostring(setInfo.description or "")
+			local include = true
+			if queryLower ~= "" then
+				local haystack = string.lower(name .. "\n" .. label .. "\n" .. description)
+				include = haystack:find(queryLower, 1, true) ~= nil
+			end
+			if include then
+				local classification = setCategories and setCategories.ClassifyTransmogSet and setCategories.ClassifyTransmogSet(setInfo, classificationContext) or nil
+				local matchHits = classification and classification.matchHits or CollectSetKeywordHits(setInfo, setCategoryDebug.keywords)
+				local category = classification and classification.category or "other"
+				local reason = classification and classification.reason or "no_match"
+
+				local normalized = NormalizeSetDebugInfo(setInfo, {
+					matchHits = matchHits,
+					category = category,
+					reason = reason,
+				})
+				local sampleKey = category .. "Sample"
+				local countKey = category .. "Count"
+				setCategoryDebug[countKey] = (tonumber(setCategoryDebug[countKey]) or 0) + 1
+				if #setCategoryDebug[sampleKey] < 60 then
+					setCategoryDebug[sampleKey][#setCategoryDebug[sampleKey] + 1] = normalized
+				end
+				setCategoryDebug.matchedSetCount = (tonumber(setCategoryDebug.matchedSetCount) or 0) + 1
+			end
+		end
+	end
+
+	if db then
+		db.debugTemp = type(db.debugTemp) == "table" and db.debugTemp or {}
+		db.debugTemp.setCategoryDebug = setCategoryDebug
+	end
+
+	return dump
+end
+
+function DebugTools.CaptureSetDashboardPreviewDump()
+	local db = dependencies.getDB and dependencies.getDB() or nil
+	local setDashboard = addon.SetDashboard
+	local dump = {
+		setDashboardPreviewDebug = {
+			error = nil,
+			tabOrder = {},
+			classFiles = {},
+			payload = nil,
+			payloadJson = nil,
+		},
+	}
+	local previewDebug = dump.setDashboardPreviewDebug
+
+	if not (setDashboard and setDashboard.BuildData) then
+		previewDebug.error = "SetDashboard.BuildData unavailable"
+	else
+		local ok, data = pcall(setDashboard.BuildData)
+		if not ok then
+			previewDebug.error = tostring(data)
+		else
+			local classFiles = {}
+			for _, classFile in ipairs(data and data.classFiles or {}) do
+				classFiles[#classFiles + 1] = tostring(classFile)
+			end
+			previewDebug.classFiles = classFiles
+			previewDebug.tabOrder = { "raid", "dungeon", "pvp", "other" }
+
+			local payload = {
+				tabOrder = previewDebug.tabOrder,
+				classFiles = classFiles,
+				tabs = {},
+			}
+
+			for _, tabKey in ipairs(previewDebug.tabOrder) do
+				local categoryData = data and data.categories and data.categories[tabKey] or nil
+				local tabPayload = {
+					key = tabKey,
+					expansions = {},
+					message = categoryData and categoryData.message or nil,
+				}
+				for _, expansionEntry in ipairs(categoryData and categoryData.expansions or {}) do
+					local expansionPayload = {
+						expansionID = tonumber(expansionEntry.expansionID) or 0,
+						expansionName = tostring(expansionEntry.expansionName or "Other"),
+						total = {
+							collectedPieces = tonumber(expansionEntry.total and expansionEntry.total.collectedPieces) or 0,
+							totalPieces = tonumber(expansionEntry.total and expansionEntry.total.totalPieces) or 0,
+							completedSets = tonumber(expansionEntry.total and expansionEntry.total.completedSets) or 0,
+							totalSets = tonumber(expansionEntry.total and expansionEntry.total.totalSets) or 0,
+						},
+						rows = {},
+					}
+					for _, rowInfo in ipairs(expansionEntry.rows or {}) do
+						local rowPayload = {
+							key = tostring(rowInfo.key or ""),
+							label = tostring(rowInfo.label or ""),
+							total = {
+								collectedPieces = tonumber(rowInfo.total and rowInfo.total.collectedPieces) or 0,
+								totalPieces = tonumber(rowInfo.total and rowInfo.total.totalPieces) or 0,
+								completedSets = tonumber(rowInfo.total and rowInfo.total.completedSets) or 0,
+								totalSets = tonumber(rowInfo.total and rowInfo.total.totalSets) or 0,
+							},
+							byClass = {},
+						}
+						for _, classFile in ipairs(classFiles) do
+							local bucket = rowInfo.byClass and rowInfo.byClass[classFile] or nil
+							rowPayload.byClass[classFile] = {
+								collectedPieces = tonumber(bucket and bucket.collectedPieces) or 0,
+								totalPieces = tonumber(bucket and bucket.totalPieces) or 0,
+								completedSets = tonumber(bucket and bucket.completedSets) or 0,
+								totalSets = tonumber(bucket and bucket.totalSets) or 0,
+							}
+						end
+						expansionPayload.rows[#expansionPayload.rows + 1] = rowPayload
+					end
+					tabPayload.expansions[#tabPayload.expansions + 1] = expansionPayload
+				end
+				payload.tabs[tabKey] = tabPayload
+			end
+
+			previewDebug.payload = payload
+			previewDebug.payloadJson = EncodeJsonValue(payload)
+		end
+	end
+
+	if db then
+		db.debugTemp = type(db.debugTemp) == "table" and db.debugTemp or {}
+		db.debugTemp.setDashboardPreviewDebug = previewDebug
+	end
+
+	return dump
+end
+
+function DebugTools.CaptureDungeonDashboardDebugDump(instanceQuery, forcedInstanceType)
+	local getSelectedLootPanelInstance = dependencies.getSelectedLootPanelInstance
+	local getExpansionInfoForInstance = dependencies.getExpansionInfoForInstance
+	local getCurrentCharacterLockoutForSelection = dependencies.getCurrentCharacterLockoutForSelection
+	local getDashboardData = dependencies.getRaidDashboardData
+	local getDashboardDataForType = dependencies.getRaidDashboardDataForType
+	local getDashboardStoredCache = dependencies.getDashboardStoredCache
+	local buildLootPanelInstanceSelections = dependencies.buildLootPanelInstanceSelections
+	local selectedInstance = getSelectedLootPanelInstance and getSelectedLootPanelInstance() or nil
+	local dashboardInstanceType = tostring(forcedInstanceType or "party")
+	local normalizedQuery = strtrim and strtrim(tostring(instanceQuery or "")) or tostring(instanceQuery or "")
+	local queryLower = string.lower(normalizedQuery)
+
+	if normalizedQuery ~= "" and buildLootPanelInstanceSelections then
+		local exactMatch = nil
+		local fuzzyMatch = nil
+		for _, candidate in ipairs(buildLootPanelInstanceSelections() or {}) do
+			if tostring(candidate.instanceType or "") == dashboardInstanceType then
+				local candidateName = tostring(candidate.instanceName or "")
+				local candidateNameLower = string.lower(candidateName)
+				if candidateName == normalizedQuery or candidateNameLower == queryLower then
+					exactMatch = candidate
+					break
+				end
+				if not fuzzyMatch and candidateNameLower:find(queryLower, 1, true) then
+					fuzzyMatch = candidate
+				end
+			end
+		end
+		selectedInstance = exactMatch or fuzzyMatch or selectedInstance
+	end
+
+	local dump = {
+		dungeonDashboardDebug = {
+			dashboardInstanceType = dashboardInstanceType,
+			instanceQuery = normalizedQuery ~= "" and normalizedQuery or nil,
+			selectedInstance = selectedInstance and {
+				instanceName = selectedInstance.instanceName,
+				instanceType = selectedInstance.instanceType,
+				journalInstanceID = tonumber(selectedInstance.journalInstanceID) or 0,
+				difficultyID = tonumber(selectedInstance.difficultyID) or 0,
+				difficultyName = selectedInstance.difficultyName,
+				instanceOrder = tonumber(selectedInstance.instanceOrder) or 0,
+				expansionName = selectedInstance.expansionName,
+			} or nil,
+			expansionInfo = nil,
+			lockout = nil,
+			cacheEntry = nil,
+			cacheCandidates = {},
+			matchingRows = {},
+		},
+	}
+	local debugInfo = dump.dungeonDashboardDebug
+
+	if not selectedInstance then
+		debugInfo.error = "No selected loot panel instance."
+		return dump
+	end
+
+	debugInfo.expansionInfo = getExpansionInfoForInstance and getExpansionInfoForInstance(selectedInstance) or nil
+	debugInfo.lockout = getCurrentCharacterLockoutForSelection and getCurrentCharacterLockoutForSelection(selectedInstance) or nil
+
+	local storedCache = getDashboardStoredCache and getDashboardStoredCache(dashboardInstanceType) or nil
+	local cacheEntries = storedCache and storedCache.entries or {}
+	local normalizedSelectedName = NormalizeDebugName(selectedInstance and selectedInstance.instanceName or "")
+	for _, entry in ipairs(cacheEntries or {}) do
+		local difficultyKeys = {}
+		for difficultyKey in pairs(entry.difficultyData or {}) do
+			difficultyKeys[#difficultyKeys + 1] = tostring(difficultyKey)
+		end
+		table.sort(difficultyKeys)
+		if tostring(entry.instanceType or "") == dashboardInstanceType
+			and tostring(entry.instanceName or "") == tostring(selectedInstance.instanceName or "")
+			and tonumber(entry.journalInstanceID) == tonumber(selectedInstance.journalInstanceID) then
+			debugInfo.cacheEntry = {
+				instanceKey = entry.instanceKey,
+				instanceName = entry.instanceName,
+				instanceType = entry.instanceType,
+				journalInstanceID = tonumber(entry.journalInstanceID) or 0,
+				expansionName = entry.expansionName,
+				instanceOrder = tonumber(entry.instanceOrder) or 0,
+				difficultyKeys = difficultyKeys,
+			}
+			break
+		end
+		if tostring(entry.instanceType or "") == dashboardInstanceType then
+			local normalizedEntryName = NormalizeDebugName(entry.instanceName)
+			if normalizedSelectedName ~= ""
+				and (normalizedEntryName == normalizedSelectedName
+					or normalizedEntryName:find(normalizedSelectedName, 1, true)
+					or normalizedSelectedName:find(normalizedEntryName, 1, true)) then
+				debugInfo.cacheCandidates[#debugInfo.cacheCandidates + 1] = {
+					instanceName = entry.instanceName,
+					journalInstanceID = tonumber(entry.journalInstanceID) or 0,
+					expansionName = entry.expansionName,
+					difficultyKeys = difficultyKeys,
+				}
+			end
+		end
+	end
+
+	local data = getDashboardDataForType and getDashboardDataForType(dashboardInstanceType) or getDashboardData and getDashboardData() or nil
+	for _, rowInfo in ipairs(data and data.rows or {}) do
+		if rowInfo.type == "instance"
+			and tostring(rowInfo.instanceType or "") == dashboardInstanceType
+			and tostring(rowInfo.instanceName or "") == tostring(selectedInstance.instanceName or "") then
+			local row = {
+				instanceName = rowInfo.instanceName,
+				expansionName = rowInfo.expansionName,
+				tierTag = rowInfo.tierTag,
+				difficultyCount = #(rowInfo.difficultyRows or {}),
+				difficultyRows = {},
+			}
+			for _, difficultyRow in ipairs(rowInfo.difficultyRows or {}) do
+				row.difficultyRows[#row.difficultyRows + 1] = {
+					difficultyID = tonumber(difficultyRow.difficultyID) or 0,
+					difficultyName = difficultyRow.difficultyName,
+					progress = tonumber(difficultyRow.progress) or 0,
+					encounters = tonumber(difficultyRow.encounters) or 0,
+					setCollected = difficultyRow.total and tonumber(difficultyRow.total.setCollected) or 0,
+					setTotal = difficultyRow.total and tonumber(difficultyRow.total.setTotal) or 0,
+					collectibleCollected = difficultyRow.total and tonumber(difficultyRow.total.collectibleCollected) or 0,
+					collectibleTotal = difficultyRow.total and tonumber(difficultyRow.total.collectibleTotal) or 0,
+				}
+			end
+			debugInfo.matchingRows[#debugInfo.matchingRows + 1] = row
+		end
+	end
+
+	return dump
 end
 
 function DebugTools.CaptureEncounterDebugDump()
 	local api = dependencies.API or addon.API
 	local getDB = dependencies.getDB
-	local db = getDB and getDB() or CodexExampleAddonDB
+	local db = getDB and getDB() or MogTrackerDB
 	local getSelectedLootPanelInstance = dependencies.getSelectedLootPanelInstance
 	local getLootPanelRenderDebugHistory = dependencies.getLootPanelRenderDebugHistory
 	local buildLootPanelInstanceSelections = dependencies.buildLootPanelInstanceSelections
@@ -1061,3 +1894,4 @@ function DebugTools.CaptureAndShowDebugDump()
 	end
 	return dump
 end
+

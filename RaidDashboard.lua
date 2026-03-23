@@ -4,7 +4,7 @@ local RaidDashboard = addon.RaidDashboard or {}
 addon.RaidDashboard = RaidDashboard
 
 local dependencies = {}
-local DASHBOARD_RULES_VERSION = 18
+local DASHBOARD_RULES_VERSION = 19
 local SummarizeSetPieces
 local SummarizeCollectibles
 
@@ -62,6 +62,11 @@ end
 local function GetDifficultyDisplayOrder(difficultyID)
 	local fn = dependencies.getDifficultyDisplayOrder
 	return fn and fn(difficultyID) or 999
+end
+
+local function GetSelectionLockoutProgress(selection)
+	local fn = dependencies.getSelectionLockoutProgress
+	return fn and fn(selection) or nil
 end
 
 local function GetDifficultyColorCode(difficultyName, difficultyID)
@@ -818,6 +823,8 @@ local function BuildSnapshotWriteDebug(selection, difficultyID, computedClassFil
 			setPieceCollected = 0,
 			setPieceTotal = 0,
 			setPieceKeys = {},
+			progress = tonumber(difficultyEntry and difficultyEntry.progress) or 0,
+			encounters = tonumber(difficultyEntry and difficultyEntry.encounters) or 0,
 		},
 	}
 
@@ -857,6 +864,20 @@ local function BuildSnapshotWriteDebug(selection, difficultyID, computedClassFil
 	table.sort(debugInfo.byClass, addon.API.CompareClassFiles)
 
 	return debugInfo
+end
+
+local function ResolveEncounterProgress(selection, data)
+	local lockoutProgress = GetSelectionLockoutProgress(selection)
+	if lockoutProgress and (tonumber(lockoutProgress.encounters) or 0) > 0 then
+		return tonumber(lockoutProgress.progress) or 0, tonumber(lockoutProgress.encounters) or 0
+	end
+
+	local encounterTotal = #((data and data.encounters) or {})
+	if encounterTotal > 0 then
+		return 0, encounterTotal
+	end
+
+	return 0, 0
 end
 
 local function BuildInstanceMatrixEntry(entry, difficultyID, classFiles)
@@ -901,6 +922,8 @@ local function BuildInstanceMatrixEntry(entry, difficultyID, classFiles)
 		journalInstanceID = entry.journalInstanceID,
 		difficultyID = difficultyID,
 		difficultyName = GetDifficultyName(difficultyID),
+		progress = tonumber(difficultyEntry.progress) or 0,
+		encounters = tonumber(difficultyEntry.encounters) or 0,
 		byClass = byClass,
 		total = {
 			setCollected = totalSetCollected,
@@ -968,6 +991,36 @@ local function MatrixEntryHasAnyValue(entry, classFiles)
 	return false
 end
 
+local function GetHighestDifficultyMatrixEntry(entry, classFiles)
+	local highestDifficultyID = nil
+	local highestOrder = nil
+
+	for difficultyID, difficultyEntry in pairs(entry.difficultyData or {}) do
+		if type(difficultyEntry) == "table" then
+			local normalizedDifficultyID = tonumber(difficultyID) or 0
+			if normalizedDifficultyID > 0 then
+				local difficultyOrder = GetDifficultyDisplayOrder(normalizedDifficultyID)
+				if highestDifficultyID == nil
+					or difficultyOrder < highestOrder
+					or (difficultyOrder == highestOrder and normalizedDifficultyID > highestDifficultyID) then
+					highestDifficultyID = normalizedDifficultyID
+					highestOrder = difficultyOrder
+				end
+			end
+		end
+	end
+
+	if not highestDifficultyID then
+		return nil
+	end
+
+	local matrixEntry = BuildInstanceMatrixEntry(entry, highestDifficultyID, classFiles)
+	if not MatrixEntryHasAnyValue(matrixEntry, classFiles) then
+		return nil
+	end
+	return matrixEntry
+end
+
 function RaidDashboard.UpdateSnapshot(selection, data, context)
 	local selectionInstanceType = tostring(selection and selection.instanceType or "")
 	if not selection or (selectionInstanceType ~= "raid" and selectionInstanceType ~= "party") then
@@ -998,7 +1051,11 @@ function RaidDashboard.UpdateSnapshot(selection, data, context)
 	local difficultyEntry = {
 		byClass = {},
 		total = BuildStoredStatBucket(stats.total),
+		progress = 0,
+		encounters = 0,
 	}
+
+	difficultyEntry.progress, difficultyEntry.encounters = ResolveEncounterProgress(selection, data)
 
 	for _, classFile in ipairs(computedClassFiles) do
 		difficultyEntry.byClass[classFile] = BuildStoredStatBucket(stats.byClass[classFile])
@@ -1023,12 +1080,23 @@ function RaidDashboard.UpdateSnapshot(selection, data, context)
 	return true
 end
 
-function RaidDashboard.ClearStoredData()
-	local storedCache = GetStoredCache()
-	if not storedCache then
+function RaidDashboard.ClearStoredData(instanceType)
+	if tostring(instanceType or "") == "all" then
+		local raidCache = GetStoredCache("raid")
+		local dungeonCache = GetStoredCache("party")
+		if raidCache then
+			raidCache.entries = {}
+		end
+		if dungeonCache then
+			dungeonCache.entries = {}
+		end
+		RaidDashboard.InvalidateCache()
 		return
 	end
-	storedCache.entries = {}
+	local storedCache = GetStoredCache(instanceType)
+	if storedCache then
+		storedCache.entries = {}
+	end
 	RaidDashboard.InvalidateCache()
 end
 
@@ -1052,6 +1120,11 @@ function RaidDashboard.BuildData()
 			and tonumber(entry.rulesVersion) == DASHBOARD_RULES_VERSION
 			and tostring(entry.instanceType or "raid") == dashboardInstanceType
 			and (entry.collectSameAppearance ~= false) == IsCollectSameAppearanceEnabled() then
+			local expansionInfo = GetExpansionInfoForInstance(entry)
+			entry.expansionName = tostring(expansionInfo.expansionName or entry.expansionName or "Other")
+			entry.expansionOrder = tonumber(expansionInfo.expansionOrder) or tonumber(entry.expansionOrder) or 999
+			entry.instanceOrder = tonumber(expansionInfo.instanceOrder) or tonumber(entry.instanceOrder) or tonumber(entry.raidOrder) or 999
+			entry.raidOrder = tonumber(entry.instanceOrder) or tonumber(entry.raidOrder) or 999
 			storedEntries[#storedEntries + 1] = entry
 		end
 	end
@@ -1106,31 +1179,44 @@ function RaidDashboard.BuildData()
 			}
 		end
 
-		local difficultyIDs = {}
-		for difficultyID, difficultyEntry in pairs(entry.difficultyData or {}) do
-			if type(difficultyEntry) == "table" then
-				difficultyIDs[#difficultyIDs + 1] = tonumber(difficultyID) or 0
-			end
-		end
-		table.sort(difficultyIDs, function(a, b)
-			local orderA = GetDifficultyDisplayOrder(a)
-			local orderB = GetDifficultyDisplayOrder(b)
-			if orderA ~= orderB then
-				return orderA < orderB
-			end
-			return a < b
-		end)
 		local difficultyRows = {}
-		for _, difficultyID in ipairs(difficultyIDs) do
-			if difficultyID > 0 then
-				local matrixEntry = BuildInstanceMatrixEntry(entry, difficultyID, classFiles)
-				if MatrixEntryHasAnyValue(matrixEntry, classFiles) then
-					for _, classFile in ipairs(classFiles) do
-						expansionBucketsByClass[classFile][#expansionBucketsByClass[classFile] + 1] = matrixEntry.byClass[classFile]
-					end
-					expansionTotalBuckets[#expansionTotalBuckets + 1] = matrixEntry.total
-					if not IsExpansionCollapsed(entry.expansionName) then
-						difficultyRows[#difficultyRows + 1] = matrixEntry
+		if dashboardInstanceType == "raid" then
+			local matrixEntry = GetHighestDifficultyMatrixEntry(entry, classFiles)
+			if matrixEntry then
+				for _, classFile in ipairs(classFiles) do
+					expansionBucketsByClass[classFile][#expansionBucketsByClass[classFile] + 1] = matrixEntry.byClass[classFile]
+				end
+				expansionTotalBuckets[#expansionTotalBuckets + 1] = matrixEntry.total
+				if not IsExpansionCollapsed(entry.expansionName) then
+					difficultyRows[1] = matrixEntry
+				end
+			end
+		else
+			local difficultyIDs = {}
+			for difficultyID, difficultyEntry in pairs(entry.difficultyData or {}) do
+				if type(difficultyEntry) == "table" then
+					difficultyIDs[#difficultyIDs + 1] = tonumber(difficultyID) or 0
+				end
+			end
+			table.sort(difficultyIDs, function(a, b)
+				local orderA = GetDifficultyDisplayOrder(a)
+				local orderB = GetDifficultyDisplayOrder(b)
+				if orderA ~= orderB then
+					return orderA < orderB
+				end
+				return a < b
+			end)
+			for _, difficultyID in ipairs(difficultyIDs) do
+				if difficultyID > 0 then
+					local matrixEntry = BuildInstanceMatrixEntry(entry, difficultyID, classFiles)
+					if MatrixEntryHasAnyValue(matrixEntry, classFiles) then
+						for _, classFile in ipairs(classFiles) do
+							expansionBucketsByClass[classFile][#expansionBucketsByClass[classFile] + 1] = matrixEntry.byClass[classFile]
+						end
+						expansionTotalBuckets[#expansionTotalBuckets + 1] = matrixEntry.total
+						if not IsExpansionCollapsed(entry.expansionName) then
+							difficultyRows[#difficultyRows + 1] = matrixEntry
+						end
 					end
 				end
 			end
@@ -1148,6 +1234,27 @@ function RaidDashboard.BuildData()
 		end
 	end
 	FinalizeCurrentExpansion()
+
+	if dashboardInstanceType == "party" then
+		local filteredRows = {}
+		for _, row in ipairs(rows) do
+			if row.type == "expansion" then
+				filteredRows[#filteredRows + 1] = row
+			elseif row.type == "instance" then
+				local visibleDifficultyRows = {}
+				for _, difficultyRow in ipairs(row.difficultyRows or {}) do
+					if MatrixEntryHasAnyValue(difficultyRow, classFiles) then
+						visibleDifficultyRows[#visibleDifficultyRows + 1] = difficultyRow
+					end
+				end
+				if #visibleDifficultyRows > 0 then
+					row.difficultyRows = visibleDifficultyRows
+					filteredRows[#filteredRows + 1] = row
+				end
+			end
+		end
+		rows = filteredRows
+	end
 
 	RaidDashboard.cache = {
 		version = DASHBOARD_RULES_VERSION,
@@ -1197,6 +1304,78 @@ function RaidDashboard.RenderContent(owner, content, scrollFrame)
 	local instanceRowCount = 0
 	local colorizeExpansionLabel = dependencies.colorizeExpansionLabel
 	local metricMode = owner.dashboardMetricMode == "collectibles" and "collectibles" or "sets"
+
+	local function MetricMatchesCurrentMode(metric)
+		if type(metric) ~= "table" then
+			return false
+		end
+		if metricMode == "collectibles" then
+			if (tonumber(metric.collectibleTotal) or 0) > 0 then
+				return true
+			end
+			return next(metric.collectibles or {}) ~= nil
+		end
+		if (tonumber(metric.setTotal) or 0) > 0 then
+			return true
+		end
+		return next(metric.setIDs or {}) ~= nil or next(metric.setPieces or {}) ~= nil
+	end
+
+	do
+		local filteredRows = {}
+		local dashboardInstanceType = GetDashboardInstanceType()
+		for _, rowInfo in ipairs(rows) do
+			if rowInfo.type == "expansion" then
+				local expansionRowCopy = {}
+				for key, value in pairs(rowInfo) do
+					expansionRowCopy[key] = value
+				end
+				filteredRows[#filteredRows + 1] = expansionRowCopy
+			elseif rowInfo.type == "instance" then
+				local visibleDifficultyRows = {}
+				for _, difficultyRowInfo in ipairs(rowInfo.difficultyRows or {}) do
+					if dashboardInstanceType ~= "party" or MetricMatchesCurrentMode(difficultyRowInfo.total) then
+						visibleDifficultyRows[#visibleDifficultyRows + 1] = difficultyRowInfo
+					end
+				end
+				if #visibleDifficultyRows > 0 then
+					local rowCopy = {}
+					for key, value in pairs(rowInfo) do
+						rowCopy[key] = value
+					end
+					rowCopy.difficultyRows = visibleDifficultyRows
+					filteredRows[#filteredRows + 1] = rowCopy
+				end
+			else
+				filteredRows[#filteredRows + 1] = rowInfo
+			end
+		end
+
+		local currentExpansionRow = nil
+		local currentExpansionBucketsByClass = nil
+		local currentExpansionTotalBuckets = nil
+		for _, rowInfo in ipairs(filteredRows) do
+			if rowInfo.type == "expansion" then
+				currentExpansionRow = rowInfo
+				currentExpansionBucketsByClass = {}
+				for _, classFile in ipairs(classFiles) do
+					currentExpansionBucketsByClass[classFile] = {}
+				end
+				currentExpansionTotalBuckets = {}
+			elseif rowInfo.type == "instance" and currentExpansionRow and currentExpansionBucketsByClass and currentExpansionTotalBuckets then
+				for _, difficultyRowInfo in ipairs(rowInfo.difficultyRows or {}) do
+					for _, classFile in ipairs(classFiles) do
+						currentExpansionBucketsByClass[classFile][#currentExpansionBucketsByClass[classFile] + 1] = difficultyRowInfo.byClass and difficultyRowInfo.byClass[classFile] or nil
+					end
+					currentExpansionTotalBuckets[#currentExpansionTotalBuckets + 1] = difficultyRowInfo.total
+				end
+				local summary = BuildExpansionMatrixEntry(currentExpansionRow.expansionName, classFiles, currentExpansionBucketsByClass, currentExpansionTotalBuckets)
+				currentExpansionRow.byClass = summary.byClass
+				currentExpansionRow.total = summary.total
+			end
+		end
+		rows = filteredRows
+	end
 
 	for _, rowInfo in ipairs(rows) do
 		if rowInfo.type == "instance" then
@@ -1256,7 +1435,7 @@ function RaidDashboard.RenderContent(owner, content, scrollFrame)
 		fontString:SetTextColor(defaultR, defaultG, defaultB)
 	end
 
-	local function GetMetricParts(metric)
+local function GetMetricParts(metric)
 		if metricMode == "collectibles" then
 			return
 				FormatMetricValue(metric and metric.collectibleCollected, metric and metric.collectibleTotal),

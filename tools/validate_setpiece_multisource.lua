@@ -1,7 +1,7 @@
 local addon = {}
 
 local dashboardChunk = assert(loadfile("RaidDashboard.lua"))
-dashboardChunk("CodexExampleAddon", addon)
+dashboardChunk("MogTracker", addon)
 
 local RaidDashboard = assert(addon.RaidDashboard)
 

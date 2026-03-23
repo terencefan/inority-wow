@@ -127,7 +127,7 @@ function TooltipUI.BuildTooltipCharacterCellText(instanceInfo, entry)
 end
 
 function TooltipUI.HideTooltip()
-	if tooltipFrame and QTip and tooltipFrame.GetName and tooltipFrame:GetName() == "CodexExampleAddonTooltip" then
+	if tooltipFrame and QTip and tooltipFrame.GetName and tooltipFrame:GetName() == "MogTrackerTooltip" then
 		QTip:Release(tooltipFrame)
 	end
 	tooltipFrame = nil
@@ -152,7 +152,7 @@ function TooltipUI.ShowMinimapTooltip(owner)
 	end
 
 	TooltipUI.HideTooltip()
-	tooltipFrame = QTip:Acquire("CodexExampleAddonTooltip", #columnArgs, unpack(columnArgs))
+	tooltipFrame = QTip:Acquire("MogTrackerTooltip", #columnArgs, unpack(columnArgs))
 	tooltipFrame:Clear()
 	tooltipFrame:SetAutoHideDelay(0.15, owner)
 	tooltipFrame:SmartAnchorTo(owner)
@@ -211,13 +211,16 @@ function TooltipUI.ShowMinimapTooltip(owner)
 
 	tooltipFrame:AddSeparator(6, 0, 0, 0, 0)
 	local hint = tooltipFrame:AddLine()
-	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_LEFT_CLICK", "Left-click: show or hide the main panel"), nil, "LEFT", #columnArgs)
+	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_LEFT_CLICK", "Left-click: show or hide the raid dashboard"), nil, "LEFT", #columnArgs)
 	hint = tooltipFrame:AddLine()
-	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_RIGHT_CLICK_REFRESH", "Right-click: refresh saved lockouts"), nil, "LEFT", #columnArgs)
+	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_RIGHT_CLICK_LOOT", "Right-click: show or hide the loot panel"), nil, "LEFT", #columnArgs)
 	hint = tooltipFrame:AddLine()
 	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_SHIFT_LEFT_CLICK", "Shift + Left-click: show or hide the dungeon dashboard"), nil, "LEFT", #columnArgs)
+	hint = tooltipFrame:AddLine()
+	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_SHIFT_RIGHT_CLICK", "Shift + Right-click: show or hide the set dashboard"), nil, "LEFT", #columnArgs)
 	hint = tooltipFrame:AddLine()
 	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_CTRL_LEFT_CLICK", "Ctrl + Left-click: show or hide the config panel"), nil, "LEFT", #columnArgs)
 
 	tooltipFrame:Show()
 end
+

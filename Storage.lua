@@ -101,23 +101,17 @@ end
 function Storage.NormalizeSettings(settings)
 	settings = settings or {}
 
-	if settings.showRaids == nil then
-		settings.showRaids = settings.enableTracking
-		if settings.showRaids == nil then
-			settings.showRaids = true
-		end
-	end
-	if settings.showDungeons == nil then
-		settings.showDungeons = true
-	end
 	if settings.showExpired == nil then
 		settings.showExpired = false
 	end
 	if settings.hideCollectedTransmog == nil then
 		settings.hideCollectedTransmog = false
 	end
-	if settings.collectSameAppearance == nil then
-		settings.collectSameAppearance = true
+	if settings.hideCollectedMounts == nil then
+		settings.hideCollectedMounts = false
+	end
+	if settings.hideCollectedPets == nil then
+		settings.hideCollectedPets = false
 	end
 	if settings.panelStyle == nil then
 		settings.panelStyle = "blizzard"
@@ -155,11 +149,13 @@ function Storage.NormalizeSettings(settings)
 	end
 
 	settings.maxCharacters = math.min(20, math.max(1, tonumber(settings.maxCharacters) or 10))
-	settings.showRaids = settings.showRaids and true or false
-	settings.showDungeons = settings.showDungeons and true or false
+	settings.showRaids = true
+	settings.showDungeons = true
 	settings.showExpired = settings.showExpired and true or false
 	settings.hideCollectedTransmog = settings.hideCollectedTransmog and true or false
-	settings.collectSameAppearance = settings.collectSameAppearance and true or false
+	settings.hideCollectedMounts = settings.hideCollectedMounts and true or false
+	settings.hideCollectedPets = settings.hideCollectedPets and true or false
+	settings.collectSameAppearance = true
 	if settings.panelStyle ~= "elvui" then
 		settings.panelStyle = "blizzard"
 	end
@@ -204,6 +200,9 @@ function Storage.NormalizeCharacterData(characters)
 					local entry = {
 						byName = {},
 						byNormalizedName = {},
+						cycleToken = type(counts.cycleToken) == "string" and counts.cycleToken or nil,
+						cycleResetAtMinute = tonumber(counts.cycleResetAtMinute) or 0,
+						lastUpdatedAt = tonumber(counts.lastUpdatedAt) or 0,
 					}
 					for encounterName, killCount in pairs(counts.byName or {}) do
 						local normalizedCount = tonumber(killCount)
@@ -234,6 +233,7 @@ function Storage.NormalizeCharacterData(characters)
 						isRaid = lockout.isRaid and true or false,
 						maxPlayers = tonumber(lockout.maxPlayers) or 0,
 						extended = lockout.extended and true or false,
+						cycleResetAtMinute = tonumber(lockout.cycleResetAtMinute) or 0,
 					}
 				end
 			end
@@ -260,7 +260,7 @@ function Storage.NormalizeRaidDashboardCache(cache)
 			entry.expansionOrder = tonumber(entry.expansionOrder) or 999
 			entry.raidOrder = tonumber(entry.raidOrder) or 999
 			entry.rulesVersion = tonumber(entry.rulesVersion) or 0
-			entry.collectSameAppearance = entry.collectSameAppearance ~= false
+			entry.collectSameAppearance = true
 			entry.computedAt = tonumber(entry.computedAt) or 0
 			entry.difficultyIDs = type(entry.difficultyIDs) == "table" and entry.difficultyIDs or {}
 			entry.computedClasses = type(entry.computedClasses) == "table" and entry.computedClasses or {}
@@ -328,7 +328,17 @@ function Storage.InitializeDefaults(db, dbVersion)
 	db.lootPanelPoint = db.lootPanelPoint or { point = "CENTER", relativePoint = "CENTER", x = 280, y = 0 }
 	db.lootPanelSize = db.lootPanelSize or { width = 420, height = 460 }
 	db.dashboardCollapsedExpansions = type(db.dashboardCollapsedExpansions) == "table" and db.dashboardCollapsedExpansions or {}
-	db.bossKillCache = db.bossKillCache or {}
+	db.bossKillCache = type(db.bossKillCache) == "table" and db.bossKillCache or {}
+	for cacheKey, entry in pairs(db.bossKillCache) do
+		if type(cacheKey) ~= "string" or type(entry) ~= "table" then
+			db.bossKillCache[cacheKey] = nil
+		else
+			entry.byName = type(entry.byName) == "table" and entry.byName or {}
+			entry.byNormalizedName = type(entry.byNormalizedName) == "table" and entry.byNormalizedName or {}
+			entry.cycleToken = type(entry.cycleToken) == "string" and entry.cycleToken or nil
+			entry.cycleResetAtMinute = tonumber(entry.cycleResetAtMinute) or 0
+		end
+	end
 	db.lootCollapseCache = db.lootCollapseCache or {}
 	db.settings = Storage.NormalizeSettings(db.settings)
 	db.characters = Storage.NormalizeCharacterData(db.characters)

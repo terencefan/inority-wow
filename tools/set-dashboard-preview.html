@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Set Dashboard Preview</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #141b24;
+      --panel-2: #1a2330;
+      --line: #2b3645;
+      --text: #e6edf3;
+      --muted: #93a4b8;
+      --accent: #f0b73f;
+      --ok: #56d364;
+      --mid: #f0b73f;
+      --low: #ff7b72;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #182434, var(--bg) 55%);
+      color: var(--text);
+      font: 14px/1.4 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .shell {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .hero {
+      margin-bottom: 18px;
+      padding: 20px 22px;
+      background: linear-gradient(135deg, rgba(240,183,63,0.12), rgba(54,95,145,0.08));
+      border: 1px solid rgba(240,183,63,0.18);
+      border-radius: 16px;
+    }
+    .hero h1 {
+      margin: 0 0 6px;
+      font-size: 26px;
+      color: #ffe2a7;
+    }
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+    }
+    .composer {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+    .panel {
+      background: rgba(20,27,36,0.92);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      backdrop-filter: blur(8px);
+    }
+    .panel-header {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.02);
+      font-weight: 600;
+    }
+    .panel-body {
+      padding: 14px;
+    }
+    textarea {
+      width: 100%;
+      min-height: 520px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #0b1016;
+      color: var(--text);
+      padding: 12px;
+      font: 12px/1.45 Consolas, monospace;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    button {
+      appearance: none;
+      border: 1px solid rgba(240,183,63,0.25);
+      background: linear-gradient(180deg, #2a3544, #1a2430);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { border-color: rgba(240,183,63,0.5); }
+    .hint {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .viewer {
+      min-width: 0;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .tab {
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+    }
+    .tab.active {
+      color: #111;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .expansion {
+      margin-bottom: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      background: rgba(10,15,22,0.5);
+    }
+    .expansion-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid var(--line);
+    }
+    .expansion-title {
+      font-size: 18px;
+      color: #ffe2a7;
+      font-weight: 700;
+    }
+    .metric {
+      white-space: nowrap;
+      font-weight: 700;
+    }
+    .metric.low { color: var(--low); }
+    .metric.mid { color: var(--mid); }
+    .metric.ok { color: var(--ok); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      text-align: center;
+      white-space: nowrap;
+    }
+    th:first-child, td:first-child {
+      text-align: left;
+      position: sticky;
+      left: 0;
+      background: #131a23;
+    }
+    th {
+      color: #ffe2a7;
+      background: #10161f;
+      top: 0;
+      position: sticky;
+      z-index: 1;
+    }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .empty {
+      color: var(--muted);
+      padding: 12px 2px 4px;
+    }
+    @media (max-width: 1100px) {
+      .composer { grid-template-columns: 1fr; }
+      textarea { min-height: 260px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="hero">
+      <h1>套装看板预览器</h1>
+      <p>把游戏内 <code>/iit debug setboard</code> 输出里 <code>-- JSON Payload --</code> 下方那一整行 JSON 粘贴进来，再点“渲染预览”。</p>
+    </div>
+    <div class="composer">
+      <div class="panel">
+        <div class="panel-header">Payload</div>
+        <div class="panel-body">
+          <textarea id="payload" placeholder="粘贴 JSON payload..."></textarea>
+          <div class="actions">
+            <button id="renderBtn">渲染预览</button>
+            <button id="sampleBtn">载入示例</button>
+          </div>
+          <div class="hint">建议先让游戏里生成结构化数据，再用这个页面确定 tab、资料片分组、列宽和文案。</div>
+        </div>
+      </div>
+      <div class="panel viewer">
+        <div class="panel-header">Preview</div>
+        <div class="panel-body">
+          <div id="tabs" class="tabs"></div>
+          <div id="view"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const payloadInput = document.getElementById('payload');
+    const renderBtn = document.getElementById('renderBtn');
+    const sampleBtn = document.getElementById('sampleBtn');
+    const tabsEl = document.getElementById('tabs');
+    const viewEl = document.getElementById('view');
+
+    const tabLabels = {
+      raid: '团队副本',
+      dungeon: '地下城',
+      pvp: 'PVP',
+      other: '其他'
+    };
+
+    function metricClass(collected, total) {
+      if (!total) return '';
+      const ratio = collected / total;
+      if (ratio >= 1) return 'ok';
+      if (ratio >= 0.6) return 'mid';
+      return 'low';
+    }
+
+    function metricText(bucket) {
+      const collected = Number(bucket?.collectedPieces || 0);
+      const total = Number(bucket?.totalPieces || 0);
+      return `${collected}/${total}`;
+    }
+
+    function renderTab(data, tabKey) {
+      const tab = data?.tabs?.[tabKey];
+      if (!tab) {
+        viewEl.innerHTML = '<div class="empty">无数据。</div>';
+        return;
+      }
+
+      if (!tab.expansions || !tab.expansions.length) {
+        viewEl.innerHTML = `<div class="empty">${tab.message || '无数据。'}</div>`;
+        return;
+      }
+
+      viewEl.innerHTML = '';
+      const classFiles = data.classFiles || [];
+      for (const expansion of tab.expansions) {
+        const wrapper = document.createElement('section');
+        wrapper.className = 'expansion';
+
+        const header = document.createElement('div');
+        header.className = 'expansion-header';
+        header.innerHTML = `
+          <div class="expansion-title">${expansion.expansionName}</div>
+          <div class="metric ${metricClass(expansion.total?.collectedPieces, expansion.total?.totalPieces)}">
+            散件 ${metricText(expansion.total)} / 整套 ${expansion.total?.completedSets || 0}/${expansion.total?.totalSets || 0}
+          </div>
+        `;
+        wrapper.appendChild(header);
+
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const tbody = document.createElement('tbody');
+        const headRow = document.createElement('tr');
+        headRow.innerHTML = `<th>来源</th>${classFiles.map(cls => `<th>${cls}</th>`).join('')}<th>总计</th>`;
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        for (const row of expansion.rows || []) {
+          const tr = document.createElement('tr');
+          const cells = [`<td>${row.label || ''}</td>`];
+          for (const cls of classFiles) {
+            const bucket = row.byClass?.[cls] || {};
+            cells.push(`<td class="metric ${metricClass(bucket.collectedPieces, bucket.totalPieces)}">${metricText(bucket)}</td>`);
+          }
+          cells.push(`<td class="metric ${metricClass(row.total?.collectedPieces, row.total?.totalPieces)}">${metricText(row.total)}</td>`);
+          tr.innerHTML = cells.join('');
+          tbody.appendChild(tr);
+        }
+
+        table.appendChild(tbody);
+        wrapper.appendChild(table);
+        viewEl.appendChild(wrapper);
+      }
+    }
+
+    function renderPayload(data) {
+      const order = data.tabOrder || ['raid', 'dungeon', 'pvp', 'other'];
+      tabsEl.innerHTML = '';
+      const first = order[0] || 'raid';
+      for (const tabKey of order) {
+        const button = document.createElement('button');
+        button.className = `tab${tabKey === first ? ' active' : ''}`;
+        button.textContent = tabLabels[tabKey] || tabKey;
+        button.addEventListener('click', () => {
+          tabsEl.querySelectorAll('.tab').forEach(node => node.classList.remove('active'));
+          button.classList.add('active');
+          renderTab(data, tabKey);
+        });
+        tabsEl.appendChild(button);
+      }
+      renderTab(data, first);
+    }
+
+    renderBtn.addEventListener('click', () => {
+      try {
+        const data = JSON.parse(payloadInput.value.trim());
+        renderPayload(data);
+      } catch (error) {
+        viewEl.innerHTML = `<div class="empty">JSON 解析失败：${error.message}</div>`;
+      }
+    });
+
+    sampleBtn.addEventListener('click', () => {
+      payloadInput.value = JSON.stringify({
+        tabOrder: ['raid', 'dungeon', 'pvp', 'other'],
+        classFiles: ['PRIEST', 'WARRIOR', 'MAGE'],
+        tabs: {
+          raid: {
+            key: 'raid',
+            expansions: [
+              {
+                expansionID: 9,
+                expansionName: '巨龙时代',
+                total: { collectedPieces: 120, totalPieces: 240, completedSets: 6, totalSets: 20 },
+                rows: [
+                  {
+                    key: '9::亚贝鲁斯',
+                    label: '亚贝鲁斯',
+                    total: { collectedPieces: 40, totalPieces: 80, completedSets: 2, totalSets: 7 },
+                    byClass: {
+                      PRIEST: { collectedPieces: 8, totalPieces: 16 },
+                      WARRIOR: { collectedPieces: 15, totalPieces: 16 },
+                      MAGE: { collectedPieces: 12, totalPieces: 16 }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          dungeon: { key: 'dungeon', expansions: [], message: '未找到可统计的地下城套装。' },
+          pvp: { key: 'pvp', expansions: [], message: 'PVP 在正式版里继续用赛季视图。' },
+          other: { key: 'other', expansions: [], message: '未找到可统计的其他套装。' }
+        }
+      }, null, 2);
+    });
+  </script>
+</body>
+</html>

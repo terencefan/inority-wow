@@ -1,8 +1,8 @@
 local addon = {}
 
-assert(loadfile("Compute.lua"))("CodexExampleAddon", addon)
-assert(loadfile("API.lua"))("CodexExampleAddon", addon)
-assert(loadfile("RaidDashboard.lua"))("CodexExampleAddon", addon)
+assert(loadfile("Compute.lua"))("MogTracker", addon)
+assert(loadfile("API.lua"))("MogTracker", addon)
+assert(loadfile("RaidDashboard.lua"))("MogTracker", addon)
 
 local API = assert(addon.API)
 local Compute = assert(addon.Compute)

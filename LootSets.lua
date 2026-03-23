@@ -162,11 +162,7 @@ function LootSets.UpdateSetCompletionRowVisual(itemRow, setEntry)
 	local isCompleted = total > 0 and collected >= total
 
 	if itemRow.newlyCollectedHighlight then
-		if isCompleted then
-			itemRow.newlyCollectedHighlight:Show()
-		else
-			itemRow.newlyCollectedHighlight:Hide()
-		end
+		itemRow.newlyCollectedHighlight:Hide()
 	end
 
 	if itemRow.collectionIcon then

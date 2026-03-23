@@ -1,7 +1,7 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
-	<Frame name="CodexExampleAddonPanel" parent="UIParent" hidden="true">
+	<Frame name="MogTrackerPanel" parent="UIParent" hidden="true">
 		<Size x="680" y="520"/>
 		<Anchors>
 			<Anchor point="CENTER"/>
@@ -51,11 +51,6 @@
 						<Anchor point="TOPRIGHT" x="-24" y="-92"/>
 					</Anchors>
 				</FontString>
-				<FontString name="$parentConfigFiltersHeader" inherits="GameFontHighlight" text="Tracking Filters">
-					<Anchors>
-						<Anchor point="TOPLEFT" x="156" y="-92"/>
-					</Anchors>
-				</FontString>
 				<FontString name="$parentConfigLootHeader" inherits="GameFontHighlight" text="Loot Display">
 					<Anchors>
 						<Anchor point="TOPLEFT" x="420" y="-92"/>
@@ -81,7 +76,7 @@
 						<Anchor point="TOPLEFT" x="156" y="-214"/>
 					</Anchors>
 				</FontString>
-				<FontString name="$parentFooter" inherits="GameFontDisableSmall" text="Powered by Codex · Vibe Coder: 风之小祈 (Inority)">
+				<FontString name="$parentFooter" inherits="GameFontDisableSmall" text="MogTracker · Vibe Coder: 风之小祈 (Inority)">
 					<Anchors>
 						<Anchor point="BOTTOM" x="0" y="8"/>
 					</Anchors>
@@ -131,16 +126,6 @@
 			<CheckButton name="$parentCheckbox3" inherits="UICheckButtonTemplate">
 				<Anchors>
 					<Anchor point="TOPLEFT" x="156" y="-164"/>
-				</Anchors>
-			</CheckButton>
-			<CheckButton name="$parentCheckbox4" inherits="UICheckButtonTemplate">
-				<Anchors>
-					<Anchor point="TOPLEFT" x="420" y="-116"/>
-				</Anchors>
-			</CheckButton>
-			<CheckButton name="$parentCheckbox5" inherits="UICheckButtonTemplate">
-				<Anchors>
-					<Anchor point="TOPLEFT" x="420" y="-140"/>
 				</Anchors>
 			</CheckButton>
 			<Button name="$parentStyleDropdownButton" inherits="UIPanelButtonTemplate" text="Blizzard">
@@ -207,3 +192,4 @@
 		</Frames>
 	</Frame>
 </Ui>
+

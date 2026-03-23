@@ -21,13 +21,14 @@ local function GetAddonMetadataCompat(name, field)
 	return nil
 end
 
-TransmogTrackerDB = TransmogTrackerDB or CodexExampleAddonDB or {}
-CodexExampleAddonDB = TransmogTrackerDB
+MogTrackerDB = MogTrackerDB or TransmogTrackerDB or CodexExampleAddonDB or {}
+TransmogTrackerDB = MogTrackerDB
+CodexExampleAddonDB = MogTrackerDB
 
 local frame = CreateFrame("Frame")
 addon.frame = frame
 local minimapButton
-local panel = CodexExampleAddonPanel
+local panel = MogTrackerPanel
 local panelSkinApplied
 local lootPanelSkinApplied
 local CaptureSavedInstances
@@ -235,7 +236,7 @@ local function NormalizeCharacterData(characters)
 end
 
 local function InitializeDefaults()
-	Storage.InitializeDefaults(CodexExampleAddonDB, DB_VERSION)
+	Storage.InitializeDefaults(MogTrackerDB, DB_VERSION)
 end
 
 local function Atan2(y, x)
@@ -258,7 +259,7 @@ end
 
 local function UpdateMinimapButtonPosition()
 	if not minimapButton then return end
-	local angle = CodexExampleAddonDB.minimapAngle or 225
+	local angle = MogTrackerDB.minimapAngle or 225
 	local radius = 80
 	local x = math.cos(math.rad(angle)) * radius
 	local y = math.sin(math.rad(angle)) * radius
@@ -269,7 +270,7 @@ end
 local function CreateMinimapButton()
 	if minimapButton then return end
 
-	minimapButton = CreateFrame("Button", "CodexExampleAddonMinimapButton", Minimap)
+	minimapButton = CreateFrame("Button", "MogTrackerMinimapButton", Minimap)
 	minimapButton:SetSize(32, 32)
 	minimapButton:SetFrameStrata("MEDIUM")
 	minimapButton:SetMovable(true)
@@ -299,6 +300,10 @@ local function CreateMinimapButton()
 			ToggleDashboardPanel(IsShiftKeyDown and IsShiftKeyDown() and "party" or "raid")
 			return
 		end
+		if IsShiftKeyDown and IsShiftKeyDown() then
+			ToggleDashboardPanel("set")
+			return
+		end
 		ToggleLootPanel()
 	end)
 
@@ -322,7 +327,7 @@ local function CreateMinimapButton()
 			local scale = Minimap:GetEffectiveScale()
 			px = px / scale
 			py = py / scale
-			CodexExampleAddonDB.minimapAngle = math.deg(Atan2(py - my, px - mx))
+			MogTrackerDB.minimapAngle = math.deg(Atan2(py - my, px - mx))
 			UpdateMinimapButtonPosition()
 		end)
 	end)
@@ -563,7 +568,7 @@ local function ApplyElvUILootHeaderDropdownStyle(button, skinModule)
 end
 
 local function ApplyElvUISkin()
-	local selectedStyle = CodexExampleAddonDB.settings and CodexExampleAddonDB.settings.panelStyle or "blizzard"
+	local selectedStyle = MogTrackerDB.settings and MogTrackerDB.settings.panelStyle or "blizzard"
 	if selectedStyle ~= "elvui" then
 		return
 	end
@@ -585,18 +590,18 @@ local function ApplyElvUISkin()
 		end
 
 		if S.HandleCloseButton then
-			S:HandleCloseButton(CodexExampleAddonPanelCloseButton)
+			S:HandleCloseButton(MogTrackerPanelCloseButton)
 		end
 		if S.HandleButton then
-			S:HandleButton(CodexExampleAddonPanelNavConfigButton)
-			S:HandleButton(CodexExampleAddonPanelNavClassButton)
-			S:HandleButton(CodexExampleAddonPanelNavLootButton)
-			S:HandleButton(CodexExampleAddonPanelNavDebugButton)
-			S:HandleButton(CodexExampleAddonPanelRefreshButton)
-			S:HandleButton(CodexExampleAddonPanelResetButton)
+			S:HandleButton(MogTrackerPanelNavConfigButton)
+			S:HandleButton(MogTrackerPanelNavClassButton)
+			S:HandleButton(MogTrackerPanelNavLootButton)
+			S:HandleButton(MogTrackerPanelNavDebugButton)
+			S:HandleButton(MogTrackerPanelRefreshButton)
+			S:HandleButton(MogTrackerPanelResetButton)
 		end
 		if S.HandleSliderFrame then
-			S:HandleSliderFrame(CodexExampleAddonPanelSlider)
+			S:HandleSliderFrame(MogTrackerPanelSlider)
 		end
 
 		panelSkinApplied = true
@@ -676,15 +681,15 @@ local function ApplyElvUISkin()
 end
 
 local function BuildStyleMenu(button)
-	local settings = CodexExampleAddonDB.settings or {}
+	local settings = MogTrackerDB.settings or {}
 	local items = {
 		{
 			text = GetPanelStyleLabel("blizzard"),
 			checked = (settings.panelStyle or "blizzard") == "blizzard",
 			func = function()
 				settings.panelStyle = "blizzard"
-				if CodexExampleAddonPanelStyleDropdownButton then
-					CodexExampleAddonPanelStyleDropdownButton:SetText(GetPanelStyleLabel(settings.panelStyle))
+				if MogTrackerPanelStyleDropdownButton then
+					MogTrackerPanelStyleDropdownButton:SetText(GetPanelStyleLabel(settings.panelStyle))
 				end
 				Print(T("STYLE_RELOAD_REQUIRED", "风格已更新，执行 /reload 后可完整生效。"))
 			end,
@@ -698,8 +703,8 @@ local function BuildStyleMenu(button)
 					return
 				end
 				settings.panelStyle = "elvui"
-				if CodexExampleAddonPanelStyleDropdownButton then
-					CodexExampleAddonPanelStyleDropdownButton:SetText(GetPanelStyleLabel(settings.panelStyle))
+				if MogTrackerPanelStyleDropdownButton then
+					MogTrackerPanelStyleDropdownButton:SetText(GetPanelStyleLabel(settings.panelStyle))
 				end
 				ApplyElvUISkin()
 				Print(T("STYLE_RELOAD_RECOMMENDED", "已切换到 ElvUI 风格；如有残留原生样式，执行 /reload 可完全刷新。"))
@@ -764,7 +769,7 @@ local function GetClassDisplayName(classFile)
 end
 
 local function GetDashboardClassFiles()
-	local settings = CodexExampleAddonDB and CodexExampleAddonDB.settings or {}
+	local settings = MogTrackerDB and MogTrackerDB.settings or {}
 	local selectedClasses = settings.selectedClasses or {}
 	local selectedClassFiles = {}
 	local unselectedClassFiles = {}
@@ -1019,7 +1024,7 @@ end
 local function GetObservedRaidDifficultyOptions(instanceName, instanceID)
 	local observed = {}
 	local options = {}
-	for _, character in pairs(CodexExampleAddonDB.characters or {}) do
+	for _, character in pairs(MogTrackerDB.characters or {}) do
 		for _, lockout in ipairs(character.lockouts or {}) do
 			if lockout.isRaid and tostring(lockout.name or "") == tostring(instanceName or "") then
 				local lockoutInstanceID = tonumber(lockout.id) or 0
@@ -1129,47 +1134,54 @@ local function GetLootPanelSelectionCacheEntries()
 	return lootPanelSelectionCache
 end
 
-local function GetExpansionDisplayName(index)
-	local function NormalizeExpansionDisplayName(name)
-		name = tostring(name or "")
-		local aliases = {
-			["经典旧世"] = "魔兽世界",
-			["燃烧的远征"] = "燃烧的远征",
-			["巫妖王之怒"] = "巫妖王之怒",
-			["大地的裂变"] = "大地的裂变",
-			["熊猫人之谜"] = "熊猫人之谜",
-			["德拉诺"] = "德拉诺之王",
-			["军团再临"] = "军团再临",
-			["争霸艾泽拉斯"] = "争霸艾泽拉斯",
-			["暗影国度"] = "暗影国度",
-			["巨龙时代"] = "巨龙时代",
-			["地心之战"] = "地心之战",
-			["Classic"] = "魔兽世界",
-			["The Burning Crusade"] = "燃烧的远征",
-			["Wrath of the Lich King"] = "巫妖王之怒",
-			["Cataclysm"] = "大地的裂变",
-			["Mists of Pandaria"] = "熊猫人之谜",
-			["Warlords of Draenor"] = "德拉诺之王",
-			["Draenor"] = "德拉诺之王",
-			["Legion"] = "军团再临",
-			["Battle for Azeroth"] = "争霸艾泽拉斯",
-			["Shadowlands"] = "暗影国度",
-			["Dragonflight"] = "巨龙时代",
-			["The War Within"] = "地心之战",
-		}
-		return aliases[name] or name
+addon.NormalizeExpansionDisplayName = addon.NormalizeExpansionDisplayName or function(name)
+	name = tostring(name or "")
+	if name == "" then
+		return nil
 	end
+	local aliases = {
+		["经典旧世"] = "魔兽世界",
+		["燃烧的远征"] = "燃烧的远征",
+		["巫妖王之怒"] = "巫妖王之怒",
+		["大地的裂变"] = "大地的裂变",
+		["熊猫人之谜"] = "熊猫人之谜",
+		["德拉诺"] = "德拉诺之王",
+		["军团再临"] = "军团再临",
+		["争霸艾泽拉斯"] = "争霸艾泽拉斯",
+		["暗影国度"] = "暗影国度",
+		["巨龙时代"] = "巨龙时代",
+		["地心之战"] = "地心之战",
+		["Classic"] = "魔兽世界",
+		["The Burning Crusade"] = "燃烧的远征",
+		["Wrath of the Lich King"] = "巫妖王之怒",
+		["Cataclysm"] = "大地的裂变",
+		["Mists of Pandaria"] = "熊猫人之谜",
+		["Warlords of Draenor"] = "德拉诺之王",
+		["Draenor"] = "德拉诺之王",
+		["Legion"] = "军团再临",
+		["Battle for Azeroth"] = "争霸艾泽拉斯",
+		["Shadowlands"] = "暗影国度",
+		["Dragonflight"] = "巨龙时代",
+		["The War Within"] = "地心之战",
+	}
+	local normalized = aliases[name] or name
+	if normalized == "" then
+		return nil
+	end
+	return normalized
+end
 
+local function GetExpansionDisplayName(index)
 	if EJ_GetTierInfo then
 		local tierName = EJ_GetTierInfo(index)
 		if tierName and tierName ~= "" then
-			return NormalizeExpansionDisplayName(tierName)
+			return addon.NormalizeExpansionDisplayName(tierName)
 		end
 	end
 
 	local fallback = _G["EXPANSION_NAME" .. (index - 1)]
 	if fallback and fallback ~= "" then
-		return NormalizeExpansionDisplayName(fallback)
+		return addon.NormalizeExpansionDisplayName(fallback)
 	end
 
 	return "Other"
@@ -1366,13 +1378,21 @@ local function GetCurrentBossKillCacheKey()
 	if not instanceName or instanceName == "" or instanceType == "none" then
 		return nil
 	end
-	return string.format(
-		"%s::%s::%s::%s",
+	local cycleToken = nil
+	if addon.GetCurrentCharacterBossKillCycleInfo then
+		local cycleInfo = addon.GetCurrentCharacterBossKillCycleInfo(instanceName, instanceID, difficultyID)
+		cycleToken = cycleInfo and cycleInfo.token or nil
+	end
+	local cacheKey = string.format(
+		"%s::%s::%s::%s::%s",
 		tostring(characterKey),
 		tostring(instanceID or 0),
 		tostring(difficultyID or 0),
-		tostring(instanceName)
+		tostring(instanceName),
+		tostring(cycleToken or "nocycle")
 	)
+	addon.lastActiveCurrentBossKillCacheKey = cacheKey
+	return cacheKey
 end
 
 local function GetBossKillCountScopeKey(instanceName, difficultyID)
@@ -1380,6 +1400,213 @@ local function GetBossKillCountScopeKey(instanceName, difficultyID)
 		return nil
 	end
 	return string.format("%s::%s", tostring(tonumber(difficultyID) or 0), tostring(instanceName))
+end
+
+addon.BuildBossKillCycleInfo = addon.BuildBossKillCycleInfo or function(instanceName, instanceID, difficultyID, resetSeconds, capturedAt)
+	local normalizedName = tostring(instanceName or "")
+	local normalizedDifficultyID = tonumber(difficultyID) or 0
+	local normalizedInstanceID = tonumber(instanceID) or 0
+	local normalizedResetSeconds = tonumber(resetSeconds) or 0
+	local baseTime = tonumber(capturedAt) or time()
+	if normalizedName == "" or normalizedDifficultyID <= 0 or normalizedResetSeconds <= 0 then
+		return nil
+	end
+	local resetAtMinute = math.floor(((baseTime + normalizedResetSeconds) + 30) / 60)
+	return {
+		token = string.format(
+			"%s::%s::%s::%s",
+			tostring(normalizedInstanceID),
+			tostring(normalizedDifficultyID),
+			tostring(normalizedName),
+			tostring(resetAtMinute)
+		),
+		resetAtMinute = resetAtMinute,
+	}
+end
+
+addon.GetCurrentCharacterBossKillCycleInfo = addon.GetCurrentCharacterBossKillCycleInfo or function(instanceName, instanceID, difficultyID)
+	local characterKey = CharacterKey and CharacterKey() or nil
+	local character = characterKey and MogTrackerDB and MogTrackerDB.characters and MogTrackerDB.characters[characterKey] or nil
+	if type(character) ~= "table" then
+		return nil
+	end
+	local targetName = tostring(instanceName or "")
+	local targetInstanceID = tonumber(instanceID) or 0
+	local targetDifficultyID = tonumber(difficultyID) or 0
+	for _, lockout in ipairs(character.lockouts or {}) do
+		if tostring(lockout.name or "") == targetName
+			and tonumber(lockout.difficultyID) == targetDifficultyID
+			and (targetInstanceID == 0 or tonumber(lockout.id) == 0 or tonumber(lockout.id) == targetInstanceID) then
+			return addon.BuildBossKillCycleInfo(
+				lockout.name,
+				lockout.id,
+				lockout.difficultyID,
+				lockout.resetSeconds,
+				character.lastUpdated
+			)
+		end
+	end
+	return nil
+end
+
+addon.NormalizeBossKillCountsForCharacter = addon.NormalizeBossKillCountsForCharacter or function(existingCounts, lockouts, capturedAt)
+	local normalizedCounts = {}
+	local nowMinute = math.floor((tonumber(capturedAt) or time()) / 60)
+	local activeByScope = {}
+	for _, lockout in ipairs(lockouts or {}) do
+		local scopeKey = GetBossKillCountScopeKey(lockout.name, lockout.difficultyID)
+		local cycleInfo = addon.BuildBossKillCycleInfo(lockout.name, lockout.id, lockout.difficultyID, lockout.resetSeconds, capturedAt)
+		if scopeKey and cycleInfo and cycleInfo.token then
+			activeByScope[scopeKey] = cycleInfo
+		end
+	end
+
+	for scopeKey, counts in pairs(existingCounts or {}) do
+		if type(scopeKey) == "string" and type(counts) == "table" then
+			local cycleResetAtMinute = tonumber(counts.cycleResetAtMinute) or 0
+			local activeCycle = activeByScope[scopeKey]
+			if activeCycle and activeCycle.token then
+				local entry = {
+					byName = {},
+					byNormalizedName = {},
+					cycleToken = activeCycle.token,
+					cycleResetAtMinute = activeCycle.resetAtMinute,
+					lastUpdatedAt = tonumber(counts.lastUpdatedAt) or tonumber(capturedAt) or time(),
+				}
+				local keepExisting = counts.cycleToken == activeCycle.token or counts.cycleToken == nil
+				if keepExisting then
+					for encounterName, killCount in pairs(counts.byName or {}) do
+						local normalizedCount = tonumber(killCount)
+						if encounterName and normalizedCount and normalizedCount > 0 then
+							entry.byName[tostring(encounterName)] = math.floor(normalizedCount)
+						end
+					end
+					for normalizedName, killCount in pairs(counts.byNormalizedName or {}) do
+						local normalizedCount = tonumber(killCount)
+						if normalizedName and normalizedCount and normalizedCount > 0 then
+							entry.byNormalizedName[tostring(normalizedName)] = math.floor(normalizedCount)
+						end
+					end
+				end
+				normalizedCounts[scopeKey] = entry
+			elseif cycleResetAtMinute <= 0 or cycleResetAtMinute > nowMinute then
+				normalizedCounts[scopeKey] = counts
+			end
+		end
+	end
+
+	return normalizedCounts
+end
+
+addon.PruneExpiredBossKillCaches = addon.PruneExpiredBossKillCaches or function()
+	local nowMinute = math.floor(time() / 60)
+	if MogTrackerDB and type(MogTrackerDB.bossKillCache) == "table" then
+		for cacheKey, entry in pairs(MogTrackerDB.bossKillCache) do
+			if type(entry) ~= "table" then
+				MogTrackerDB.bossKillCache[cacheKey] = nil
+			else
+				local cycleResetAtMinute = tonumber(entry.cycleResetAtMinute) or 0
+				if cycleResetAtMinute > 0 and cycleResetAtMinute <= nowMinute then
+					MogTrackerDB.bossKillCache[cacheKey] = nil
+				end
+			end
+		end
+	end
+	if MogTrackerDB and type(MogTrackerDB.characters) == "table" then
+		for _, character in pairs(MogTrackerDB.characters) do
+			if type(character) == "table" then
+				character.bossKillCounts = addon.NormalizeBossKillCountsForCharacter(
+					character.bossKillCounts or {},
+					character.lockouts or {},
+					character.lastUpdated
+				)
+			end
+		end
+	end
+end
+
+addon.ClearCurrentInstanceBossKillState = addon.ClearCurrentInstanceBossKillState or function()
+	if not MogTrackerDB then
+		return
+	end
+	local bossKillCacheKey = GetCurrentBossKillCacheKey() or addon.lastActiveCurrentBossKillCacheKey
+	if bossKillCacheKey and type(MogTrackerDB.bossKillCache) == "table" then
+		MogTrackerDB.bossKillCache[bossKillCacheKey] = nil
+	end
+	local collapseCacheKey = GetCurrentBossKillCacheKey() or addon.lastActiveCurrentBossKillCacheKey
+	if collapseCacheKey and type(MogTrackerDB.lootCollapseCache) == "table" then
+		MogTrackerDB.lootCollapseCache[collapseCacheKey] = nil
+	end
+	if bossKillCacheKey and addon.lastActiveCurrentBossKillCacheKey == bossKillCacheKey then
+		addon.lastActiveCurrentBossKillCacheKey = nil
+	end
+end
+
+addon.ClearTransientDungeonRunState = addon.ClearTransientDungeonRunState or function()
+	if not MogTrackerDB then
+		return
+	end
+	local function BuildSelectionCacheKey(selection)
+		if not selection then
+			return nil
+		end
+		if selection.key and selection.key ~= "" then
+			return selection.key
+		end
+		return string.format(
+			"%s::%s::%s",
+			tostring(selection.journalInstanceID or 0),
+			tostring(selection.instanceName or "Unknown"),
+			tostring(selection.difficultyID or 0)
+		)
+	end
+
+	if type(MogTrackerDB.bossKillCache) == "table" then
+		for cacheKey in pairs(MogTrackerDB.bossKillCache) do
+			if type(cacheKey) == "string" and cacheKey:find("::nocycle$", 1) then
+				MogTrackerDB.bossKillCache[cacheKey] = nil
+			end
+		end
+	end
+
+	if type(MogTrackerDB.lootCollapseCache) == "table" then
+		local partySelectionKeys = {}
+		for _, selection in ipairs(BuildLootPanelInstanceSelections() or {}) do
+			if tostring(selection and selection.instanceType or "") == "party" then
+				local selectionKey = BuildSelectionCacheKey(selection)
+				if selectionKey then
+					partySelectionKeys[selectionKey] = true
+				end
+			end
+		end
+		for cacheKey in pairs(MogTrackerDB.lootCollapseCache) do
+			if type(cacheKey) == "string" and (partySelectionKeys[cacheKey] or cacheKey:find("::nocycle$", 1)) then
+				MogTrackerDB.lootCollapseCache[cacheKey] = nil
+			end
+		end
+	end
+
+	if lootPanelState then
+		lootPanelState.collapsed = {}
+		lootPanelState.manualCollapsed = {}
+	end
+	addon.lastActiveCurrentBossKillCacheKey = nil
+end
+
+addon.HandleManualInstanceReset = addon.HandleManualInstanceReset or function()
+	if addon.ClearTransientDungeonRunState then
+		addon.ClearTransientDungeonRunState()
+	end
+	InvalidateLootDataCache()
+	if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+		addon.RaidDashboard.InvalidateCache()
+	end
+	if addon.QueueLootPanelCacheWarmup then
+		addon.QueueLootPanelCacheWarmup()
+	end
+	if lootPanel and lootPanel:IsShown() then
+		RefreshLootPanel()
+	end
 end
 
 local function GetLootCollapseCacheKey()
@@ -1394,7 +1621,7 @@ local function GetEncounterCollapseCacheEntry(encounterName)
 	if not cacheKey or not encounterName then
 		return nil
 	end
-	local cache = CodexExampleAddonDB.lootCollapseCache and CodexExampleAddonDB.lootCollapseCache[cacheKey]
+	local cache = MogTrackerDB.lootCollapseCache and MogTrackerDB.lootCollapseCache[cacheKey]
 	if not cache then
 		return nil
 	end
@@ -1413,8 +1640,8 @@ local function SetEncounterCollapseCacheEntry(encounterName, collapsed)
 	if not cacheKey or not encounterName or encounterName == "" then
 		return
 	end
-	CodexExampleAddonDB.lootCollapseCache = CodexExampleAddonDB.lootCollapseCache or {}
-	local cache = CodexExampleAddonDB.lootCollapseCache[cacheKey] or {
+	MogTrackerDB.lootCollapseCache = MogTrackerDB.lootCollapseCache or {}
+	local cache = MogTrackerDB.lootCollapseCache[cacheKey] or {
 		byName = {},
 		byNormalizedName = {},
 	}
@@ -1423,7 +1650,7 @@ local function SetEncounterCollapseCacheEntry(encounterName, collapsed)
 	if normalizedName ~= "" then
 		cache.byNormalizedName[normalizedName] = collapsed and true or false
 	end
-	CodexExampleAddonDB.lootCollapseCache[cacheKey] = cache
+	MogTrackerDB.lootCollapseCache[cacheKey] = cache
 end
 
 local function RecordEncounterKill(encounterName)
@@ -1431,21 +1658,25 @@ local function RecordEncounterKill(encounterName)
 	if not cacheKey or not encounterName or encounterName == "" then
 		return
 	end
-	CodexExampleAddonDB.bossKillCache = CodexExampleAddonDB.bossKillCache or {}
-	local entry = CodexExampleAddonDB.bossKillCache[cacheKey] or {
+	local instanceName, _, difficultyID, _, _, _, _, instanceID = GetInstanceInfo()
+	local cycleInfo = addon.GetCurrentCharacterBossKillCycleInfo and addon.GetCurrentCharacterBossKillCycleInfo(instanceName, instanceID, difficultyID) or nil
+	MogTrackerDB.bossKillCache = MogTrackerDB.bossKillCache or {}
+	local entry = MogTrackerDB.bossKillCache[cacheKey] or {
 		byName = {},
 		byNormalizedName = {},
 	}
+	entry.cycleToken = cycleInfo and cycleInfo.token or entry.cycleToken
+	entry.cycleResetAtMinute = cycleInfo and cycleInfo.resetAtMinute or entry.cycleResetAtMinute
 	entry.byName[encounterName] = true
 	local normalizedName = NormalizeEncounterName(encounterName)
 	if normalizedName ~= "" then
 		entry.byNormalizedName[normalizedName] = true
 	end
-	CodexExampleAddonDB.bossKillCache[cacheKey] = entry
+	MogTrackerDB.bossKillCache[cacheKey] = entry
 
 	local characterKey = CharacterKey()
-	CodexExampleAddonDB.characters = CodexExampleAddonDB.characters or {}
-	local character = CodexExampleAddonDB.characters[characterKey] or {
+	MogTrackerDB.characters = MogTrackerDB.characters or {}
+	local character = MogTrackerDB.characters[characterKey] or {
 		name = select(2, CharacterKey()),
 		realm = select(3, CharacterKey()),
 		className = select(4, CharacterKey()),
@@ -1455,7 +1686,7 @@ local function RecordEncounterKill(encounterName)
 		bossKillCounts = {},
 	}
 	character.bossKillCounts = character.bossKillCounts or {}
-	local _, instanceType, difficultyID = GetInstanceInfo()
+	local _, instanceType = GetInstanceInfo()
 	if instanceType and instanceType ~= "none" then
 		local scopeKey = GetBossKillCountScopeKey(select(1, GetInstanceInfo()), difficultyID)
 		if scopeKey then
@@ -1463,6 +1694,15 @@ local function RecordEncounterKill(encounterName)
 				byName = {},
 				byNormalizedName = {},
 			}
+			if cycleInfo and counts.cycleToken and counts.cycleToken ~= cycleInfo.token then
+				counts = {
+					byName = {},
+					byNormalizedName = {},
+				}
+			end
+			counts.cycleToken = cycleInfo and cycleInfo.token or counts.cycleToken
+			counts.cycleResetAtMinute = cycleInfo and cycleInfo.resetAtMinute or counts.cycleResetAtMinute
+			counts.lastUpdatedAt = time()
 			counts.byName[encounterName] = (tonumber(counts.byName[encounterName]) or 0) + 1
 			if normalizedName ~= "" then
 				counts.byNormalizedName[normalizedName] = (tonumber(counts.byNormalizedName[normalizedName]) or 0) + 1
@@ -1470,7 +1710,7 @@ local function RecordEncounterKill(encounterName)
 			character.bossKillCounts[scopeKey] = counts
 		end
 	end
-	CodexExampleAddonDB.characters[characterKey] = character
+	MogTrackerDB.characters[characterKey] = character
 end
 
 local function GetEncounterTotalKillCount(selection, encounterName)
@@ -1484,16 +1724,46 @@ local function GetEncounterTotalKillCount(selection, encounterName)
 	end
 
 	local total = 0
+	local currentCharacterTotal = 0
 	local normalizedName = NormalizeEncounterName(encounterName)
-	for _, entry in ipairs(Storage.GetSortedCharacters(CodexExampleAddonDB.characters or {})) do
+	local currentCharacterKey = CharacterKey and CharacterKey() or nil
+	for _, entry in ipairs(Storage.GetSortedCharacters(MogTrackerDB.characters or {})) do
 		local info = entry.info or {}
 		local counts = info.bossKillCounts and info.bossKillCounts[scopeKey]
 		if counts then
+			local added = 0
 			if counts.byName and counts.byName[encounterName] then
-				total = total + (tonumber(counts.byName[encounterName]) or 0)
+				added = tonumber(counts.byName[encounterName]) or 0
 			elseif normalizedName ~= "" and counts.byNormalizedName and counts.byNormalizedName[normalizedName] then
-				total = total + (tonumber(counts.byNormalizedName[normalizedName]) or 0)
+				added = tonumber(counts.byNormalizedName[normalizedName]) or 0
 			end
+			total = total + added
+			if currentCharacterKey and tostring(entry.key or "") == tostring(currentCharacterKey) then
+				currentCharacterTotal = added
+			end
+		end
+	end
+
+	local currentScopeKey = nil
+	if GetInstanceInfo then
+		local currentInstanceName, currentInstanceType, currentDifficultyID = GetInstanceInfo()
+		if currentInstanceType and currentInstanceType ~= "none" then
+			currentScopeKey = GetBossKillCountScopeKey(currentInstanceName, currentDifficultyID)
+		end
+	end
+	if currentScopeKey and currentScopeKey == scopeKey then
+		local cacheKey = GetCurrentBossKillCacheKey()
+		local cacheEntry = cacheKey and MogTrackerDB.bossKillCache and MogTrackerDB.bossKillCache[cacheKey] or nil
+		local sessionKilled = false
+		if cacheEntry then
+			if cacheEntry.byName and cacheEntry.byName[encounterName] then
+				sessionKilled = true
+			elseif normalizedName ~= "" and cacheEntry.byNormalizedName and cacheEntry.byNormalizedName[normalizedName] then
+				sessionKilled = true
+			end
+		end
+		if sessionKilled and currentCharacterTotal <= 0 then
+			total = total + 1
 		end
 	end
 
@@ -1502,7 +1772,7 @@ end
 
 local function MergeBossKillCache(state)
 	local cacheKey = GetCurrentBossKillCacheKey()
-	local cacheEntry = cacheKey and CodexExampleAddonDB.bossKillCache and CodexExampleAddonDB.bossKillCache[cacheKey] or nil
+	local cacheEntry = cacheKey and MogTrackerDB.bossKillCache and MogTrackerDB.bossKillCache[cacheKey] or nil
 	if not cacheEntry then
 		return
 	end
@@ -1542,7 +1812,7 @@ GetSelectedLootClassFiles = function()
 			return { classFile }
 		end
 	end
-	return Compute.GetSelectedLootClassFiles(CodexExampleAddonDB.settings or {}, selectableClasses)
+	return Compute.GetSelectedLootClassFiles(MogTrackerDB.settings or {}, selectableClasses)
 end
 addon.GetSelectedLootClassFiles = GetSelectedLootClassFiles
 
@@ -1723,6 +1993,84 @@ end
 
 local function ConfigureRaidDashboardModule()
 	if not addon.RaidDashboard or not addon.RaidDashboard.Configure then
+		if addon.PvpDashboard and addon.PvpDashboard.Configure then
+			addon.PvpDashboard.Configure({
+				T = T,
+				getPvpDashboardClassFiles = function()
+					local allClassFiles = {}
+					for _, classFile in ipairs(selectableClasses) do
+						allClassFiles[#allClassFiles + 1] = classFile
+					end
+					return allClassFiles
+				end,
+				getDashboardClassFiles = GetDashboardClassFiles,
+				getClassDisplayName = GetClassDisplayName,
+				getSetProgress = GetSetProgress,
+				classMatchesSetInfo = ClassMatchesSetInfo,
+				isExpansionCollapsed = function(expansionName)
+					local collapsed = MogTrackerDB and MogTrackerDB.dashboardCollapsedExpansions or nil
+					local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "pvp"
+					local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
+					return collapsed and collapsed[key] and true or false
+				end,
+				toggleExpansionCollapsed = function(expansionName)
+					if not MogTrackerDB then
+						return false
+					end
+					MogTrackerDB.dashboardCollapsedExpansions = MogTrackerDB.dashboardCollapsedExpansions or {}
+					local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "pvp"
+					local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
+					local newValue = not (MogTrackerDB.dashboardCollapsedExpansions[key] and true or false)
+					MogTrackerDB.dashboardCollapsedExpansions[key] = newValue or nil
+					if addon.PvpDashboard and addon.PvpDashboard.InvalidateCache then
+						addon.PvpDashboard.InvalidateCache()
+					end
+					return newValue
+				end,
+			})
+		end
+		if addon.SetDashboard and addon.SetDashboard.Configure then
+			addon.SetDashboard.Configure({
+				T = T,
+				getSetDashboardClassFiles = function()
+					local allClassFiles = {}
+					for _, classFile in ipairs(selectableClasses) do
+						allClassFiles[#allClassFiles + 1] = classFile
+					end
+					return allClassFiles
+				end,
+				getDashboardClassFiles = GetDashboardClassFiles,
+				getClassDisplayName = GetClassDisplayName,
+				getSetProgress = GetSetProgress,
+				classMatchesSetInfo = ClassMatchesSetInfo,
+				isExpansionCollapsed = function(expansionName)
+					local collapsed = MogTrackerDB and MogTrackerDB.dashboardCollapsedExpansions or nil
+					local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "set"
+					local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
+					return collapsed and collapsed[key] and true or false
+				end,
+				toggleExpansionCollapsed = function(expansionName)
+					if not MogTrackerDB then
+						return false
+					end
+					MogTrackerDB.dashboardCollapsedExpansions = MogTrackerDB.dashboardCollapsedExpansions or {}
+					local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "set"
+					local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
+					local newValue = not (MogTrackerDB.dashboardCollapsedExpansions[key] and true or false)
+					MogTrackerDB.dashboardCollapsedExpansions[key] = newValue or nil
+					return newValue
+				end,
+				getStoredDashboardCache = function(instanceType)
+					if not MogTrackerDB then
+						return nil
+					end
+					if tostring(instanceType or "") == "party" then
+						return MogTrackerDB.dungeonDashboardCache or nil
+					end
+					return MogTrackerDB.raidDashboardCache or nil
+				end,
+			})
+		end
 		return
 	end
 
@@ -1733,38 +2081,38 @@ local function ConfigureRaidDashboardModule()
 			return dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
 		end,
 		getStoredCache = function(instanceType)
-			if not CodexExampleAddonDB then
+			if not MogTrackerDB then
 				return nil
 			end
 			if instanceType == "party" then
-				return CodexExampleAddonDB.dungeonDashboardCache or nil
+				return MogTrackerDB.dungeonDashboardCache or nil
 			end
-			return CodexExampleAddonDB.raidDashboardCache or nil
+			return MogTrackerDB.raidDashboardCache or nil
 		end,
 		isExpansionCollapsed = function(expansionName)
-			local collapsed = CodexExampleAddonDB and CodexExampleAddonDB.dashboardCollapsedExpansions or nil
+			local collapsed = MogTrackerDB and MogTrackerDB.dashboardCollapsedExpansions or nil
 			local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
 			local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
 			return collapsed and collapsed[key] and true or false
 		end,
 		toggleExpansionCollapsed = function(expansionName)
-			if not CodexExampleAddonDB then
+			if not MogTrackerDB then
 				return false
 			end
-			CodexExampleAddonDB.dashboardCollapsedExpansions = CodexExampleAddonDB.dashboardCollapsedExpansions or {}
+			MogTrackerDB.dashboardCollapsedExpansions = MogTrackerDB.dashboardCollapsedExpansions or {}
 			local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
 			local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
-			local newValue = not (CodexExampleAddonDB.dashboardCollapsedExpansions[key] and true or false)
-			CodexExampleAddonDB.dashboardCollapsedExpansions[key] = newValue or nil
+			local newValue = not (MogTrackerDB.dashboardCollapsedExpansions[key] and true or false)
+			MogTrackerDB.dashboardCollapsedExpansions[key] = newValue or nil
 			if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
 				addon.RaidDashboard.InvalidateCache()
 			end
 			return newValue
 		end,
 		captureDashboardSnapshotWriteDebug = function(debugInfo)
-			if CodexExampleAddonDB then
-				CodexExampleAddonDB.debugTemp = CodexExampleAddonDB.debugTemp or {}
-				CodexExampleAddonDB.debugTemp.dashboardSnapshotWriteDebug = debugInfo
+			if MogTrackerDB then
+				MogTrackerDB.debugTemp = MogTrackerDB.debugTemp or {}
+				MogTrackerDB.debugTemp.dashboardSnapshotWriteDebug = debugInfo
 			end
 		end,
 		getExpansionInfoForInstance = GetLootPanelInstanceExpansionInfo,
@@ -1780,6 +2128,17 @@ local function ConfigureRaidDashboardModule()
 		getClassDisplayName = GetClassDisplayName,
 		getDifficultyName = GetDifficultyNameCompat,
 		getDifficultyDisplayOrder = GetRaidDifficultyDisplayOrder,
+		getSelectionLockoutProgress = function(selection)
+			local lockout = addon.GetCurrentCharacterLockoutForSelection and addon.GetCurrentCharacterLockoutForSelection(selection)
+			if not lockout then
+				return nil
+			end
+			return {
+				progress = tonumber(lockout.progress) or 0,
+				encounters = tonumber(lockout.encounters) or 0,
+				difficultyName = lockout.difficultyName,
+			}
+		end,
 		openLootPanelForSelection = OpenLootPanelForDashboardSelection,
 		colorizeExpansionLabel = ColorizeExpansionLabel,
 		getDisplaySetName = function(setEntry)
@@ -1790,8 +2149,7 @@ local function ConfigureRaidDashboardModule()
 			return addon.LootSets and addon.LootSets.BuildDistinctSetDisplayNames and addon.LootSets.BuildDistinctSetDisplayNames(sets) or sets
 		end,
 		isCollectSameAppearanceEnabled = function()
-			local settings = CodexExampleAddonDB and CodexExampleAddonDB.settings or {}
-			return settings.collectSameAppearance ~= false
+			return true
 		end,
 		isKnownRaidInstanceName = function(name)
 			if not name or name == "" then
@@ -1806,6 +2164,86 @@ local function ConfigureRaidDashboardModule()
 			return ""
 		end,
 	})
+
+	if addon.PvpDashboard and addon.PvpDashboard.Configure then
+		addon.PvpDashboard.Configure({
+			T = T,
+			getPvpDashboardClassFiles = function()
+				local allClassFiles = {}
+				for _, classFile in ipairs(selectableClasses) do
+					allClassFiles[#allClassFiles + 1] = classFile
+				end
+				return allClassFiles
+			end,
+			getDashboardClassFiles = GetDashboardClassFiles,
+			getClassDisplayName = GetClassDisplayName,
+			getSetProgress = GetSetProgress,
+			classMatchesSetInfo = ClassMatchesSetInfo,
+			isExpansionCollapsed = function(expansionName)
+				local collapsed = MogTrackerDB and MogTrackerDB.dashboardCollapsedExpansions or nil
+				local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "pvp"
+				local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
+				return collapsed and collapsed[key] and true or false
+			end,
+			toggleExpansionCollapsed = function(expansionName)
+				if not MogTrackerDB then
+					return false
+				end
+				MogTrackerDB.dashboardCollapsedExpansions = MogTrackerDB.dashboardCollapsedExpansions or {}
+				local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "pvp"
+				local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
+				local newValue = not (MogTrackerDB.dashboardCollapsedExpansions[key] and true or false)
+				MogTrackerDB.dashboardCollapsedExpansions[key] = newValue or nil
+				if addon.PvpDashboard and addon.PvpDashboard.InvalidateCache then
+					addon.PvpDashboard.InvalidateCache()
+				end
+				return newValue
+			end,
+			})
+	end
+
+	if addon.SetDashboard and addon.SetDashboard.Configure then
+		addon.SetDashboard.Configure({
+			T = T,
+			getSetDashboardClassFiles = function()
+				local allClassFiles = {}
+				for _, classFile in ipairs(selectableClasses) do
+					allClassFiles[#allClassFiles + 1] = classFile
+				end
+				return allClassFiles
+			end,
+			getDashboardClassFiles = GetDashboardClassFiles,
+			getClassDisplayName = GetClassDisplayName,
+			getSetProgress = GetSetProgress,
+			classMatchesSetInfo = ClassMatchesSetInfo,
+			isExpansionCollapsed = function(expansionName)
+				local collapsed = MogTrackerDB and MogTrackerDB.dashboardCollapsedExpansions or nil
+				local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "set"
+				local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
+				return collapsed and collapsed[key] and true or false
+			end,
+			toggleExpansionCollapsed = function(expansionName)
+				if not MogTrackerDB then
+					return false
+				end
+				MogTrackerDB.dashboardCollapsedExpansions = MogTrackerDB.dashboardCollapsedExpansions or {}
+				local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "set"
+				local key = string.format("%s::%s", tostring(dashboardType), tostring(expansionName or "Other"))
+				local newValue = not (MogTrackerDB.dashboardCollapsedExpansions[key] and true or false)
+				MogTrackerDB.dashboardCollapsedExpansions[key] = newValue or nil
+				return newValue
+			end,
+			getStoredDashboardCache = function(instanceType)
+				if not MogTrackerDB then
+					return nil
+				end
+				if tostring(instanceType or "") == "party" then
+					return MogTrackerDB.dungeonDashboardCache or nil
+				end
+				return MogTrackerDB.raidDashboardCache or nil
+			end,
+		})
+	end
 end
 
 local function DeriveLootTypeKey(item)
@@ -1886,7 +2324,7 @@ local function DeriveLootTypeKey(item)
 end
 
 local function IsLootTypeFilterActive()
-	local selected = CodexExampleAddonDB.settings and CodexExampleAddonDB.settings.selectedLootTypes
+	local selected = MogTrackerDB.settings and MogTrackerDB.settings.selectedLootTypes
 	return type(selected) == "table" and next(selected) ~= nil
 end
 
@@ -1970,8 +2408,7 @@ end
 
 local function ResolveLootItemCollectionState(item, includeDebug)
 	local itemInfo = item and (item.link or item.itemID)
-	local settings = CodexExampleAddonDB.settings or {}
-	local collectSameAppearance = settings.collectSameAppearance ~= false
+	local collectSameAppearance = true
 	local typeKey = item and item.typeKey
 	local debugInfo = includeDebug and {
 		itemName = item and item.name or nil,
@@ -2160,7 +2597,7 @@ local function GetLootItemDisplayCollectionState(item)
 end
 
 local function LootItemMatchesTypeFilter(item)
-	local selected = CodexExampleAddonDB.settings and CodexExampleAddonDB.settings.selectedLootTypes
+	local selected = MogTrackerDB.settings and MogTrackerDB.settings.selectedLootTypes
 	if type(selected) ~= "table" or next(selected) == nil then
 		selected = nil
 	end
@@ -2168,8 +2605,15 @@ local function LootItemMatchesTypeFilter(item)
 		return false
 	end
 
-	local settings = CodexExampleAddonDB.settings or {}
-	if settings.hideCollectedTransmog and GetLootItemDisplayCollectionState(item) == "collected" then
+	local settings = MogTrackerDB.settings or {}
+	local displayState = GetLootItemDisplayCollectionState(item)
+	if item.typeKey == "MOUNT" and settings.hideCollectedMounts and displayState == "collected" then
+		return false
+	end
+	if item.typeKey == "PET" and settings.hideCollectedPets and displayState == "collected" then
+		return false
+	end
+	if settings.hideCollectedTransmog and item.typeKey ~= "MOUNT" and item.typeKey ~= "PET" and displayState == "collected" then
 		return false
 	end
 	return true
@@ -2183,7 +2627,7 @@ local function GetEncounterLootDisplayState(encounter)
 	}
 
 	for _, item in ipairs((encounter and encounter.loot) or {}) do
-		local selected = CodexExampleAddonDB.settings and CodexExampleAddonDB.settings.selectedLootTypes
+		local selected = MogTrackerDB.settings and MogTrackerDB.settings.selectedLootTypes
 		if type(selected) ~= "table" or next(selected) == nil or selected[item.typeKey or "MISC"] then
 			state.filteredLoot[#state.filteredLoot + 1] = item
 			if LootItemMatchesTypeFilter(item) then
@@ -2206,7 +2650,7 @@ local function GetEncounterLootDisplayState(encounter)
 end
 
 local function CountSelectedLootTypes()
-	local selected = CodexExampleAddonDB.settings and CodexExampleAddonDB.settings.selectedLootTypes
+	local selected = MogTrackerDB.settings and MogTrackerDB.settings.selectedLootTypes
 	local count = 0
 	if type(selected) ~= "table" then
 		return 0
@@ -2234,7 +2678,7 @@ end
 
 BuildLootFilterMenu = function(button, items)
 	if not lootDropdownMenu then
-		lootDropdownMenu = CreateFrame("Frame", "CodexExampleAddonLootDropdownMenu", UIParent, "UIDropDownMenuTemplate")
+		lootDropdownMenu = CreateFrame("Frame", "MogTrackerLootDropdownMenu", UIParent, "UIDropDownMenuTemplate")
 	end
 
 	if EasyMenu then
@@ -2342,14 +2786,23 @@ local function GetLootPanelInstanceExpansionInfo(selection)
 		}
 	end
 
-	local expansionName = selection.expansionName
+	local expansionName = addon.NormalizeExpansionDisplayName(selection.expansionName)
 	local raidOrder = tonumber(selection.instanceOrder)
+	local selectionJournalInstanceID = tonumber(selection.journalInstanceID) or 0
+	local selectionInstanceName = tostring(selection.instanceName or "")
+	local selectionInstanceType = tostring(selection.instanceType or "")
 	if not expansionName or not raidOrder then
 		for _, candidate in ipairs(BuildLootPanelInstanceSelections()) do
-			if not candidate.isCurrent
-				and tonumber(candidate.journalInstanceID) == tonumber(selection.journalInstanceID)
-				and tostring(candidate.instanceName or "") == tostring(selection.instanceName or "") then
-				expansionName = expansionName or candidate.expansionName
+			local candidateJournalInstanceID = tonumber(candidate.journalInstanceID) or 0
+			local candidateInstanceName = tostring(candidate.instanceName or "")
+			local candidateInstanceType = tostring(candidate.instanceType or "")
+			local matchesJournalInstance = selectionJournalInstanceID > 0 and candidateJournalInstanceID == selectionJournalInstanceID
+			local matchesNameFallback = selectionJournalInstanceID <= 0
+				and selectionInstanceName ~= ""
+				and candidateInstanceName == selectionInstanceName
+				and (selectionInstanceType == "" or candidateInstanceType == selectionInstanceType)
+			if not candidate.isCurrent and (matchesJournalInstance or matchesNameFallback) then
+				expansionName = expansionName or addon.NormalizeExpansionDisplayName(candidate.expansionName)
 				raidOrder = raidOrder or tonumber(candidate.instanceOrder)
 				if expansionName and raidOrder then
 					break
@@ -2358,7 +2811,7 @@ local function GetLootPanelInstanceExpansionInfo(selection)
 		end
 	end
 
-	expansionName = expansionName or "Other"
+	expansionName = addon.NormalizeExpansionDisplayName(expansionName or "Other")
 	return {
 		expansionName = expansionName,
 		expansionOrder = GetExpansionOrder(expansionName),
@@ -2500,7 +2953,6 @@ local function PreferCurrentLootPanelSelectionOnOpen()
 end
 
 local function BuildLootPanelInstanceMenu(button)
-	InvalidateLootPanelSelectionCache()
 	local selectedInstance, selections = GetSelectedLootPanelInstance()
 	local items = {}
 
@@ -2538,7 +2990,7 @@ local function BuildLootPanelInstanceMenu(button)
 			end,
 		}
 		else
-			local expansionName = selection.expansionName or "Other"
+			local expansionName = addon.NormalizeExpansionDisplayName(selection.expansionName or "Other")
 			local expansion = expansionGroups[expansionName]
 			if not expansion then
 				expansion = {
@@ -2553,6 +3005,7 @@ local function BuildLootPanelInstanceMenu(button)
 			if not instance then
 				instance = {
 					name = selection.instanceName,
+					instanceType = tostring(selection.instanceType or "raid"),
 					order = tonumber(selection.instanceOrder) or 999,
 					difficulties = {},
 				}
@@ -2583,6 +3036,11 @@ local function BuildLootPanelInstanceMenu(button)
 		table.sort(instanceNames, function(a, b)
 			local instanceA = expansion.instances[a]
 			local instanceB = expansion.instances[b]
+			local typeA = tostring(instanceA and instanceA.instanceType or "raid")
+			local typeB = tostring(instanceB and instanceB.instanceType or "raid")
+			if typeA ~= typeB then
+				return typeA == "raid"
+			end
 			local orderA = tonumber(instanceA and instanceA.order) or 999
 			local orderB = tonumber(instanceB and instanceB.order) or 999
 			if orderA ~= orderB then
@@ -2626,7 +3084,7 @@ local function BuildLootPanelInstanceMenu(button)
 			end
 
 			instanceItems[#instanceItems + 1] = {
-				text = instance.name,
+				text = addon.ColorizeInstanceTypeLabel and addon.ColorizeInstanceTypeLabel(instance.name, instance.instanceType) or tostring(instance.name or ""),
 				hasArrow = true,
 				notCheckable = true,
 				menuList = difficultyItems,
@@ -2702,6 +3160,24 @@ local function FindCharacterLockoutForSelection(info, selection)
 	return nil
 end
 
+addon.GetCurrentCharacterLockoutForSelection = function(selection)
+	if not selection or not MogTrackerDB or not MogTrackerDB.characters then
+		return nil
+	end
+
+	local characterKey = CharacterKey and CharacterKey() or nil
+	if not characterKey or characterKey == "" then
+		return nil
+	end
+
+	local entry = MogTrackerDB.characters[characterKey]
+	if not entry then
+		return nil
+	end
+
+	return FindCharacterLockoutForSelection(entry, selection)
+end
+
 local function GetRenderedLockoutDifficultySuffix(lockout)
 	local difficultyName = string.lower(tostring(lockout and lockout.difficultyName or ""))
 	local difficultyID = tonumber(lockout and lockout.difficultyID) or 0
@@ -2736,7 +3212,7 @@ local function ShowLootPanelInstanceProgressTooltip(owner)
 	GameTooltip:ClearLines()
 	GameTooltip:AddLine(selectedInstance.label or selectedInstance.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本"), 1, 0.82, 0)
 
-	local characters = Storage.GetSortedCharacters(CodexExampleAddonDB.characters or {})
+	local characters = Storage.GetSortedCharacters(MogTrackerDB.characters or {})
 	local hasAnyRows = false
 	for _, entry in ipairs(characters) do
 		local info = entry.info or {}
@@ -2769,11 +3245,28 @@ local function ShowDashboardInfoTooltip(owner)
 	if dashboardType == "party" then
 		GameTooltip:AddLine(T("TRACK_HEADER_DUNGEON", "地下城幻化统计看板"), 1, 0.82, 0)
 		GameTooltip:AddLine(T("DASHBOARD_SUBTITLE_DUNGEON", "仅显示已缓存的地下城。使用下方按钮切换统计指标。"), 1, 1, 1, true)
+	elseif dashboardType == "set" then
+		GameTooltip:AddLine(T("TRACK_HEADER_SETS", "套装幻化统计看板"), 1, 0.82, 0)
+		GameTooltip:AddLine(T("DASHBOARD_SUBTITLE_SETS", "按团队副本、地下城、PVP、其他四类切换浏览全部套装，并在每个分类内按资料片汇总职业收集进度。"), 1, 1, 1, true)
+	elseif dashboardType == "pvp" then
+		GameTooltip:AddLine(T("TRACK_HEADER_PVP", "PVP 幻化统计看板"), 1, 0.82, 0)
+		GameTooltip:AddLine(T("DASHBOARD_SUBTITLE_PVP", "按资料片和赛季统计 PVP 套装收集进度。列按当前职业筛选显示；若未勾选职业则显示全部职业。"), 1, 1, 1, true)
 	else
 		GameTooltip:AddLine(T("TRACK_HEADER", "团队副本幻化统计看板"), 1, 0.82, 0)
 		GameTooltip:AddLine(T("DASHBOARD_SUBTITLE", "仅显示已缓存的团队副本。使用下方按钮切换统计指标。"), 1, 1, 1, true)
 	end
 	GameTooltip:Show()
+end
+
+addon.ColorizeInstanceTypeLabel = addon.ColorizeInstanceTypeLabel or function(text, instanceType)
+	text = tostring(text or "")
+	if tostring(instanceType or "") == "raid" then
+		return string.format("|cffffd200%s|r", text)
+	end
+	if tostring(instanceType or "") == "party" then
+		return string.format("|cff66ccff%s|r", text)
+	end
+	return text
 end
 
 local function CollectCurrentInstanceLootData()
@@ -2837,6 +3330,9 @@ local function CollectCurrentInstanceLootData()
 		addon.RaidDashboard.UpdateSnapshot(selectedInstance, dashboardData, {
 			classFiles = GetDashboardClassFiles(),
 		})
+		if addon.SetDashboard and addon.SetDashboard.InvalidateCache then
+			addon.SetDashboard.InvalidateCache()
+		end
 	end
 	return data
 end
@@ -2860,6 +3356,7 @@ local function QueueLootPanelCacheWarmup()
 		end
 	end)
 end
+addon.QueueLootPanelCacheWarmup = QueueLootPanelCacheWarmup
 
 local function BuildExpansionCache()
 	if expansionByInstanceKey then
@@ -3991,7 +4488,7 @@ local function BuildSpecFilterMenu(button)
 end
 
 local function BuildLootTypeFilterMenu(button)
-	local settings = CodexExampleAddonDB.settings or {}
+	local settings = MogTrackerDB.settings or {}
 	settings.selectedLootTypes = settings.selectedLootTypes or {}
 
 	local items = {
@@ -4095,9 +4592,9 @@ InitializeLootPanel = function()
 		return
 	end
 
-	local lootPanelPoint = CodexExampleAddonDB.lootPanelPoint or { point = "CENTER", relativePoint = "CENTER", x = 280, y = 0 }
-	local lootPanelSize = CodexExampleAddonDB.lootPanelSize or { width = 420, height = 460 }
-	lootPanel = CreateFrame("Frame", "CodexExampleAddonLootPanel", UIParent, "BackdropTemplate")
+	local lootPanelPoint = MogTrackerDB.lootPanelPoint or { point = "CENTER", relativePoint = "CENTER", x = 280, y = 0 }
+	local lootPanelSize = MogTrackerDB.lootPanelSize or { width = 420, height = 460 }
+	lootPanel = CreateFrame("Frame", "MogTrackerLootPanel", UIParent, "BackdropTemplate")
 	lootPanel:SetSize(math.max(360, tonumber(lootPanelSize.width) or 420), math.max(320, tonumber(lootPanelSize.height) or 460))
 	lootPanel:SetPoint(lootPanelPoint.point or "CENTER", UIParent, lootPanelPoint.relativePoint or "CENTER", tonumber(lootPanelPoint.x) or 280, tonumber(lootPanelPoint.y) or 0)
 	lootPanel:SetFrameStrata("DIALOG")
@@ -4118,7 +4615,7 @@ InitializeLootPanel = function()
 	lootPanel:SetScript("OnDragStop", function(self)
 		self:StopMovingOrSizing()
 		local point, _, relativePoint, x, y = self:GetPoint(1)
-		CodexExampleAddonDB.lootPanelPoint = {
+		MogTrackerDB.lootPanelPoint = {
 			point = point or "CENTER",
 			relativePoint = relativePoint or "CENTER",
 			x = x or 280,
@@ -4126,7 +4623,7 @@ InitializeLootPanel = function()
 		}
 	end)
 	lootPanel:SetScript("OnSizeChanged", function(self, width, height)
-		CodexExampleAddonDB.lootPanelSize = {
+		MogTrackerDB.lootPanelSize = {
 			width = math.floor(width + 0.5),
 			height = math.floor(height + 0.5),
 		}
@@ -4450,6 +4947,7 @@ end
 
 GetExpansionOrder = function(expansionName)
 	BuildExpansionCache()
+	expansionName = addon.NormalizeExpansionDisplayName(expansionName)
 	return expansionOrderByName and expansionOrderByName[expansionName] or 999
 end
 
@@ -4458,7 +4956,7 @@ UpdateLootHeaderLayout = function()
 		return
 	end
 
-	local isElvUIStyle = (CodexExampleAddonDB.settings and CodexExampleAddonDB.settings.panelStyle) == "elvui"
+	local isElvUIStyle = (MogTrackerDB.settings and MogTrackerDB.settings.panelStyle) == "elvui"
 	local leftInset = isElvUIStyle and 14 or 12
 	local toolWidth = isElvUIStyle and 20 or 18
 	local gap = isElvUIStyle and 4 or 3
@@ -4570,6 +5068,12 @@ function addon.GetDashboardTitle(instanceType)
 	if instanceType == "party" then
 		return T("TRACK_HEADER_DUNGEON", "地下城幻化统计看板")
 	end
+	if instanceType == "set" then
+		return T("TRACK_HEADER_SETS", "套装幻化统计看板")
+	end
+	if instanceType == "pvp" then
+		return T("TRACK_HEADER_PVP", "PVP 幻化统计看板")
+	end
 	return T("TRACK_HEADER", "团队副本幻化统计看板")
 end
 
@@ -4577,10 +5081,19 @@ function addon.GetDashboardSubtitle(instanceType)
 	if instanceType == "party" then
 		return T("DASHBOARD_SUBTITLE_DUNGEON", "仅显示已缓存的地下城。使用下方按钮切换统计指标。职业筛选只影响列顺序；当你打开某个地下城时，该副本的缓存会同步更新所有职业。")
 	end
+	if instanceType == "set" then
+		return T("DASHBOARD_SUBTITLE_SETS", "按团队副本、地下城、PVP、其他四类切换浏览全部套装，并在每个分类内按资料片汇总职业收集进度。")
+	end
+	if instanceType == "pvp" then
+		return T("DASHBOARD_SUBTITLE_PVP", "按资料片和赛季统计 PVP 套装收集进度。列按当前职业筛选显示；若未勾选职业则显示全部职业。")
+	end
 	return T("DASHBOARD_SUBTITLE", "仅显示已缓存的团队副本。使用下方按钮切换统计指标。")
 end
 
 function addon.GetDashboardBulkScanEmptyText(instanceType)
+	if instanceType == "all" then
+		return T("DASHBOARD_BULK_SCAN_EMPTY_ALL", "没有可扫描的团队副本或地下城。")
+	end
 	if instanceType == "party" then
 		return T("DASHBOARD_BULK_SCAN_EMPTY_DUNGEON", "没有可扫描的地下城。")
 	end
@@ -4588,6 +5101,9 @@ function addon.GetDashboardBulkScanEmptyText(instanceType)
 end
 
 function addon.GetDashboardBulkScanProgressText(instanceType)
+	if instanceType == "all" then
+		return T("DASHBOARD_BULK_SCAN_PROGRESS_ALL", "全量更新进度：%d/%d %s (%s)")
+	end
 	if instanceType == "party" then
 		return T("DASHBOARD_BULK_SCAN_PROGRESS_DUNGEON", "地下城统计扫描进度：%d/%d %s (%s)")
 	end
@@ -4595,6 +5111,9 @@ function addon.GetDashboardBulkScanProgressText(instanceType)
 end
 
 function addon.GetDashboardBulkScanCompleteText(instanceType)
+	if instanceType == "all" then
+		return T("DASHBOARD_BULK_SCAN_COMPLETE_ALL", "全量更新完成：%d 个副本难度。")
+	end
 	if instanceType == "party" then
 		return T("DASHBOARD_BULK_SCAN_COMPLETE_DUNGEON", "地下城统计扫描完成：%d 个副本。")
 	end
@@ -4602,21 +5121,138 @@ function addon.GetDashboardBulkScanCompleteText(instanceType)
 end
 
 function addon.GetDashboardBulkScanHintText(instanceType)
+	if instanceType == "all" then
+		return T("DASHBOARD_BULK_SCAN_HINT_ALL", "逐个扫描全部团队副本与地下城，并重建看板缓存和套装来源分类。团队副本扫描最高难度，地下城扫描全部可用难度，整体耗时较长。")
+	end
 	if instanceType == "party" then
 		return T("DASHBOARD_BULK_SCAN_HINT_DUNGEON", "逐个扫描每个地下城的所有可用难度，并预计算收集状态与套装进度，耗时较长。建议在主城内、非战斗、角色空闲时执行。")
 	end
-	return T("DASHBOARD_BULK_SCAN_HINT", "逐个扫描每个团队副本的最高难度，耗时较长。建议在主城内、非战斗、角色空闲时执行。")
+	return T("DASHBOARD_BULK_SCAN_HINT", "逐个扫描每个团队副本的所有可用难度，耗时较长。建议在主城内、非战斗、角色空闲时执行。")
 end
 
 function addon.GetDashboardBulkScanConfirmText(instanceType)
+	if instanceType == "all" then
+		return T("DASHBOARD_BULK_SCAN_CONFIRM_ALL", "全量更新会逐个扫描全部团队副本与地下城，并重建缓存和套装分类来源。团队副本与地下城都会扫描全部可用难度。\n\n整体耗时较长，并可能在扫描过程中产生卡顿。建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？")
+	end
 	if instanceType == "party" then
 		return T("DASHBOARD_BULK_SCAN_CONFIRM_DUNGEON", "全量扫描会逐个地下城扫描所有可用难度，并预计算收集状态与套装进度。整体耗时较长，并可能在扫描过程中产生卡顿。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？")
 	end
-	return T("DASHBOARD_BULK_SCAN_CONFIRM", "全量扫描会逐个团队副本扫描最高难度，整体耗时较长，并可能在扫描过程中产生卡顿。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？")
+	return T("DASHBOARD_BULK_SCAN_CONFIRM", "全量扫描会逐个团队副本扫描所有可用难度，整体耗时较长，并可能在扫描过程中产生卡顿。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？")
+end
+
+function addon.GetDashboardBulkScanRuntimeSignature()
+	local gameVersion, buildNumber, _, tocVersion = GetBuildInfo and GetBuildInfo() or nil, nil, nil, nil
+	return {
+		addonVersion = tostring(GetAddonMetadataCompat(addonName, "Version") or "0.0.0"),
+		gameVersion = tostring(gameVersion or ""),
+		buildNumber = tostring(buildNumber or ""),
+		tocVersion = tonumber(tocVersion) or 0,
+	}
+end
+
+function addon.CanResumeDashboardBulkScan(scanState)
+	if type(scanState) ~= "table" then
+		return false
+	end
+	if type(scanState.queue) ~= "table" or #scanState.queue == 0 then
+		return false
+	end
+	local signature = addon.GetDashboardBulkScanRuntimeSignature()
+	return tostring(scanState.addonVersion or "") == tostring(signature.addonVersion or "")
+		and tostring(scanState.gameVersion or "") == tostring(signature.gameVersion or "")
+		and tostring(scanState.buildNumber or "") == tostring(signature.buildNumber or "")
+		and tonumber(scanState.tocVersion or 0) == tonumber(signature.tocVersion or 0)
+end
+
+function addon.ClearStoredDashboardBulkScanState()
+	if MogTrackerDB then
+		MogTrackerDB.dashboardBulkScanResume = nil
+	end
+end
+
+function addon.SaveDashboardBulkScanState(scanState)
+	if not MogTrackerDB then
+		return
+	end
+	if type(scanState) ~= "table" or not scanState.active then
+		MogTrackerDB.dashboardBulkScanResume = nil
+		return
+	end
+	local signature = addon.GetDashboardBulkScanRuntimeSignature()
+	MogTrackerDB.dashboardBulkScanResume = {
+		active = true,
+		instanceType = tostring(scanState.instanceType or "raid"),
+		completed = math.max(0, tonumber(scanState.completed) or 0),
+		total = math.max(0, tonumber(scanState.total) or 0),
+		queue = scanState.queue or {},
+		retries = scanState.retries or {},
+		addonVersion = signature.addonVersion,
+		gameVersion = signature.gameVersion,
+		buildNumber = signature.buildNumber,
+		tocVersion = signature.tocVersion,
+	}
+end
+
+function addon.RestoreDashboardBulkScanState()
+	local storedState = MogTrackerDB and MogTrackerDB.dashboardBulkScanResume or nil
+	if not addon.CanResumeDashboardBulkScan(storedState) then
+		addon.ClearStoredDashboardBulkScanState()
+		return nil
+	end
+	return {
+		active = true,
+		instanceType = tostring(storedState.instanceType or "raid"),
+		completed = math.max(0, tonumber(storedState.completed) or 0),
+		total = math.max(0, tonumber(storedState.total) or 0),
+		queue = storedState.queue or {},
+		retries = storedState.retries or {},
+		addonVersion = storedState.addonVersion,
+		gameVersion = storedState.gameVersion,
+		buildNumber = storedState.buildNumber,
+		tocVersion = storedState.tocVersion,
+	}
 end
 
 local function GetDashboardBulkScanSelections(instanceType)
 	local selections = BuildLootPanelInstanceSelections() or {}
+	if tostring(instanceType or "raid") == "all" then
+		local queue = {}
+		for _, selection in ipairs(GetDashboardBulkScanSelections("raid")) do
+			queue[#queue + 1] = selection
+		end
+		for _, selection in ipairs(GetDashboardBulkScanSelections("party")) do
+			queue[#queue + 1] = selection
+		end
+		table.sort(queue, function(a, b)
+			local expansionOrderA = GetExpansionOrder(tostring(a.expansionName or "Other"))
+			local expansionOrderB = GetExpansionOrder(tostring(b.expansionName or "Other"))
+			if expansionOrderA ~= expansionOrderB then
+				return expansionOrderA > expansionOrderB
+			end
+			local typeA = tostring(a.instanceType or "")
+			local typeB = tostring(b.instanceType or "")
+			if typeA ~= typeB then
+				return typeA == "raid"
+			end
+			local instanceOrderA = tonumber(a.instanceOrder) or 999
+			local instanceOrderB = tonumber(b.instanceOrder) or 999
+			if instanceOrderA ~= instanceOrderB then
+				return instanceOrderA > instanceOrderB
+			end
+			local difficultyOrderA = GetRaidDifficultyDisplayOrder(a.difficultyID)
+			local difficultyOrderB = GetRaidDifficultyDisplayOrder(b.difficultyID)
+			if difficultyOrderA ~= difficultyOrderB then
+				return difficultyOrderA < difficultyOrderB
+			end
+			local nameA = tostring(a.instanceName or "")
+			local nameB = tostring(b.instanceName or "")
+			if nameA ~= nameB then
+				return nameA < nameB
+			end
+			return (tonumber(a.difficultyID) or 0) < (tonumber(b.difficultyID) or 0)
+		end)
+		return queue
+	end
 	if tostring(instanceType or "raid") == "party" then
 		local queue = {}
 		for _, selection in ipairs(selections) do
@@ -4650,24 +5286,11 @@ local function GetDashboardBulkScanSelections(instanceType)
 		return queue
 	end
 
-	local highestByInstanceKey = {}
+	local queue = {}
 	for _, selection in ipairs(selections) do
 		if not selection.isCurrent and tostring(selection.instanceType or "") == tostring(instanceType or "raid") then
-			local instanceKey = string.format("%s::%s", tostring(selection.journalInstanceID or 0), tostring(selection.instanceName or ""))
-			local existing = highestByInstanceKey[instanceKey]
-			local selectionOrder = GetRaidDifficultyScanPriority(selection.difficultyID)
-			local existingOrder = existing and GetRaidDifficultyScanPriority(existing.difficultyID) or -1
-			if not existing
-				or selectionOrder > existingOrder
-				or (selectionOrder == existingOrder and (tonumber(selection.difficultyID) or 0) > (tonumber(existing.difficultyID) or 0)) then
-				highestByInstanceKey[instanceKey] = selection
-			end
+			queue[#queue + 1] = selection
 		end
-	end
-
-	local queue = {}
-	for _, selection in pairs(highestByInstanceKey) do
-		queue[#queue + 1] = selection
 	end
 	table.sort(queue, function(a, b)
 		local expansionOrderA = GetExpansionOrder(tostring(a.expansionName or "Other"))
@@ -4680,9 +5303,43 @@ local function GetDashboardBulkScanSelections(instanceType)
 		if raidOrderA ~= raidOrderB then
 			return raidOrderA > raidOrderB
 		end
-		return tostring(a.instanceName or "") < tostring(b.instanceName or "")
+		local difficultyOrderA = GetRaidDifficultyDisplayOrder(a.difficultyID)
+		local difficultyOrderB = GetRaidDifficultyDisplayOrder(b.difficultyID)
+		if difficultyOrderA ~= difficultyOrderB then
+			return difficultyOrderA < difficultyOrderB
+		end
+		local nameA = tostring(a.instanceName or "")
+		local nameB = tostring(b.instanceName or "")
+		if nameA ~= nameB then
+			return nameA < nameB
+		end
+		return (tonumber(a.difficultyID) or 0) < (tonumber(b.difficultyID) or 0)
 	end)
 	return queue
+end
+
+addon.UpdateConfigBulkUpdateButtons = function()
+	if not panel then
+		return
+	end
+
+	local scanState = addon.dashboardBulkScanState
+	local isActive = scanState and scanState.active
+	local activeType = tostring(scanState and scanState.instanceType or "")
+
+	if panel.bulkUpdateRaidButton then
+		panel.bulkUpdateRaidButton:SetEnabled(not isActive)
+		panel.bulkUpdateRaidButton:SetText(isActive and activeType == "raid"
+			and T("CONFIG_BULK_UPDATE_RUNNING_RAID", "团本更新中...")
+			or T("CONFIG_BULK_UPDATE_RAID", "更新团本"))
+	end
+
+	if panel.bulkUpdateDungeonButton then
+		panel.bulkUpdateDungeonButton:SetEnabled(not isActive)
+		panel.bulkUpdateDungeonButton:SetText(isActive and activeType == "party"
+			and T("CONFIG_BULK_UPDATE_RUNNING_DUNGEON", "地下城更新中...")
+			or T("CONFIG_BULK_UPDATE_DUNGEON", "更新地下城"))
+	end
 end
 
 local function ContinueDashboardBulkScan()
@@ -4691,11 +5348,13 @@ local function ContinueDashboardBulkScan()
 		return
 	end
 
-	scanState.index = (scanState.index or 0) + 1
-	local selection = scanState.queue and scanState.queue[scanState.index] or nil
+	local nextIndex = math.max(0, tonumber(scanState.completed) or 0) + 1
+	local selection = scanState.queue and scanState.queue[nextIndex] or nil
 	if not selection then
 		scanState.active = false
+		addon.ClearStoredDashboardBulkScanState()
 		Print(string.format(addon.GetDashboardBulkScanCompleteText(scanState.instanceType), tonumber(scanState.total) or 0))
+		addon.UpdateConfigBulkUpdateButtons()
 		RefreshDashboardPanel()
 		return
 	end
@@ -4713,7 +5372,7 @@ local function ContinueDashboardBulkScan()
 	if dashboardData and dashboardData.missingItemData and retryCount < 1 then
 		scanState.retries = scanState.retries or {}
 		scanState.retries[selectionKey] = retryCount + 1
-		scanState.index = math.max(0, (scanState.index or 1) - 1)
+		addon.SaveDashboardBulkScanState(scanState)
 		if C_Timer and C_Timer.After then
 			C_Timer.After(0.35, ContinueDashboardBulkScan)
 		else
@@ -4729,10 +5388,15 @@ local function ContinueDashboardBulkScan()
 			classFiles = GetDashboardClassFiles(),
 		})
 	end
+	if addon.SetDashboard and addon.SetDashboard.InvalidateCache then
+		addon.SetDashboard.InvalidateCache()
+	end
+	scanState.completed = nextIndex
+	addon.SaveDashboardBulkScanState(scanState)
 
 	Print(string.format(
 		addon.GetDashboardBulkScanProgressText(scanState.instanceType),
-		tonumber(scanState.index) or 0,
+		tonumber(scanState.completed) or 0,
 		tonumber(scanState.total) or 0,
 		tostring(selection.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本")),
 		tostring(selection.difficultyName or T("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度"))
@@ -4746,12 +5410,29 @@ local function ContinueDashboardBulkScan()
 	end
 end
 
-local function StartDashboardBulkScan(skipConfirm)
+local function StartDashboardBulkScan(skipConfirm, forcedInstanceType)
 	if addon.dashboardBulkScanState and addon.dashboardBulkScanState.active then
 		return
 	end
 
-	local instanceType = dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
+	local instanceType = forcedInstanceType or (dashboardPanel and dashboardPanel.dashboardInstanceType or "raid")
+	local resumableState = addon.RestoreDashboardBulkScanState and addon.RestoreDashboardBulkScanState() or nil
+	if resumableState and tostring(resumableState.instanceType or "raid") == tostring(instanceType or "raid") then
+		addon.dashboardBulkScanState = resumableState
+		addon.UpdateConfigBulkUpdateButtons()
+		RefreshDashboardPanel()
+		Print(string.format(
+			T("DASHBOARD_BULK_SCAN_RESUMED", "继续全量更新：已完成 %d/%d。"),
+			tonumber(resumableState.completed) or 0,
+			tonumber(resumableState.total) or 0
+		))
+		if C_Timer and C_Timer.After then
+			C_Timer.After(0, ContinueDashboardBulkScan)
+		else
+			ContinueDashboardBulkScan()
+		end
+		return
+	end
 	local queue = GetDashboardBulkScanSelections(instanceType)
 	if #queue == 0 then
 		Print(addon.GetDashboardBulkScanEmptyText(instanceType))
@@ -4764,7 +5445,7 @@ local function StartDashboardBulkScan(skipConfirm)
 			button1 = ACCEPT,
 			button2 = CANCEL,
 			OnAccept = function()
-				StartDashboardBulkScan(true)
+				StartDashboardBulkScan(true, instanceType)
 			end,
 			timeout = 0,
 			whileDead = true,
@@ -4777,18 +5458,51 @@ local function StartDashboardBulkScan(skipConfirm)
 	end
 
 	if addon.RaidDashboard and addon.RaidDashboard.ClearStoredData then
-		addon.RaidDashboard.ClearStoredData()
+		if instanceType == "all" then
+			addon.RaidDashboard.ClearStoredData("raid")
+			addon.RaidDashboard.ClearStoredData("party")
+		else
+			addon.RaidDashboard.ClearStoredData(instanceType)
+		end
+	end
+	if addon.SetDashboard and addon.SetDashboard.InvalidateCache then
+		addon.SetDashboard.InvalidateCache()
 	end
 
 	addon.dashboardBulkScanState = {
 		active = true,
-		index = 0,
+		completed = 0,
 		total = #queue,
 		queue = queue,
 		instanceType = instanceType,
 		retries = {},
 	}
+	addon.SaveDashboardBulkScanState(addon.dashboardBulkScanState)
+	addon.UpdateConfigBulkUpdateButtons()
 	RefreshDashboardPanel()
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, ContinueDashboardBulkScan)
+	else
+		ContinueDashboardBulkScan()
+	end
+end
+
+function addon.ResumeDashboardBulkScanIfNeeded()
+	if addon.dashboardBulkScanState and addon.dashboardBulkScanState.active then
+		return
+	end
+	local resumableState = addon.RestoreDashboardBulkScanState and addon.RestoreDashboardBulkScanState() or nil
+	if not resumableState then
+		return
+	end
+	addon.dashboardBulkScanState = resumableState
+	addon.UpdateConfigBulkUpdateButtons()
+	RefreshDashboardPanel()
+	Print(string.format(
+		T("DASHBOARD_BULK_SCAN_RESUMED", "继续全量更新：已完成 %d/%d。"),
+		tonumber(resumableState.completed) or 0,
+		tonumber(resumableState.total) or 0
+	))
 	if C_Timer and C_Timer.After then
 		C_Timer.After(0, ContinueDashboardBulkScan)
 	else
@@ -4810,14 +5524,40 @@ RefreshDashboardPanel = function()
 	end
 	if dashboardPanel.setsModeButton then
 		dashboardPanel.setsModeButton:SetEnabled(metricMode ~= "sets")
+		dashboardPanel.setsModeButton:SetShown(instanceType ~= "pvp" and instanceType ~= "set")
 	end
 	if dashboardPanel.collectiblesModeButton then
 		dashboardPanel.collectiblesModeButton:SetEnabled(metricMode ~= "collectibles")
+		dashboardPanel.collectiblesModeButton:SetShown(instanceType ~= "pvp" and instanceType ~= "set")
 	end
 	if dashboardPanel.bulkScanButton then
 		dashboardPanel.bulkScanButton:SetEnabled(not (addon.dashboardBulkScanState and addon.dashboardBulkScanState.active))
+		dashboardPanel.bulkScanButton:SetShown(false)
 	end
-	if addon.RaidDashboard and addon.RaidDashboard.RenderContent then
+	if instanceType == "set" then
+		if addon.RaidDashboard and addon.RaidDashboard.HideWidgets then
+			addon.RaidDashboard.HideWidgets(dashboardPanel)
+		end
+		if addon.SetDashboard and addon.SetDashboard.RenderContent then
+			addon.SetDashboard.RenderContent(dashboardPanel, dashboardPanel.content, dashboardPanel.scrollFrame)
+		end
+	elseif instanceType == "pvp" then
+		if addon.SetDashboard and addon.SetDashboard.HideWidgets then
+			addon.SetDashboard.HideWidgets(dashboardPanel)
+		end
+		if addon.RaidDashboard and addon.RaidDashboard.HideWidgets then
+			addon.RaidDashboard.HideWidgets(dashboardPanel)
+		end
+		if addon.PvpDashboard and addon.PvpDashboard.RenderContent then
+			addon.PvpDashboard.RenderContent(dashboardPanel, dashboardPanel.content, dashboardPanel.scrollFrame)
+		end
+	elseif addon.RaidDashboard and addon.RaidDashboard.RenderContent then
+		if addon.SetDashboard and addon.SetDashboard.HideWidgets then
+			addon.SetDashboard.HideWidgets(dashboardPanel)
+		end
+		if addon.PvpDashboard and addon.PvpDashboard.HideWidgets then
+			addon.PvpDashboard.HideWidgets(dashboardPanel)
+		end
 		addon.RaidDashboard.RenderContent(dashboardPanel, dashboardPanel.content, dashboardPanel.scrollFrame)
 	end
 end
@@ -4827,19 +5567,19 @@ InitializeDashboardPanel = function()
 		return
 	end
 
-	local point = CodexExampleAddonDB.dashboardPanelPoint or { point = "CENTER", relativePoint = "CENTER", x = 60, y = 0 }
-	local size = CodexExampleAddonDB.dashboardPanelSize or { width = 760, height = 520 }
-	dashboardPanel = CreateFrame("Frame", "CodexExampleAddonDashboardPanel", UIParent, "BackdropTemplate")
+	local point = MogTrackerDB.dashboardPanelPoint or { point = "CENTER", relativePoint = "CENTER", x = 60, y = 0 }
+	local size = MogTrackerDB.dashboardPanelSize or { width = 760, height = 520 }
+	dashboardPanel = CreateFrame("Frame", "MogTrackerDashboardPanel", UIParent, "BackdropTemplate")
 	if type(UISpecialFrames) == "table" then
 		local alreadyRegistered = false
 		for _, frameName in ipairs(UISpecialFrames) do
-			if frameName == "CodexExampleAddonDashboardPanel" then
+			if frameName == "MogTrackerDashboardPanel" then
 				alreadyRegistered = true
 				break
 			end
 		end
 		if not alreadyRegistered then
-			UISpecialFrames[#UISpecialFrames + 1] = "CodexExampleAddonDashboardPanel"
+			UISpecialFrames[#UISpecialFrames + 1] = "MogTrackerDashboardPanel"
 		end
 	end
 	dashboardPanel:SetSize(math.max(620, tonumber(size.width) or 760), math.max(420, tonumber(size.height) or 520))
@@ -4862,7 +5602,7 @@ InitializeDashboardPanel = function()
 	dashboardPanel:SetScript("OnDragStop", function(self)
 		self:StopMovingOrSizing()
 		local p, _, rp, x, y = self:GetPoint(1)
-		CodexExampleAddonDB.dashboardPanelPoint = {
+		MogTrackerDB.dashboardPanelPoint = {
 			point = p or "CENTER",
 			relativePoint = rp or "CENTER",
 			x = x or 60,
@@ -4870,7 +5610,7 @@ InitializeDashboardPanel = function()
 		}
 	end)
 	dashboardPanel:SetScript("OnSizeChanged", function(self, width, height)
-		CodexExampleAddonDB.dashboardPanelSize = {
+		MogTrackerDB.dashboardPanelSize = {
 			width = math.floor(width + 0.5),
 			height = math.floor(height + 0.5),
 		}
@@ -4922,6 +5662,12 @@ InitializeDashboardPanel = function()
 		if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
 			addon.RaidDashboard.InvalidateCache()
 		end
+		if addon.SetDashboard and addon.SetDashboard.InvalidateCache then
+			addon.SetDashboard.InvalidateCache()
+		end
+		if addon.PvpDashboard and addon.PvpDashboard.InvalidateCache then
+			addon.PvpDashboard.InvalidateCache()
+		end
 		RefreshDashboardPanel()
 	end)
 	SetLootHeaderButtonVisualState(dashboardPanel.refreshButton, "normal")
@@ -4958,6 +5704,7 @@ InitializeDashboardPanel = function()
 
 	dashboardPanel.dashboardMetricMode = dashboardPanel.dashboardMetricMode or "sets"
 	dashboardPanel.dashboardInstanceType = dashboardPanel.dashboardInstanceType or "raid"
+	dashboardPanel.dashboardSetTab = dashboardPanel.dashboardSetTab or "raid"
 
 	dashboardPanel.setsModeButton = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
 	dashboardPanel.setsModeButton:SetSize(62, 20)
@@ -5034,7 +5781,9 @@ end
 
 ToggleDashboardPanel = function(instanceType)
 	InitializeDashboardPanel()
-	instanceType = instanceType == "party" and "party" or "raid"
+	if instanceType ~= "party" and instanceType ~= "pvp" and instanceType ~= "set" then
+		instanceType = "raid"
+	end
 	local sameType = dashboardPanel.dashboardInstanceType == instanceType
 	dashboardPanel.dashboardInstanceType = instanceType
 	if dashboardPanel:IsShown() and sameType then
@@ -5109,10 +5858,10 @@ if TooltipUI and TooltipUI.Configure then
 		T = T,
 		Compute = Compute,
 		getCharacters = function()
-			return CodexExampleAddonDB.characters or {}
+			return MogTrackerDB.characters or {}
 		end,
 		getSettings = function()
-			return CodexExampleAddonDB.settings or {}
+			return MogTrackerDB.settings or {}
 		end,
 		getSortedCharacters = Storage.GetSortedCharacters,
 		getExpansionForLockout = GetExpansionForLockout,
@@ -5130,10 +5879,10 @@ if DebugTools and DebugTools.Configure then
 		T = T,
 		API = API,
 		getDB = function()
-			return CodexExampleAddonDB
+			return MogTrackerDB
 		end,
 		getDebugLogSections = function()
-			local settings = CodexExampleAddonDB and CodexExampleAddonDB.settings or nil
+			local settings = MogTrackerDB and MogTrackerDB.settings or nil
 			return settings and settings.debugLogSections or {}
 		end,
 		CharacterKey = CharacterKey,
@@ -5153,6 +5902,42 @@ if DebugTools and DebugTools.Configure then
 		end,
 		getSelectedLootClassFiles = GetSelectedLootClassFiles,
 		getSelectedLootClassIDs = GetSelectedLootClassIDs,
+		getDashboardInstanceType = function()
+			return dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
+		end,
+		getExpansionInfoForInstance = GetLootPanelInstanceExpansionInfo,
+		getCurrentCharacterLockoutForSelection = function(selection)
+			return addon.GetCurrentCharacterLockoutForSelection and addon.GetCurrentCharacterLockoutForSelection(selection) or nil
+		end,
+		getRaidDashboardData = function()
+			return addon.RaidDashboard and addon.RaidDashboard.BuildData and addon.RaidDashboard.BuildData() or nil
+		end,
+		getRaidDashboardDataForType = function(instanceType)
+			if not (addon.RaidDashboard and addon.RaidDashboard.BuildData) then
+				return nil
+			end
+			local originalType = dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
+			if dashboardPanel then
+				dashboardPanel.dashboardInstanceType = tostring(instanceType or "raid")
+			end
+			local ok, data = pcall(addon.RaidDashboard.BuildData)
+			if dashboardPanel then
+				dashboardPanel.dashboardInstanceType = originalType
+			end
+			if ok then
+				return data
+			end
+			return nil
+		end,
+		getDashboardStoredCache = function(instanceType)
+			if not MogTrackerDB then
+				return nil
+			end
+			if tostring(instanceType or "raid") == "party" then
+				return MogTrackerDB.dungeonDashboardCache or nil
+			end
+			return MogTrackerDB.raidDashboardCache or nil
+		end,
 		collectCurrentInstanceLootData = CollectCurrentInstanceLootData,
 		getLootItemCollectionStateDebug = GetLootItemCollectionStateDebug,
 		getLootItemSourceID = GetLootItemSourceID,
@@ -5167,7 +5952,7 @@ if DebugTools and DebugTools.Configure then
 			return addon.LootSets and addon.LootSets.GetAppearanceSourceDisplayInfo and addon.LootSets.GetAppearanceSourceDisplayInfo(sourceID) or nil
 		end,
 		getStoredDashboardCache = function()
-			return CodexExampleAddonDB and CodexExampleAddonDB.raidDashboardCache or nil
+			return MogTrackerDB and MogTrackerDB.raidDashboardCache or nil
 		end,
 		getDashboardClassFiles = GetDashboardClassFiles,
 		getDashboardClassIDs = GetDashboardClassIDs,
@@ -5184,6 +5969,23 @@ if DebugTools and DebugTools.Configure then
 	})
 end
 
+if addon.SetCategories and addon.SetCategories.Configure then
+	addon.SetCategories.Configure({
+		findJournalInstanceByInstanceInfo = FindJournalInstanceByInstanceInfo,
+		buildLootPanelInstanceSelections = BuildLootPanelInstanceSelections,
+		getRaidDifficultyScanPriority = GetRaidDifficultyScanPriority,
+		getStoredDashboardCache = function(instanceType)
+			if not MogTrackerDB then
+				return nil
+			end
+			if tostring(instanceType or "") == "party" then
+				return MogTrackerDB.dungeonDashboardCache or nil
+			end
+			return MogTrackerDB.raidDashboardCache or nil
+		end,
+	})
+end
+
 local function CaptureAndShowDebugDump()
 	if RequestRaidInfo then
 		RequestRaidInfo()
@@ -5196,14 +5998,14 @@ local function CaptureAndShowDebugDump()
 	panel:Show()
 	if C_Timer and C_Timer.After then
 		C_Timer.After(0, function()
-			if CodexExampleAddonPanelScrollChild and panel and panel:IsShown() then
-				CodexExampleAddonPanelScrollChild:SetFocus()
-				CodexExampleAddonPanelScrollChild:HighlightText()
+			if MogTrackerPanelScrollChild and panel and panel:IsShown() then
+				MogTrackerPanelScrollChild:SetFocus()
+				MogTrackerPanelScrollChild:HighlightText()
 			end
 		end)
 	else
-		CodexExampleAddonPanelScrollChild:SetFocus()
-		CodexExampleAddonPanelScrollChild:HighlightText()
+		MogTrackerPanelScrollChild:SetFocus()
+		MogTrackerPanelScrollChild:HighlightText()
 	end
 	if lastDebugDump then
 		Print(string.format(T("MESSAGE_DEBUG_CAPTURED", "Debug logs collected and selected (%d instances). Press Ctrl+C to copy."), #lastDebugDump.lastEncounterDump.instances))
@@ -5224,6 +6026,10 @@ local function GetDebugLogSectionDefinitions()
 		{ key = "collectionStateDebug", label = "Loot Collection State Debug" },
 		{ key = "dashboardSnapshotDebug", label = "Dashboard Snapshot Debug" },
 		{ key = "dashboardSnapshotWriteDebug", label = "Dashboard Snapshot Write Debug" },
+		{ key = "pvpSetDebug", label = "PVP Set Debug" },
+		{ key = "setCategoryDebug", label = "Set Category Debug" },
+		{ key = "setDashboardPreviewDebug", label = "Set Dashboard Preview Debug" },
+		{ key = "dungeonDashboardDebug", label = "Dungeon Dashboard Debug" },
 	}
 end
 
@@ -5252,15 +6058,16 @@ end
 
 CaptureSavedInstances = function()
 	local key, name, realm, className, level = CharacterKey()
-	local existingCharacter = CodexExampleAddonDB.characters and CodexExampleAddonDB.characters[key] or nil
+	local existingCharacter = MogTrackerDB.characters and MogTrackerDB.characters[key] or nil
+	local capturedAt = time()
 	local character = {
 		name = name,
 		realm = realm,
 		className = className,
 		level = level,
-		lastUpdated = time(),
+		lastUpdated = capturedAt,
 		lockouts = {},
-		bossKillCounts = existingCharacter and existingCharacter.bossKillCounts or {},
+		bossKillCounts = {},
 	}
 
 	local numSaved = GetNumSavedInstances and GetNumSavedInstances() or 0
@@ -5278,6 +6085,7 @@ CaptureSavedInstances = function()
 		local totalEncounters, progressCount = ExtractSavedInstanceProgress(returns)
 
 		if instanceName and locked then
+			local cycleInfo = addon.BuildBossKillCycleInfo and addon.BuildBossKillCycleInfo(instanceName, instanceID, difficultyID, resetSeconds, capturedAt) or nil
 			character.lockouts[#character.lockouts + 1] = {
 				name = instanceName,
 				id = instanceID,
@@ -5289,9 +6097,14 @@ CaptureSavedInstances = function()
 				isRaid = isRaid and true or false,
 				maxPlayers = maxPlayers or 0,
 				extended = extended and true or false,
+				cycleResetAtMinute = cycleInfo and cycleInfo.resetAtMinute or 0,
 			}
 		end
 	end
+
+	character.bossKillCounts = addon.NormalizeBossKillCountsForCharacter
+		and addon.NormalizeBossKillCountsForCharacter(existingCharacter and existingCharacter.bossKillCounts or {}, character.lockouts, capturedAt)
+		or (existingCharacter and existingCharacter.bossKillCounts or {})
 
 	table.sort(character.lockouts, function(a, b)
 		local aName = a.name or ""
@@ -5310,7 +6123,7 @@ CaptureSavedInstances = function()
 		return aName < bName
 	end)
 
-	CodexExampleAddonDB.characters[key] = character
+	MogTrackerDB.characters[key] = character
 	InvalidateLootPanelSelectionCache()
 	InvalidateLootDataCache()
 	if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
@@ -5324,14 +6137,14 @@ RefreshPanelText = function()
 	local text
 	if currentPanelView == "debug" then
 		local debugFormatter = DebugTools and DebugTools.FormatDebugDump
-		text = debugFormatter and debugFormatter(lastDebugDump or CodexExampleAddonDB.debugTemp) or ""
+		text = debugFormatter and debugFormatter(lastDebugDump or MogTrackerDB.debugTemp) or ""
 	elseif currentPanelView == "classes" or currentPanelView == "loot" or currentPanelView == "config" then
 		text = ""
 	else
 		text = ""
 	end
-	CodexExampleAddonPanelScrollChild:SetText(text)
-	CodexExampleAddonPanelScrollChild:SetCursorPosition(0)
+	MogTrackerPanelScrollChild:SetText(text)
+	MogTrackerPanelScrollChild:SetCursorPosition(0)
 end
 
 function addon.UpdateDebugLogSectionUI(settings)
@@ -5392,7 +6205,7 @@ end
 
 local function UpdateClassFilterUI(settings)
 	panel.classFilterButtons = panel.classFilterButtons or {}
-	local content = CodexExampleAddonPanelClassScrollChild
+	local content = MogTrackerPanelClassScrollChild
 	local yOffset = -4
 	local buttonIndex = 0
 	local buttonColumnWidth = 116
@@ -5503,7 +6316,7 @@ local function UpdateLootTypeFilterUI(settings)
 	panel.lootTypeButtons = panel.lootTypeButtons or {}
 	panel.lootTypeGroupHeaders = panel.lootTypeGroupHeaders or {}
 	panel.lootTypeSeparators = panel.lootTypeSeparators or {}
-	local content = CodexExampleAddonPanelItemScrollChild
+	local content = MogTrackerPanelItemScrollChild
 	local yOffset = -2
 	local buttonIndex = 0
 	local buttonColumnWidth = 118
@@ -5590,19 +6403,19 @@ local function UpdateLootTypeFilterUI(settings)
 end
 
 local function InitializePanelNavigation()
-	CodexExampleAddonPanelNavConfigButton:SetText(T("NAV_CONFIG", "General"))
-	CodexExampleAddonPanelNavClassButton:SetText(T("NAV_CLASS", "Classes"))
-	CodexExampleAddonPanelNavLootButton:SetText(T("NAV_LOOT", "Loot Types"))
-	CodexExampleAddonPanelNavDebugButton:SetText(T("NAV_DEBUG", "Debug"))
+	MogTrackerPanelNavConfigButton:SetText(T("NAV_CONFIG", "General"))
+	MogTrackerPanelNavClassButton:SetText(T("NAV_CLASS", "Classes"))
+	MogTrackerPanelNavLootButton:SetText(T("NAV_LOOT", "Loot Types"))
+	MogTrackerPanelNavDebugButton:SetText(T("NAV_DEBUG", "Debug"))
 
-	CodexExampleAddonPanelNavConfigButton:ClearAllPoints()
-	CodexExampleAddonPanelNavConfigButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -102)
-	CodexExampleAddonPanelNavClassButton:ClearAllPoints()
-	CodexExampleAddonPanelNavClassButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -164)
-	CodexExampleAddonPanelNavLootButton:ClearAllPoints()
-	CodexExampleAddonPanelNavLootButton:SetPoint("TOPLEFT", CodexExampleAddonPanelNavClassButton, "BOTTOMLEFT", 0, -8)
-	CodexExampleAddonPanelNavDebugButton:ClearAllPoints()
-	CodexExampleAddonPanelNavDebugButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -250)
+	MogTrackerPanelNavConfigButton:ClearAllPoints()
+	MogTrackerPanelNavConfigButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -102)
+	MogTrackerPanelNavClassButton:ClearAllPoints()
+	MogTrackerPanelNavClassButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -164)
+	MogTrackerPanelNavLootButton:ClearAllPoints()
+	MogTrackerPanelNavLootButton:SetPoint("TOPLEFT", MogTrackerPanelNavClassButton, "BOTTOMLEFT", 0, -8)
+	MogTrackerPanelNavDebugButton:ClearAllPoints()
+	MogTrackerPanelNavDebugButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -250)
 end
 
 SetPanelView = function(view)
@@ -5621,39 +6434,49 @@ SetPanelView = function(view)
 	local isClasses = currentPanelView == "classes"
 	local isLoot = currentPanelView == "loot"
 	local isConfig = currentPanelView == "config"
-	local scrollFrame = CodexExampleAddonPanelScrollFrame
-	local scrollChild = CodexExampleAddonPanelScrollChild
-	local classScrollFrame = CodexExampleAddonPanelClassScrollFrame
-	local classScrollChild = CodexExampleAddonPanelClassScrollChild
-	local itemScrollFrame = CodexExampleAddonPanelItemScrollFrame
-	local itemScrollChild = CodexExampleAddonPanelItemScrollChild
+	local scrollFrame = MogTrackerPanelScrollFrame
+	local scrollChild = MogTrackerPanelScrollChild
+	local classScrollFrame = MogTrackerPanelClassScrollFrame
+	local classScrollChild = MogTrackerPanelClassScrollChild
+	local itemScrollFrame = MogTrackerPanelItemScrollFrame
+	local itemScrollChild = MogTrackerPanelItemScrollChild
 	local debugSectionHeader = panel.debugLogSectionsHeader
 
-	CodexExampleAddonPanelConfigHeader:SetShown(isConfig)
-	if CodexExampleAddonPanelConfigDescription then
-		CodexExampleAddonPanelConfigDescription:SetShown(isConfig)
+	MogTrackerPanelConfigHeader:SetShown(isConfig)
+	if MogTrackerPanelConfigDescription then
+		MogTrackerPanelConfigDescription:SetShown(isConfig)
 	end
-	CodexExampleAddonPanelConfigFiltersHeader:SetShown(isConfig)
-	CodexExampleAddonPanelConfigLootHeader:SetShown(isConfig)
-	CodexExampleAddonPanelStyleHeader:SetShown(isConfig)
-	CodexExampleAddonPanelClassHeader:SetShown(isClasses)
-	CodexExampleAddonPanelItemHeader:SetShown(isLoot)
-	CodexExampleAddonPanelCheckbox1:SetShown(isConfig)
-	CodexExampleAddonPanelCheckbox2:SetShown(isConfig)
-	CodexExampleAddonPanelCheckbox3:SetShown(isConfig)
-	CodexExampleAddonPanelCheckbox4:SetShown(isConfig)
-	CodexExampleAddonPanelCheckbox5:SetShown(isConfig)
-	CodexExampleAddonPanelStyleDropdownButton:SetShown(isConfig)
-	CodexExampleAddonPanelSlider:SetShown(false)
+	MogTrackerPanelConfigLootHeader:SetShown(isConfig)
+	MogTrackerPanelStyleHeader:SetShown(isConfig)
+	if panel.bulkUpdateHeader then
+		panel.bulkUpdateHeader:SetShown(isConfig)
+	end
+	if panel.bulkUpdateDescription then
+		panel.bulkUpdateDescription:SetShown(isConfig)
+	end
+	if panel.bulkUpdateRaidButton then
+		panel.bulkUpdateRaidButton:SetShown(isConfig)
+	end
+	if panel.bulkUpdateDungeonButton then
+		panel.bulkUpdateDungeonButton:SetShown(isConfig)
+	end
+	addon.UpdateConfigBulkUpdateButtons()
+	MogTrackerPanelClassHeader:SetShown(isClasses)
+	MogTrackerPanelItemHeader:SetShown(isLoot)
+	MogTrackerPanelCheckbox1:SetShown(isConfig)
+	MogTrackerPanelCheckbox2:SetShown(isConfig)
+	MogTrackerPanelCheckbox3:SetShown(isConfig)
+	MogTrackerPanelStyleDropdownButton:SetShown(isConfig)
+	MogTrackerPanelSlider:SetShown(false)
 	classScrollFrame:SetShown(isClasses)
 	classScrollChild:SetShown(isClasses)
 	itemScrollFrame:SetShown(isLoot)
 	itemScrollChild:SetShown(isLoot)
-	CodexExampleAddonPanelResetButton:SetShown(false)
+	MogTrackerPanelResetButton:SetShown(false)
 	scrollFrame:SetShown(isDebug)
 	scrollChild:SetShown(isDebug)
-	CodexExampleAddonPanelListHeader:SetShown(isDebug)
-	CodexExampleAddonPanelListHeader:SetText(T("DEBUG_HEADER", "Debug Output"))
+	MogTrackerPanelListHeader:SetShown(isDebug)
+	MogTrackerPanelListHeader:SetText(T("DEBUG_HEADER", "Debug Output"))
 	if debugSectionHeader then
 		debugSectionHeader:SetShown(isDebug)
 	end
@@ -5663,27 +6486,27 @@ SetPanelView = function(view)
 			button.text:SetShown(isDebug)
 		end
 	end
-	CodexExampleAddonPanelRefreshButton:SetText(isDebug and T("BUTTON_COLLECT_DEBUG", "Collect Logs") or T("BUTTON_REFRESH", "Refresh"))
-	CodexExampleAddonPanelRefreshButton:SetShown(isDebug)
+	MogTrackerPanelRefreshButton:SetText(isDebug and T("BUTTON_COLLECT_DEBUG", "Collect Logs") or T("BUTTON_REFRESH", "Refresh"))
+	MogTrackerPanelRefreshButton:SetShown(isDebug)
 	scrollFrame:SetScrollChild(scrollChild)
 
-	CodexExampleAddonPanelNavConfigButton:SetEnabled(not isConfig)
-	CodexExampleAddonPanelNavClassButton:SetEnabled(not isClasses)
-	CodexExampleAddonPanelNavLootButton:SetEnabled(not isLoot)
-	CodexExampleAddonPanelNavDebugButton:SetEnabled(not isDebug)
+	MogTrackerPanelNavConfigButton:SetEnabled(not isConfig)
+	MogTrackerPanelNavClassButton:SetEnabled(not isClasses)
+	MogTrackerPanelNavLootButton:SetEnabled(not isLoot)
+	MogTrackerPanelNavDebugButton:SetEnabled(not isDebug)
 
 	scrollFrame:ClearAllPoints()
 	classScrollFrame:ClearAllPoints()
 	itemScrollFrame:ClearAllPoints()
-	CodexExampleAddonPanelListHeader:ClearAllPoints()
+	MogTrackerPanelListHeader:ClearAllPoints()
 	if isDebug then
 		local debugLayout = GetDebugLogSectionLayout()
-		CodexExampleAddonPanelListHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, debugLayout.listHeaderOffset)
+		MogTrackerPanelListHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, debugLayout.listHeaderOffset)
 		scrollFrame:SetSize(500, debugLayout.scrollHeight)
 		scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, debugLayout.scrollTopOffset)
 		scrollChild:SetWidth(478)
 	elseif isClasses then
-		CodexExampleAddonPanelClassHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
+		MogTrackerPanelClassHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
 		classScrollFrame:SetSize(456, 176)
 		classScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -84)
 		classScrollChild:SetWidth(432)
@@ -5691,7 +6514,7 @@ SetPanelView = function(view)
 			classScrollFrame.ScrollBar:Hide()
 		end
 	elseif isLoot then
-		CodexExampleAddonPanelItemHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
+		MogTrackerPanelItemHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
 		itemScrollFrame:SetSize(456, 360)
 		itemScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -84)
 		itemScrollChild:SetWidth(432)
@@ -5703,164 +6526,193 @@ SetPanelView = function(view)
 	end
 
 	if isConfig then
-		CodexExampleAddonPanelConfigHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
-		if CodexExampleAddonPanelConfigDescription then
-			CodexExampleAddonPanelConfigDescription:ClearAllPoints()
-			CodexExampleAddonPanelConfigDescription:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -92)
-			CodexExampleAddonPanelConfigDescription:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -24, -92)
-			CodexExampleAddonPanelConfigDescription:SetJustifyH("LEFT")
-			CodexExampleAddonPanelConfigDescription:SetTextColor(0.0, 0.8, 1.0)
+		MogTrackerPanelConfigHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
+		if MogTrackerPanelConfigDescription then
+			MogTrackerPanelConfigDescription:ClearAllPoints()
+			MogTrackerPanelConfigDescription:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -92)
+			MogTrackerPanelConfigDescription:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -24, -92)
+			MogTrackerPanelConfigDescription:SetJustifyH("LEFT")
+			MogTrackerPanelConfigDescription:SetTextColor(0.0, 0.8, 1.0)
 		end
 
-		CodexExampleAddonPanelStyleHeader:ClearAllPoints()
-		CodexExampleAddonPanelStyleHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -130)
-		CodexExampleAddonPanelStyleDropdownButton:ClearAllPoints()
-		CodexExampleAddonPanelStyleDropdownButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -154)
+		MogTrackerPanelStyleHeader:ClearAllPoints()
+		MogTrackerPanelStyleHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -130)
+		MogTrackerPanelStyleDropdownButton:ClearAllPoints()
+		MogTrackerPanelStyleDropdownButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -154)
 
-		CodexExampleAddonPanelConfigLootHeader:ClearAllPoints()
-		CodexExampleAddonPanelConfigLootHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -198)
-		CodexExampleAddonPanelCheckbox4:ClearAllPoints()
-		CodexExampleAddonPanelCheckbox4:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -222)
-		CodexExampleAddonPanelCheckbox5:ClearAllPoints()
-		CodexExampleAddonPanelCheckbox5:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -246)
-
-		CodexExampleAddonPanelConfigFiltersHeader:ClearAllPoints()
-		CodexExampleAddonPanelConfigFiltersHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -290)
-		CodexExampleAddonPanelCheckbox1:ClearAllPoints()
-		CodexExampleAddonPanelCheckbox1:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -314)
-		CodexExampleAddonPanelCheckbox2:ClearAllPoints()
-		CodexExampleAddonPanelCheckbox2:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -338)
-		CodexExampleAddonPanelCheckbox3:Hide()
+		MogTrackerPanelConfigLootHeader:ClearAllPoints()
+		MogTrackerPanelConfigLootHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -198)
+		MogTrackerPanelCheckbox1:ClearAllPoints()
+		MogTrackerPanelCheckbox1:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -222)
+		MogTrackerPanelCheckbox2:ClearAllPoints()
+		MogTrackerPanelCheckbox2:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -246)
+		MogTrackerPanelCheckbox3:ClearAllPoints()
+		MogTrackerPanelCheckbox3:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -270)
+		if panel.bulkUpdateHeader then
+			panel.bulkUpdateHeader:ClearAllPoints()
+			panel.bulkUpdateHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -322)
+		end
+		if panel.bulkUpdateDescription then
+			panel.bulkUpdateDescription:ClearAllPoints()
+			panel.bulkUpdateDescription:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -346)
+			panel.bulkUpdateDescription:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -24, -346)
+		end
+		if panel.bulkUpdateRaidButton then
+			panel.bulkUpdateRaidButton:ClearAllPoints()
+			panel.bulkUpdateRaidButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -390)
+		end
+		if panel.bulkUpdateDungeonButton then
+			panel.bulkUpdateDungeonButton:ClearAllPoints()
+			panel.bulkUpdateDungeonButton:SetPoint("LEFT", panel.bulkUpdateRaidButton, "RIGHT", 10, 0)
+		end
 	end
 
-	UpdateClassFilterUI(CodexExampleAddonDB.settings or {})
-	UpdateLootTypeFilterUI(CodexExampleAddonDB.settings or {})
-	addon.UpdateDebugLogSectionUI(CodexExampleAddonDB.settings or {})
+	UpdateClassFilterUI(MogTrackerDB.settings or {})
+	UpdateLootTypeFilterUI(MogTrackerDB.settings or {})
+	addon.UpdateDebugLogSectionUI(MogTrackerDB.settings or {})
 	RefreshPanelText()
 end
 
 InitializePanel = function()
 	if not panel then
-		panel = CodexExampleAddonPanel
+		panel = MogTrackerPanel
 	end
 	if not panel or panel.initialized then return end
 
-	CodexExampleAddonDB.settings = NormalizeSettings(CodexExampleAddonDB.settings)
-	local settings = CodexExampleAddonDB.settings
+	MogTrackerDB.settings = NormalizeSettings(MogTrackerDB.settings)
+	local settings = MogTrackerDB.settings
 	settings.showExpired = false
 
 	panel:SetFrameStrata("DIALOG")
 	panel:SetClampedToScreen(true)
 	ApplyDefaultPanelStyle()
 
-	CodexExampleAddonPanelTitle:SetText(T("ADDON_TITLE", "幻化追踪"))
-	CodexExampleAddonPanelSubtitle:SetText(T("ADDON_SUBTITLE", "Lightweight dungeon and raid lockout tracking for your characters."))
+	MogTrackerPanelTitle:SetText(T("ADDON_TITLE", "幻化追踪"))
+	MogTrackerPanelSubtitle:SetText(T("ADDON_SUBTITLE", "Lightweight dungeon and raid lockout tracking for your characters."))
 	local addonVersion = GetAddonMetadataCompat(addonName, "Version") or "0.0.0"
-	CodexExampleAddonPanelFooter:SetText(string.format("%s · v%s", T("PANEL_FOOTER", "Powered by Codex，风之小祈是 Vibe coder"), tostring(addonVersion)))
-	CodexExampleAddonPanelNavHeader:SetText(T("NAV_SECTIONS", "Sections"))
-	CodexExampleAddonPanelNavFiltersHeader:SetText(T("NAV_FILTERS", "Filters"))
-	CodexExampleAddonPanelNavDebugHeader:SetText(T("NAV_DEBUG_GROUP", "Debug"))
+	MogTrackerPanelFooter:SetText(string.format("%s · v%s", T("PANEL_FOOTER", "MogTracker，风之小祈是 Vibe coder"), tostring(addonVersion)))
+	MogTrackerPanelNavHeader:SetText(T("NAV_SECTIONS", "Sections"))
+	MogTrackerPanelNavFiltersHeader:SetText(T("NAV_FILTERS", "Filters"))
+	MogTrackerPanelNavDebugHeader:SetText(T("NAV_DEBUG_GROUP", "Debug"))
 	InitializePanelNavigation()
-	CodexExampleAddonPanelConfigHeader:SetText(T("CONFIG_HEADER", "Config"))
-	if CodexExampleAddonPanelConfigDescription then
-		CodexExampleAddonPanelConfigDescription:SetText(T("CONFIG_DESCRIPTION", "Track current-instance loot, set pieces, and collection status."))
+	MogTrackerPanelConfigHeader:SetText(T("CONFIG_HEADER", "Config"))
+	if MogTrackerPanelConfigDescription then
+		MogTrackerPanelConfigDescription:SetText(T("CONFIG_DESCRIPTION", "Track current-instance loot, set pieces, and collection status."))
 	end
-	CodexExampleAddonPanelConfigFiltersHeader:SetText(T("CONFIG_FILTERS_HEADER", "Tracking Filters"))
-	CodexExampleAddonPanelConfigLootHeader:SetText(T("CONFIG_LOOT_HEADER", "Loot Display"))
-	CodexExampleAddonPanelStyleHeader:SetText(T("STYLE_HEADER", "风格"))
-	CodexExampleAddonPanelClassHeader:SetText(T("CLASS_FILTER_HEADER", "Classes"))
-	CodexExampleAddonPanelItemHeader:SetText(T("ITEM_FILTER_HEADER", "Item Types"))
-	CodexExampleAddonPanelResetButton:SetText(T("BUTTON_CLEAR_DATA", "Clear Data"))
-
-	_G["CodexExampleAddonPanelCheckbox1Text"]:SetText(T("CHECKBOX_SHOW_RAIDS", "Show raids"))
-	_G["CodexExampleAddonPanelCheckbox2Text"]:SetText(T("CHECKBOX_SHOW_DUNGEONS", "Show dungeons"))
-	_G["CodexExampleAddonPanelCheckbox3Text"]:SetText(T("CHECKBOX_SHOW_EXPIRED", "Show expired lockouts"))
-	_G["CodexExampleAddonPanelCheckbox4Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_TRANSMOG", "Hide collected appearances"))
-	_G["CodexExampleAddonPanelCheckbox5Text"]:SetText(T("CHECKBOX_COLLECT_SAME_APPEARANCE", "Treat same appearance as collected"))
-
-	CodexExampleAddonPanelCheckbox1:SetChecked(settings.showRaids)
-	CodexExampleAddonPanelCheckbox2:SetChecked(settings.showDungeons)
-	CodexExampleAddonPanelCheckbox3:SetChecked(false)
-	CodexExampleAddonPanelCheckbox4:SetChecked(settings.hideCollectedTransmog)
-	CodexExampleAddonPanelCheckbox5:SetChecked(settings.collectSameAppearance)
-	CodexExampleAddonPanelStyleDropdownButton:SetText(GetPanelStyleLabel(settings.panelStyle))
-
-	CodexExampleAddonPanelCheckbox1:SetScript("OnClick", function(self)
-		settings.showRaids = self:GetChecked() and true or false
-		RefreshPanelText()
+	MogTrackerPanelConfigLootHeader:SetText(T("CONFIG_LOOT_HEADER", "Loot Display"))
+	MogTrackerPanelStyleHeader:SetText(T("STYLE_HEADER", "风格"))
+	MogTrackerPanelClassHeader:SetText(T("CLASS_FILTER_HEADER", "Classes"))
+	MogTrackerPanelItemHeader:SetText(T("ITEM_FILTER_HEADER", "Item Types"))
+	MogTrackerPanelResetButton:SetText(T("BUTTON_CLEAR_DATA", "Clear Data"))
+	panel.bulkUpdateHeader = panel.bulkUpdateHeader or panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	panel.bulkUpdateHeader:SetText(T("CONFIG_BULK_UPDATE_HEADER", "全量更新"))
+	panel.bulkUpdateDescription = panel.bulkUpdateDescription or panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	panel.bulkUpdateDescription:SetJustifyH("LEFT")
+	panel.bulkUpdateDescription:SetJustifyV("TOP")
+	panel.bulkUpdateDescription:SetTextColor(0.82, 0.86, 0.92)
+	panel.bulkUpdateDescription:SetText(T("CONFIG_BULK_UPDATE_DESCRIPTION", "分别扫描团队副本或地下城，并重建看板缓存与套装来源分类。"))
+	panel.bulkUpdateRaidButton = panel.bulkUpdateRaidButton or CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+	panel.bulkUpdateRaidButton:SetSize(92, 22)
+	panel.bulkUpdateRaidButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:ClearLines()
+		GameTooltip:AddLine(T("CONFIG_BULK_UPDATE_RAID", "更新团本"), 1, 0.82, 0)
+		GameTooltip:AddLine(addon.GetDashboardBulkScanHintText("raid"), 1, 1, 1, true)
+		GameTooltip:Show()
 	end)
-	CodexExampleAddonPanelCheckbox2:SetScript("OnClick", function(self)
-		settings.showDungeons = self:GetChecked() and true or false
-		RefreshPanelText()
+	panel.bulkUpdateRaidButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
 	end)
-	CodexExampleAddonPanelCheckbox3:SetScript("OnClick", function()
-		settings.showExpired = false
-		RefreshPanelText()
+	panel.bulkUpdateRaidButton:SetScript("OnClick", function()
+		StartDashboardBulkScan(false, "raid")
 	end)
-	CodexExampleAddonPanelCheckbox4:SetScript("OnClick", function(self)
+	panel.bulkUpdateDungeonButton = panel.bulkUpdateDungeonButton or CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+	panel.bulkUpdateDungeonButton:SetSize(108, 22)
+	panel.bulkUpdateDungeonButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:ClearLines()
+		GameTooltip:AddLine(T("CONFIG_BULK_UPDATE_DUNGEON", "更新地下城"), 1, 0.82, 0)
+		GameTooltip:AddLine(addon.GetDashboardBulkScanHintText("party"), 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	panel.bulkUpdateDungeonButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	panel.bulkUpdateDungeonButton:SetScript("OnClick", function()
+		StartDashboardBulkScan(false, "party")
+	end)
+	addon.UpdateConfigBulkUpdateButtons()
+
+	_G["MogTrackerPanelCheckbox1Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_TRANSMOG", "Hide collected appearances"))
+	_G["MogTrackerPanelCheckbox2Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_MOUNTS", "Hide collected mounts"))
+	_G["MogTrackerPanelCheckbox3Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_PETS", "Hide collected pets"))
+	MogTrackerPanelCheckbox1:SetChecked(settings.hideCollectedTransmog)
+	MogTrackerPanelCheckbox2:SetChecked(settings.hideCollectedMounts)
+	MogTrackerPanelCheckbox3:SetChecked(settings.hideCollectedPets)
+	MogTrackerPanelStyleDropdownButton:SetText(GetPanelStyleLabel(settings.panelStyle))
+
+	MogTrackerPanelCheckbox1:SetScript("OnClick", function(self)
 		settings.hideCollectedTransmog = self:GetChecked() and true or false
 		RefreshLootPanel()
 	end)
-	CodexExampleAddonPanelCheckbox5:SetScript("OnClick", function(self)
-		settings.collectSameAppearance = self:GetChecked() and true or false
-		if addon.RaidDashboard and addon.RaidDashboard.ClearStoredData then
-			addon.RaidDashboard.ClearStoredData()
-		elseif addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
-			addon.RaidDashboard.InvalidateCache()
-		end
+	MogTrackerPanelCheckbox2:SetScript("OnClick", function(self)
+		settings.hideCollectedMounts = self:GetChecked() and true or false
 		RefreshLootPanel()
-		RefreshPanelText()
 	end)
-	CodexExampleAddonPanelStyleDropdownButton:SetScript("OnClick", function(self)
+	MogTrackerPanelCheckbox3:SetScript("OnClick", function(self)
+		settings.hideCollectedPets = self:GetChecked() and true or false
+		RefreshLootPanel()
+	end)
+	MogTrackerPanelStyleDropdownButton:SetScript("OnClick", function(self)
 		BuildStyleMenu(self)
 	end)
 
-	local slider = CodexExampleAddonPanelSlider
+	local slider = MogTrackerPanelSlider
 	slider:Hide()
 
-	CodexExampleAddonPanelScrollChild:SetMultiLine(true)
-	CodexExampleAddonPanelScrollChild:SetAutoFocus(false)
-	CodexExampleAddonPanelScrollChild:SetFontObject(GameFontHighlightSmall)
-	CodexExampleAddonPanelScrollChild:SetWidth(430)
-	CodexExampleAddonPanelScrollChild:SetTextInsets(4, 4, 4, 4)
-	CodexExampleAddonPanelScrollChild:EnableMouse(true)
-	CodexExampleAddonPanelScrollChild:SetMaxLetters(0)
-	CodexExampleAddonPanelScrollChild:SetScript("OnMouseUp", function(self)
+	MogTrackerPanelScrollChild:SetMultiLine(true)
+	MogTrackerPanelScrollChild:SetAutoFocus(false)
+	MogTrackerPanelScrollChild:SetFontObject(GameFontHighlightSmall)
+	MogTrackerPanelScrollChild:SetWidth(430)
+	MogTrackerPanelScrollChild:SetTextInsets(4, 4, 4, 4)
+	MogTrackerPanelScrollChild:EnableMouse(true)
+	MogTrackerPanelScrollChild:SetMaxLetters(0)
+	MogTrackerPanelScrollChild:SetScript("OnMouseUp", function(self)
 		self:SetFocus()
 	end)
-	CodexExampleAddonPanelScrollChild:SetScript("OnEscapePressed", function(self)
+	MogTrackerPanelScrollChild:SetScript("OnEscapePressed", function(self)
 		self:ClearFocus()
 	end)
-	CodexExampleAddonPanelScrollFrame:SetScrollChild(CodexExampleAddonPanelScrollChild)
+	MogTrackerPanelScrollFrame:SetScrollChild(MogTrackerPanelScrollChild)
 
-	CodexExampleAddonPanelClassScrollChild:SetSize(132, 112)
-	CodexExampleAddonPanelClassScrollFrame:SetScrollChild(CodexExampleAddonPanelClassScrollChild)
-	if CodexExampleAddonPanelClassScrollFrame.ScrollBar then
-		CodexExampleAddonPanelClassScrollFrame.ScrollBar:Hide()
+	MogTrackerPanelClassScrollChild:SetSize(132, 112)
+	MogTrackerPanelClassScrollFrame:SetScrollChild(MogTrackerPanelClassScrollChild)
+	if MogTrackerPanelClassScrollFrame.ScrollBar then
+		MogTrackerPanelClassScrollFrame.ScrollBar:Hide()
 	end
 	UpdateClassFilterUI(settings)
-	CodexExampleAddonPanelItemScrollChild:SetSize(196, 328)
-	CodexExampleAddonPanelItemScrollFrame:SetScrollChild(CodexExampleAddonPanelItemScrollChild)
+	MogTrackerPanelItemScrollChild:SetSize(196, 328)
+	MogTrackerPanelItemScrollFrame:SetScrollChild(MogTrackerPanelItemScrollChild)
 	UpdateLootTypeFilterUI(settings)
 	addon.UpdateDebugLogSectionUI(settings)
 
-	CodexExampleAddonPanelNavConfigButton:SetScript("OnClick", function()
+	MogTrackerPanelNavConfigButton:SetScript("OnClick", function()
 		SetPanelView("config")
 	end)
 
-	CodexExampleAddonPanelNavClassButton:SetScript("OnClick", function()
+	MogTrackerPanelNavClassButton:SetScript("OnClick", function()
 		SetPanelView("classes")
 	end)
 
-	CodexExampleAddonPanelNavLootButton:SetScript("OnClick", function()
+	MogTrackerPanelNavLootButton:SetScript("OnClick", function()
 		SetPanelView("loot")
 	end)
 
-	CodexExampleAddonPanelNavDebugButton:SetScript("OnClick", function()
+	MogTrackerPanelNavDebugButton:SetScript("OnClick", function()
 		SetPanelView("debug")
 	end)
 
-	CodexExampleAddonPanelRefreshButton:SetScript("OnClick", function()
+	MogTrackerPanelRefreshButton:SetScript("OnClick", function()
 		if currentPanelView == "debug" then
 			CaptureAndShowDebugDump()
 			return
@@ -5876,14 +6728,17 @@ InitializePanel = function()
 		Print(T("MESSAGE_LOCKOUTS_REFRESHED", "Lockouts refreshed."))
 	end)
 
-	CodexExampleAddonPanelResetButton:SetScript("OnClick", function()
-		CodexExampleAddonDB.characters = {}
+	MogTrackerPanelResetButton:SetScript("OnClick", function()
+		MogTrackerDB.characters = {}
 		InvalidateLootPanelSelectionCache()
 		InvalidateLootDataCache()
 		if addon.RaidDashboard and addon.RaidDashboard.ClearStoredData then
 			addon.RaidDashboard.ClearStoredData()
 		elseif addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
 			addon.RaidDashboard.InvalidateCache()
+		end
+		if addon.SetDashboard and addon.SetDashboard.InvalidateCache then
+			addon.SetDashboard.InvalidateCache()
 		end
 		RefreshPanelText()
 		Print(T("MESSAGE_STORED_SNAPSHOTS_CLEARED", "Stored snapshots cleared."))
@@ -5914,6 +6769,17 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
 	if event == "ADDON_LOADED" and arg1 == addonName then
 		InitializeDefaults()
 	elseif event == "PLAYER_LOGIN" then
+		if addon.PruneExpiredBossKillCaches then
+			addon.PruneExpiredBossKillCaches()
+		end
+		if not addon.resetInstancesHooked and hooksecurefunc and ResetInstances then
+			hooksecurefunc("ResetInstances", function()
+				if addon.HandleManualInstanceReset then
+					addon.HandleManualInstanceReset()
+				end
+			end)
+			addon.resetInstancesHooked = true
+		end
 		if RequestRaidInfo then
 			RequestRaidInfo()
 		end
@@ -5922,8 +6788,14 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
 		InitializeLootPanel()
 		CreateMinimapButton()
 		QueueLootPanelCacheWarmup()
+		if addon.ResumeDashboardBulkScanIfNeeded then
+			addon.ResumeDashboardBulkScanIfNeeded()
+		end
 	elseif event == "UPDATE_INSTANCE_INFO" then
 		CaptureSavedInstances()
+		if addon.PruneExpiredBossKillCaches then
+			addon.PruneExpiredBossKillCaches()
+		end
 		InvalidateLootDataCache()
 		if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
 			addon.RaidDashboard.InvalidateCache()
@@ -5972,15 +6844,150 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
 	end
 end)
 
-SLASH_TRANSMOGTRACKER1 = "/iit"
-SLASH_TRANSMOGTRACKER2 = "/tmtrack"
-SLASH_TRANSMOGTRACKER3 = "/transmogtracker"
-SlashCmdList.TRANSMOGTRACKER = function(msg)
-	local command = string.lower(strtrim(msg or ""))
+SLASH_MOGTRACKER1 = "/iit"
+SLASH_MOGTRACKER2 = "/tmtrack"
+SLASH_MOGTRACKER3 = "/mogtracker"
+SLASH_MOGTRACKER4 = "/transmogtracker"
+SlashCmdList.MOGTRACKER = function(msg)
+	local rawCommand = strtrim(msg or "")
+	local command = string.lower(rawCommand)
+	local debugTargetType, debugTargetQuery = rawCommand:match("^debug%s+(%a+)%s*=%s*(.+)$")
+	debugTargetType = debugTargetType and string.lower(debugTargetType) or nil
 	if command == "debug" then
 		CaptureAndShowDebugDump()
+		return
+	end
+	if command == "debug setboard" then
+		MogTrackerDB.debugTemp = type(MogTrackerDB.debugTemp) == "table" and MogTrackerDB.debugTemp or {}
+		local settings = MogTrackerDB.settings or {}
+		settings.debugLogSections = settings.debugLogSections or {}
+		settings.debugLogSections.setDashboardPreviewDebug = true
+		MogTrackerDB.settings = settings
+
+		lastDebugDump = DebugTools and DebugTools.CaptureSetDashboardPreviewDump and DebugTools.CaptureSetDashboardPreviewDump() or nil
+		if SetPanelView then
+			SetPanelView("debug")
+		end
+		RefreshPanelText()
+		panel:Show()
+		if C_Timer and C_Timer.After then
+			C_Timer.After(0, function()
+				if MogTrackerPanelScrollChild and panel and panel:IsShown() then
+					MogTrackerPanelScrollChild:SetFocus()
+					MogTrackerPanelScrollChild:HighlightText()
+				end
+			end)
+		else
+			if MogTrackerPanelScrollChild and panel and panel:IsShown() then
+				MogTrackerPanelScrollChild:SetFocus()
+				MogTrackerPanelScrollChild:HighlightText()
+			end
+		end
+		Print("Set dashboard preview debug collected. Press Ctrl+C to copy.")
+		return
+	end
+	if command == "debug sets" or debugTargetType == "sets" then
+		MogTrackerDB.debugTemp = type(MogTrackerDB.debugTemp) == "table" and MogTrackerDB.debugTemp or {}
+		local settings = MogTrackerDB.settings or {}
+		settings.debugLogSections = settings.debugLogSections or {}
+		settings.debugLogSections.setCategoryDebug = true
+		MogTrackerDB.settings = settings
+
+		local setQuery = debugTargetType == "sets" and debugTargetQuery or nil
+		lastDebugDump = DebugTools and DebugTools.CaptureSetCategoryDebugDump and DebugTools.CaptureSetCategoryDebugDump(setQuery) or nil
+		if SetPanelView then
+			SetPanelView("debug")
+		end
+		RefreshPanelText()
+		panel:Show()
+		if C_Timer and C_Timer.After then
+			C_Timer.After(0, function()
+				if MogTrackerPanelScrollChild and panel and panel:IsShown() then
+					MogTrackerPanelScrollChild:SetFocus()
+					MogTrackerPanelScrollChild:HighlightText()
+				end
+			end)
+		else
+			if MogTrackerPanelScrollChild and panel and panel:IsShown() then
+				MogTrackerPanelScrollChild:SetFocus()
+				MogTrackerPanelScrollChild:HighlightText()
+			end
+		end
+		if lastDebugDump and lastDebugDump.setCategoryDebug then
+			Print(string.format(
+				"Set category debug collected: matched %d / %d sets. Press Ctrl+C to copy.",
+				tonumber(lastDebugDump.setCategoryDebug.matchedSetCount) or 0,
+				tonumber(lastDebugDump.setCategoryDebug.totalSetCount) or 0
+			))
+		end
+		return
+	end
+	if debugTargetType == "dungeon" or debugTargetType == "raid" then
+		MogTrackerDB.debugTemp = type(MogTrackerDB.debugTemp) == "table" and MogTrackerDB.debugTemp or {}
+		local settings = MogTrackerDB.settings or {}
+		settings.debugLogSections = settings.debugLogSections or {}
+		settings.debugLogSections.dungeonDashboardDebug = true
+		MogTrackerDB.settings = settings
+
+		local instanceType = debugTargetType == "dungeon" and "party" or "raid"
+		lastDebugDump = DebugTools and DebugTools.CaptureDungeonDashboardDebugDump and DebugTools.CaptureDungeonDashboardDebugDump(debugTargetQuery, instanceType) or nil
+		if SetPanelView then
+			SetPanelView("debug")
+		end
+		RefreshPanelText()
+		panel:Show()
+		if C_Timer and C_Timer.After then
+			C_Timer.After(0, function()
+				if MogTrackerPanelScrollChild and panel and panel:IsShown() then
+					MogTrackerPanelScrollChild:SetFocus()
+					MogTrackerPanelScrollChild:HighlightText()
+				end
+			end)
+		else
+			if MogTrackerPanelScrollChild and panel and panel:IsShown() then
+				MogTrackerPanelScrollChild:SetFocus()
+				MogTrackerPanelScrollChild:HighlightText()
+			end
+		end
+		Print(string.format("%s dashboard debug collected. Press Ctrl+C to copy.", debugTargetType))
+		return
+	end
+	if command == "pvpsets" then
+		MogTrackerDB.debugTemp = type(MogTrackerDB.debugTemp) == "table" and MogTrackerDB.debugTemp or {}
+		local settings = MogTrackerDB.settings or {}
+		settings.debugLogSections = settings.debugLogSections or {}
+		settings.debugLogSections.pvpSetDebug = true
+		MogTrackerDB.settings = settings
+
+		lastDebugDump = DebugTools and DebugTools.CapturePvpSetDebugDump and DebugTools.CapturePvpSetDebugDump() or nil
+		if SetPanelView then
+			SetPanelView("debug")
+		end
+		RefreshPanelText()
+		panel:Show()
+		if C_Timer and C_Timer.After then
+			C_Timer.After(0, function()
+				if MogTrackerPanelScrollChild and panel and panel:IsShown() then
+					MogTrackerPanelScrollChild:SetFocus()
+					MogTrackerPanelScrollChild:HighlightText()
+				end
+			end)
+		else
+			if MogTrackerPanelScrollChild and panel and panel:IsShown() then
+				MogTrackerPanelScrollChild:SetFocus()
+				MogTrackerPanelScrollChild:HighlightText()
+			end
+		end
+		if lastDebugDump and lastDebugDump.pvpSetDebug then
+			Print(string.format(
+				"PVP set debug collected: matched %d / %d sets. Press Ctrl+C to copy.",
+				tonumber(lastDebugDump.pvpSetDebug.matchedKeywordCount) or 0,
+				tonumber(lastDebugDump.pvpSetDebug.totalSetCount) or 0
+			))
+		end
 		return
 	end
 	SetPanelView("config")
 	panel:Show()
 end
+
