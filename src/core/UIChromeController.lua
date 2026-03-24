@@ -130,12 +130,6 @@ function UIChromeController.CreateMinimapButton()
 			end
 			return
 		end
-		if IsShiftKeyDown and IsShiftKeyDown() then
-			if type(dependencies.ToggleDashboardPanel) == "function" then
-				dependencies.ToggleDashboardPanel("set")
-			end
-			return
-		end
 		if type(dependencies.ToggleLootPanel) == "function" then
 			dependencies.ToggleLootPanel()
 		end
@@ -514,11 +508,10 @@ function UIChromeController.ApplyElvUISkin()
 		if S.HandleButton and dashboardPanel.infoButton then
 			S:HandleButton(dashboardPanel.infoButton)
 		end
-		if S.HandleButton and dashboardPanel.setsModeButton then
-			S:HandleButton(dashboardPanel.setsModeButton)
-		end
-		if S.HandleButton and dashboardPanel.collectiblesModeButton then
-			S:HandleButton(dashboardPanel.collectiblesModeButton)
+		if S.HandleButton and dashboardPanel.viewButtons then
+			for _, button in pairs(dashboardPanel.viewButtons) do
+				S:HandleButton(button)
+			end
 		end
 		if S.HandleButton and dashboardPanel.bulkScanButton then
 			S:HandleButton(dashboardPanel.bulkScanButton)

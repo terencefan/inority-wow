@@ -74,6 +74,61 @@ local function StartDashboardBulkScan()
 	end
 end
 
+local DASHBOARD_VIEW_ORDER = {
+	"raid_sets",
+	"dungeon_sets",
+	"raid_collectibles",
+	"dungeon_collectibles",
+}
+
+local DASHBOARD_VIEW_DEFINITIONS = {
+	raid_sets = {
+		instanceType = "raid",
+		metricMode = "sets",
+		label = "团本套装",
+	},
+	dungeon_sets = {
+		instanceType = "party",
+		metricMode = "sets",
+		label = "地下城套装",
+	},
+	raid_collectibles = {
+		instanceType = "raid",
+		metricMode = "collectibles",
+		label = "团本散件",
+	},
+	dungeon_collectibles = {
+		instanceType = "party",
+		metricMode = "collectibles",
+		label = "地下城散件",
+	},
+}
+
+local function GetDashboardViewDefinition(viewKey)
+	return DASHBOARD_VIEW_DEFINITIONS[tostring(viewKey or "")] or DASHBOARD_VIEW_DEFINITIONS.raid_sets
+end
+
+local function EnsureDashboardViewState(dashboardPanel, fallbackInstanceType)
+	if not dashboardPanel then
+		return GetDashboardViewDefinition("raid_sets"), "raid_sets"
+	end
+
+	local normalizedView = tostring(dashboardPanel.dashboardViewKey or "")
+	if not DASHBOARD_VIEW_DEFINITIONS[normalizedView] then
+		if tostring(fallbackInstanceType or dashboardPanel.dashboardInstanceType or "raid") == "party" then
+			normalizedView = "dungeon_sets"
+		else
+			normalizedView = "raid_sets"
+		end
+	end
+
+	local definition = GetDashboardViewDefinition(normalizedView)
+	dashboardPanel.dashboardViewKey = normalizedView
+	dashboardPanel.dashboardInstanceType = definition.instanceType
+	dashboardPanel.dashboardMetricMode = definition.metricMode
+	return definition, normalizedView
+end
+
 function DashboardPanelController.UpdateDashboardPanelLayout()
 	local dashboardPanel = GetDashboardPanel()
 	if not dashboardPanel then
@@ -84,15 +139,33 @@ function DashboardPanelController.UpdateDashboardPanelLayout()
 	if dashboardPanel.content then
 		dashboardPanel.content:SetWidth(contentWidth)
 	end
-	if dashboardPanel.setsModeButton and dashboardPanel.collectiblesModeButton then
-		dashboardPanel.setsModeButton:ClearAllPoints()
-		dashboardPanel.setsModeButton:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 12)
-		dashboardPanel.collectiblesModeButton:ClearAllPoints()
-		dashboardPanel.collectiblesModeButton:SetPoint("LEFT", dashboardPanel.setsModeButton, "RIGHT", 6, 0)
+	if dashboardPanel.viewButtons then
+		local previousButton = nil
+		for _, viewKey in ipairs(DASHBOARD_VIEW_ORDER) do
+			local button = dashboardPanel.viewButtons[viewKey]
+			if button then
+				button:ClearAllPoints()
+				if previousButton then
+					button:SetPoint("LEFT", previousButton, "RIGHT", 6, 0)
+				else
+					button:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 12)
+				end
+				previousButton = button
+			end
+		end
 	end
-	if dashboardPanel.bulkScanButton and dashboardPanel.collectiblesModeButton then
-		dashboardPanel.bulkScanButton:ClearAllPoints()
-		dashboardPanel.bulkScanButton:SetPoint("LEFT", dashboardPanel.collectiblesModeButton, "RIGHT", 8, 0)
+	if dashboardPanel.bulkScanButton then
+		local anchorButton = nil
+		if dashboardPanel.viewButtons then
+			anchorButton = dashboardPanel.viewButtons.dungeon_collectibles
+		end
+		if anchorButton then
+			dashboardPanel.bulkScanButton:ClearAllPoints()
+			dashboardPanel.bulkScanButton:SetPoint("LEFT", anchorButton, "RIGHT", 8, 0)
+		else
+			dashboardPanel.bulkScanButton:ClearAllPoints()
+			dashboardPanel.bulkScanButton:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 12)
+		end
 	end
 	if dashboardPanel.scrollFrame then
 		dashboardPanel.scrollFrame:ClearAllPoints()
@@ -107,44 +180,24 @@ function DashboardPanelController.RefreshDashboardPanel()
 	if not dashboardPanel or not dashboardPanel.content or not dashboardPanel.scrollFrame then
 		return
 	end
-	local instanceType = dashboardPanel.dashboardInstanceType or "raid"
-	local metricMode = dashboardPanel.dashboardMetricMode == "collectibles" and "collectibles" or "sets"
+	local activeView, activeViewKey = EnsureDashboardViewState(dashboardPanel)
 	if dashboardPanel.title then
-		dashboardPanel.title:SetText(addon.GetDashboardTitle(instanceType))
+		dashboardPanel.title:SetText(T("TRACK_HEADER_UNIFIED", "幻化统计看板"))
 	end
 	if dashboardPanel.subtitle then
-		dashboardPanel.subtitle:SetText(addon.GetDashboardSubtitle(instanceType))
+		dashboardPanel.subtitle:SetText(T("DASHBOARD_SUBTITLE_UNIFIED", "在团本套装、地下城套装、团本散件、地下城散件四个视图之间切换；仅显示已缓存的副本统计。"))
 	end
-	if dashboardPanel.setsModeButton then
-		dashboardPanel.setsModeButton:SetEnabled(metricMode ~= "sets")
-		dashboardPanel.setsModeButton:SetShown(instanceType ~= "pvp" and instanceType ~= "set")
-	end
-	if dashboardPanel.collectiblesModeButton then
-		dashboardPanel.collectiblesModeButton:SetEnabled(metricMode ~= "collectibles")
-		dashboardPanel.collectiblesModeButton:SetShown(instanceType ~= "pvp" and instanceType ~= "set")
+	if dashboardPanel.viewButtons then
+		for viewKey, button in pairs(dashboardPanel.viewButtons) do
+			button:SetEnabled(viewKey ~= activeViewKey)
+			button:SetShown(true)
+		end
 	end
 	if dashboardPanel.bulkScanButton then
 		dashboardPanel.bulkScanButton:SetEnabled(not (addon.dashboardBulkScanState and addon.dashboardBulkScanState.active))
 		dashboardPanel.bulkScanButton:SetShown(false)
 	end
-	if instanceType == "set" then
-		if addon.RaidDashboard and addon.RaidDashboard.HideWidgets then
-			addon.RaidDashboard.HideWidgets(dashboardPanel)
-		end
-		if addon.SetDashboard and addon.SetDashboard.RenderContent then
-			addon.SetDashboard.RenderContent(dashboardPanel, dashboardPanel.content, dashboardPanel.scrollFrame)
-		end
-	elseif instanceType == "pvp" then
-		if addon.SetDashboard and addon.SetDashboard.HideWidgets then
-			addon.SetDashboard.HideWidgets(dashboardPanel)
-		end
-		if addon.RaidDashboard and addon.RaidDashboard.HideWidgets then
-			addon.RaidDashboard.HideWidgets(dashboardPanel)
-		end
-		if addon.PvpDashboard and addon.PvpDashboard.RenderContent then
-			addon.PvpDashboard.RenderContent(dashboardPanel, dashboardPanel.content, dashboardPanel.scrollFrame)
-		end
-	elseif addon.RaidDashboard and addon.RaidDashboard.RenderContent then
+	if addon.RaidDashboard and addon.RaidDashboard.RenderContent then
 		if addon.SetDashboard and addon.SetDashboard.HideWidgets then
 			addon.SetDashboard.HideWidgets(dashboardPanel)
 		end
@@ -157,22 +210,18 @@ end
 
 function DashboardPanelController.ShowDashboardInfoTooltip(owner)
 	local dashboardPanel = GetDashboardPanel()
-	local dashboardType = dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"
+	local activeView = EnsureDashboardViewState(dashboardPanel)
 	GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
 	GameTooltip:ClearLines()
-	if dashboardType == "party" then
-		GameTooltip:AddLine(T("TRACK_HEADER_DUNGEON", "地下城幻化统计看板"), 1, 0.82, 0)
-		GameTooltip:AddLine(T("DASHBOARD_SUBTITLE_DUNGEON", "仅显示已缓存的地下城。使用下方按钮切换统计指标。"), 1, 1, 1, true)
-	elseif dashboardType == "set" then
-		GameTooltip:AddLine(T("TRACK_HEADER_SETS", "套装幻化统计看板"), 1, 0.82, 0)
-		GameTooltip:AddLine(T("DASHBOARD_SUBTITLE_SETS", "按团队副本、地下城、PVP、其他四类切换浏览全部套装，并在每个分类内按资料片汇总职业收集进度。"), 1, 1, 1, true)
-	elseif dashboardType == "pvp" then
-		GameTooltip:AddLine(T("TRACK_HEADER_PVP", "PVP 幻化统计看板"), 1, 0.82, 0)
-		GameTooltip:AddLine(T("DASHBOARD_SUBTITLE_PVP", "按资料片和赛季统计 PVP 套装收集进度。列按当前职业筛选显示；若未勾选职业则显示全部职业。"), 1, 1, 1, true)
+	if activeView.metricMode == "collectibles" then
+		GameTooltip:AddLine(T("TRACK_HEADER_UNIFIED", "幻化统计看板"), 1, 0.82, 0)
+		GameTooltip:AddLine(T("DASHBOARD_TOOLTIP_COLLECTIBLES", "当前视图统计散件收集进度。点击底部按钮可在团本/地下城与套装/散件视图之间切换。"), 1, 1, 1, true)
 	else
-		GameTooltip:AddLine(T("TRACK_HEADER", "团队副本幻化统计看板"), 1, 0.82, 0)
-		GameTooltip:AddLine(T("DASHBOARD_SUBTITLE", "仅显示已缓存的团队副本。使用下方按钮切换统计指标。"), 1, 1, 1, true)
+		GameTooltip:AddLine(T("TRACK_HEADER_UNIFIED", "幻化统计看板"), 1, 0.82, 0)
+		GameTooltip:AddLine(T("DASHBOARD_TOOLTIP_SETS", "当前视图统计套装部件与整套完成度。点击底部按钮可在团本/地下城与套装/散件视图之间切换。"), 1, 1, 1, true)
 	end
+	GameTooltip:AddLine(" ")
+	GameTooltip:AddLine(string.format("%s: %s", T("DASHBOARD_CURRENT_VIEW", "当前视图"), T(activeView.label, activeView.label)), 0.90, 0.90, 0.90, true)
 	GameTooltip:Show()
 end
 
@@ -299,31 +348,29 @@ function DashboardPanelController.InitializeDashboardPanel()
 	dashboardPanel.title:SetPoint("RIGHT", dashboardPanel.refreshButton, "LEFT", -8, 0)
 	dashboardPanel.title:SetJustifyH("LEFT")
 	dashboardPanel.title:SetWordWrap(false)
-	dashboardPanel.title:SetText(addon.GetDashboardTitle("raid"))
+	dashboardPanel.title:SetText(T("TRACK_HEADER_UNIFIED", "幻化统计看板"))
 	dashboardPanel.subtitle = dashboardPanel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	dashboardPanel.subtitle:SetPoint("TOPLEFT", dashboardPanel, "TOPLEFT", 12, -28)
 	dashboardPanel.subtitle:SetPoint("TOPRIGHT", dashboardPanel, "TOPRIGHT", -16, -28)
 	dashboardPanel.subtitle:SetJustifyH("LEFT")
-	dashboardPanel.subtitle:SetText(addon.GetDashboardSubtitle("raid"))
+	dashboardPanel.subtitle:SetText(T("DASHBOARD_SUBTITLE_UNIFIED", "在团本套装、地下城套装、团本散件、地下城散件四个视图之间切换；仅显示已缓存的副本统计。"))
 	dashboardPanel.subtitle:Hide()
-	dashboardPanel.dashboardMetricMode = dashboardPanel.dashboardMetricMode or "sets"
-	dashboardPanel.dashboardInstanceType = dashboardPanel.dashboardInstanceType or "raid"
-	dashboardPanel.dashboardSetTab = dashboardPanel.dashboardSetTab or "raid"
-
-	dashboardPanel.setsModeButton = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
-	dashboardPanel.setsModeButton:SetSize(62, 20)
-	dashboardPanel.setsModeButton:SetText(T("DASHBOARD_SETS", "套装散件"))
-	dashboardPanel.setsModeButton:SetScript("OnClick", function()
-		dashboardPanel.dashboardMetricMode = "sets"
-		DashboardPanelController.RefreshDashboardPanel()
-	end)
-	dashboardPanel.collectiblesModeButton = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
-	dashboardPanel.collectiblesModeButton:SetSize(74, 20)
-	dashboardPanel.collectiblesModeButton:SetText(T("DASHBOARD_ALL_ITEMS", "所有散件"))
-	dashboardPanel.collectiblesModeButton:SetScript("OnClick", function()
-		dashboardPanel.dashboardMetricMode = "collectibles"
-		DashboardPanelController.RefreshDashboardPanel()
-	end)
+	dashboardPanel.dashboardViewKey = dashboardPanel.dashboardViewKey or "raid_sets"
+	EnsureDashboardViewState(dashboardPanel)
+	dashboardPanel.viewButtons = dashboardPanel.viewButtons or {}
+	for _, viewKey in ipairs(DASHBOARD_VIEW_ORDER) do
+		local viewDefinition = GetDashboardViewDefinition(viewKey)
+		local button = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
+		button:SetHeight(20)
+		button:SetWidth(viewKey == "dungeon_collectibles" and 84 or (viewKey == "raid_collectibles" and 72 or 66))
+		button:SetText(T(viewDefinition.label, viewDefinition.label))
+		button:SetScript("OnClick", function()
+			dashboardPanel.dashboardViewKey = viewKey
+			EnsureDashboardViewState(dashboardPanel)
+			DashboardPanelController.RefreshDashboardPanel()
+		end)
+		dashboardPanel.viewButtons[viewKey] = button
+	end
 	dashboardPanel.bulkScanButton = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
 	dashboardPanel.bulkScanButton:SetSize(84, 20)
 	dashboardPanel.bulkScanButton:SetText(T("DASHBOARD_BUTTON_BULK_SCAN", "全量扫描"))
@@ -371,12 +418,18 @@ end
 function DashboardPanelController.ToggleDashboardPanel(instanceType)
 	DashboardPanelController.InitializeDashboardPanel()
 	local dashboardPanel = GetDashboardPanel()
-	if instanceType ~= "party" and instanceType ~= "pvp" and instanceType ~= "set" then
-		instanceType = "raid"
+	local requestedViewKey
+	if instanceType == "party" then
+		requestedViewKey = "dungeon_sets"
+	elseif instanceType == "raid" or instanceType == nil then
+		requestedViewKey = "raid_sets"
+	else
+		requestedViewKey = dashboardPanel.dashboardViewKey or "raid_sets"
 	end
-	local sameType = dashboardPanel.dashboardInstanceType == instanceType
-	dashboardPanel.dashboardInstanceType = instanceType
-	if dashboardPanel:IsShown() and sameType then
+	local sameView = dashboardPanel.dashboardViewKey == requestedViewKey
+	dashboardPanel.dashboardViewKey = requestedViewKey
+	EnsureDashboardViewState(dashboardPanel, instanceType)
+	if dashboardPanel:IsShown() and sameView then
 		dashboardPanel:Hide()
 		return
 	end

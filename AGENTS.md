@@ -840,3 +840,10 @@
 - Root cause: in Lua, `""` is truthy, so empty strings bypass `or`-based fallback logic and survive normalization as if they were valid values.
 - Repair pattern: when normalizing persisted text fields, coerce `""` explicitly to `nil` or to the intended fallback sentinel before storing the normalized value.
 - Preventative check: for any SavedVariables normalization path, test both `nil` and `""` inputs; if they should behave the same, handle them explicitly rather than relying on `or`.
+
+### Aggregate rows need the same unionable payload as detail rows
+
+- Symptom: higher-level summary rows such as expansion headers show `-` or `0/0` for one metric family even though detail rows beneath them have valid counts.
+- Root cause: the detail-row serializer only preserved precomputed totals and dropped the underlying unionable payload (for example `collectibles` maps), so the next aggregation layer had nothing real to merge.
+- Repair pattern: when one summary layer aggregates another, carry both the displayed counts and the raw set/map payload needed for re-unioning at the next level.
+- Preventative check: if a row type can feed a higher-level summary, verify its exported shape contains every collection/map field that the aggregator unions, not just the already-formatted totals.

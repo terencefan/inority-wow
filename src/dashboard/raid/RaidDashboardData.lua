@@ -587,6 +587,7 @@ local function BuildInstanceMatrixEntry(entry, difficultyID, classFiles)
 			collectibleTotal = collectibleTotal,
 			setIDs = CopyBooleanSet(classEntry.setIDs),
 			setPieces = CopySetPieces(classEntry.setPieces),
+			collectibles = CopyCollectibles(classEntry.collectibles),
 		}
 	end
 
@@ -621,6 +622,7 @@ local function BuildInstanceMatrixEntry(entry, difficultyID, classFiles)
 			collectibleTotal = totalCollectibleTotal,
 			setIDs = CopyBooleanSet(totalEntry.setIDs),
 			setPieces = CopySetPieces(totalEntry.setPieces),
+			collectibles = CopyCollectibles(totalEntry.collectibles),
 		},
 	}
 end
@@ -636,6 +638,7 @@ local function BuildExpansionMatrixEntry(expansionName, classFiles, bucketsByCla
 			collectibleTotal = tonumber(union.collectibleTotal) or 0,
 			setIDs = CopyBooleanSet(union.setIDs),
 			setPieces = CopySetPieces(union.setPieces),
+			collectibles = CopyCollectibles(union.collectibles),
 		}
 	end
 
@@ -651,6 +654,7 @@ local function BuildExpansionMatrixEntry(expansionName, classFiles, bucketsByCla
 			collectibleTotal = tonumber(totalUnion.collectibleTotal) or 0,
 			setIDs = CopyBooleanSet(totalUnion.setIDs),
 			setPieces = CopySetPieces(totalUnion.setPieces),
+			collectibles = CopyCollectibles(totalUnion.collectibles),
 		},
 	}
 end

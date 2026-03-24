@@ -25,7 +25,7 @@ local ToggleExpansionCollapsed = Shared.ToggleExpansionCollapsed
 local GetColumnInstanceLabel = Shared.GetColumnInstanceLabel
 local GetDashboardEmptyMessage = Shared.GetDashboardEmptyMessage
 local BuildExpansionMatrixEntry = RaidDashboard.BuildExpansionMatrixEntry
-local ShowSetMetricTooltip = RaidDashboard.ShowSetMetricTooltip
+local ShowDashboardMetricTooltip = RaidDashboard.ShowDashboardMetricTooltip or RaidDashboard.ShowSetMetricTooltip
 
 function RaidDashboard.HideWidgets(owner)
 	local dashboardUI = owner and owner.dashboardUI
@@ -84,19 +84,41 @@ function RaidDashboard.RenderContent(owner, content, scrollFrame)
 	do
 		local filteredRows = {}
 		local dashboardInstanceType = GetDashboardInstanceType()
+		local currentExpansionRow = nil
+		local currentExpansionBucketsByClass = nil
+		local currentExpansionTotalBuckets = nil
 		for _, rowInfo in ipairs(rows) do
 			if rowInfo.type == "expansion" then
 				local expansionRowCopy = {}
 				for key, value in pairs(rowInfo) do
 					expansionRowCopy[key] = value
 				end
+				currentExpansionRow = expansionRowCopy
+				currentExpansionBucketsByClass = {}
+				for _, classFile in ipairs(classFiles) do
+					currentExpansionBucketsByClass[classFile] = {}
+				end
+				currentExpansionTotalBuckets = {}
 				filteredRows[#filteredRows + 1] = expansionRowCopy
 			elseif rowInfo.type == "instance" then
 				local visibleDifficultyRows = {}
+				local summaryDifficultyRows = {}
 				for _, difficultyRowInfo in ipairs(rowInfo.difficultyRows or {}) do
 					if dashboardInstanceType ~= "party" or MetricMatchesCurrentMode(difficultyRowInfo.total) then
+						summaryDifficultyRows[#summaryDifficultyRows + 1] = difficultyRowInfo
 						visibleDifficultyRows[#visibleDifficultyRows + 1] = difficultyRowInfo
 					end
+				end
+				if currentExpansionRow and currentExpansionBucketsByClass and currentExpansionTotalBuckets then
+					for _, difficultyRowInfo in ipairs(summaryDifficultyRows) do
+						for _, classFile in ipairs(classFiles) do
+							currentExpansionBucketsByClass[classFile][#currentExpansionBucketsByClass[classFile] + 1] = difficultyRowInfo.byClass and difficultyRowInfo.byClass[classFile] or nil
+						end
+						currentExpansionTotalBuckets[#currentExpansionTotalBuckets + 1] = difficultyRowInfo.total
+					end
+					local summary = BuildExpansionMatrixEntry(currentExpansionRow.expansionName, classFiles, currentExpansionBucketsByClass, currentExpansionTotalBuckets)
+					currentExpansionRow.byClass = summary.byClass
+					currentExpansionRow.total = summary.total
 				end
 				if #visibleDifficultyRows > 0 then
 					local rowCopy = {}
@@ -108,30 +130,6 @@ function RaidDashboard.RenderContent(owner, content, scrollFrame)
 				end
 			else
 				filteredRows[#filteredRows + 1] = rowInfo
-			end
-		end
-
-		local currentExpansionRow = nil
-		local currentExpansionBucketsByClass = nil
-		local currentExpansionTotalBuckets = nil
-		for _, rowInfo in ipairs(filteredRows) do
-			if rowInfo.type == "expansion" then
-				currentExpansionRow = rowInfo
-				currentExpansionBucketsByClass = {}
-				for _, classFile in ipairs(classFiles) do
-					currentExpansionBucketsByClass[classFile] = {}
-				end
-				currentExpansionTotalBuckets = {}
-			elseif rowInfo.type == "instance" and currentExpansionRow and currentExpansionBucketsByClass and currentExpansionTotalBuckets then
-				for _, difficultyRowInfo in ipairs(rowInfo.difficultyRows or {}) do
-					for _, classFile in ipairs(classFiles) do
-						currentExpansionBucketsByClass[classFile][#currentExpansionBucketsByClass[classFile] + 1] = difficultyRowInfo.byClass and difficultyRowInfo.byClass[classFile] or nil
-					end
-					currentExpansionTotalBuckets[#currentExpansionTotalBuckets + 1] = difficultyRowInfo.total
-				end
-				local summary = BuildExpansionMatrixEntry(currentExpansionRow.expansionName, classFiles, currentExpansionBucketsByClass, currentExpansionTotalBuckets)
-				currentExpansionRow.byClass = summary.byClass
-				currentExpansionRow.total = summary.total
 			end
 		end
 		rows = filteredRows
@@ -229,9 +227,9 @@ local function GetMetricParts(metric)
 		else
 			cell:SetScript("OnMouseUp", nil)
 		end
-		if metricMode == "sets" then
+		if metricMode == "sets" or metricMode == "collectibles" then
 			cell:SetScript("OnEnter", function(self)
-				ShowSetMetricTooltip(self, clickRowInfo or metric and metric.rowInfo, columnLabel, metric, scopeClassFile)
+				ShowDashboardMetricTooltip(self, clickRowInfo or metric and metric.rowInfo, columnLabel, metric, scopeClassFile, metricMode)
 			end)
 			cell:SetScript("OnLeave", function()
 				GameTooltip:Hide()
@@ -402,9 +400,9 @@ local function GetMetricParts(metric)
 				classCell.topText:SetText(valueText)
 				ApplyMetricColor(classCell.topText, collected, total, defaultR, defaultG, defaultB)
 				classCell:SetScript("OnMouseUp", nil)
-				if metricMode == "sets" then
+				if metricMode == "sets" or metricMode == "collectibles" then
 					classCell:SetScript("OnEnter", function(self)
-						ShowSetMetricTooltip(self, rowInfo, GetClassDisplayName(classFile), classMetric, classFile)
+						ShowDashboardMetricTooltip(self, rowInfo, GetClassDisplayName(classFile), classMetric, classFile, metricMode)
 					end)
 					classCell:SetScript("OnLeave", function()
 						GameTooltip:Hide()
@@ -430,9 +428,9 @@ local function GetMetricParts(metric)
 			totalCell.topText:SetText(totalValueText)
 			ApplyMetricColor(totalCell.topText, totalCollected, totalTotal, totalR, totalG, totalB)
 			totalCell:SetScript("OnMouseUp", nil)
-			if metricMode == "sets" then
+			if metricMode == "sets" or metricMode == "collectibles" then
 				totalCell:SetScript("OnEnter", function(self)
-					ShowSetMetricTooltip(self, rowInfo, Translate("DASHBOARD_TOTAL", "Total"), totalMetric, nil)
+					ShowDashboardMetricTooltip(self, rowInfo, Translate("DASHBOARD_TOTAL", "Total"), totalMetric, nil, metricMode)
 				end)
 				totalCell:SetScript("OnLeave", function()
 					GameTooltip:Hide()
