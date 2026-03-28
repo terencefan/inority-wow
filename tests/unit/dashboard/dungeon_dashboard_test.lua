@@ -1,16 +1,45 @@
 local addon = {}
 
 assert(loadfile("src/core/API.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardShared.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardData.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardTooltip.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboard.lua"))("MogTracker", addon)
+assert(loadfile("src/core/DerivedSummaryStore.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardShared.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardData.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardTooltip.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboard.lua"))("MogTracker", addon)
 
 local RaidDashboard = assert(addon.RaidDashboard)
+local SummaryStore = assert(addon.DerivedSummaryStore)
 
-local raidCache = { entries = {} }
-local dungeonCache = { entries = {} }
 local currentDashboardType = "raid"
+local stores = {}
+
+local function buildStore(instanceType)
+	return {
+		summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey(instanceType, false),
+		instanceType = instanceType,
+		rulesVersion = SummaryStore.GetRulesVersion("dashboardSummaryScope"),
+		collectSameAppearance = false,
+		revision = 0,
+		instances = {},
+		buckets = {},
+		scanManifest = {},
+		membershipIndex = {
+			summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey(instanceType, false),
+			byItemID = {},
+			bySourceID = {},
+			byAppearanceID = {},
+			bySetID = {},
+		},
+		reconcileQueue = {
+			summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey(instanceType, false),
+			order = {},
+			entries = {},
+		},
+	}
+end
+
+stores.raid = buildStore("raid")
+stores.party = buildStore("party")
 
 _G.time = function()
 	return 1
@@ -27,10 +56,15 @@ RaidDashboard.Configure({
 		return currentDashboardType
 	end,
 	getStoredCache = function(instanceType)
-		if instanceType == "party" then
-			return dungeonCache
-		end
-		return raidCache
+		return stores[tostring(instanceType or "raid")]
+	end,
+	ensureStoredCache = function(instanceType)
+		local key = tostring(instanceType or "raid")
+		stores[key] = stores[key] or buildStore(key)
+		return stores[key]
+	end,
+	refreshDashboardPanel = function()
+		return nil
 	end,
 	getExpansionInfoForInstance = function(selection)
 		return {
@@ -128,8 +162,8 @@ assert(RaidDashboard.UpdateSnapshot({
 	classFiles = { "PRIEST" },
 }) == true)
 
-assert(next(raidCache.entries) ~= nil, "expected raid cache entry")
-assert(next(dungeonCache.entries) ~= nil, "expected dungeon cache entry")
+assert(next(stores.raid.instances) ~= nil, "expected raid store instance")
+assert(next(stores.party.instances) ~= nil, "expected dungeon store instance")
 
 currentDashboardType = "raid"
 local raidData = RaidDashboard.BuildData()

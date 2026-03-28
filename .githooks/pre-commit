@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+check_script="$repo_root/tools/check.ps1"
+
+if command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoProfile -ExecutionPolicy Bypass -File "$check_script"
+elif command -v powershell >/dev/null 2>&1; then
+  powershell -NoProfile -ExecutionPolicy Bypass -File "$check_script"
+else
+  echo "MogTracker pre-commit: neither 'pwsh' nor 'powershell' is available." >&2
+  exit 1
+fi

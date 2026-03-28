@@ -56,12 +56,6 @@ local function InvalidateLootDataCache()
 	end
 end
 
-local function InvalidateLootPanelSelectionCache()
-	if type(dependencies.InvalidateLootPanelSelectionCache) == "function" then
-		dependencies.InvalidateLootPanelSelectionCache()
-	end
-end
-
 local function CaptureAndShowDebugDump()
 	if type(dependencies.CaptureAndShowDebugDump) == "function" then
 		dependencies.CaptureAndShowDebugDump()
@@ -304,7 +298,6 @@ function ConfigPanelController.InitializePanelNavigation()
 	MogTrackerPanelNavConfigButton:SetText(T("NAV_CONFIG", "General"))
 	MogTrackerPanelNavClassButton:SetText(T("NAV_CLASS", "Classes"))
 	MogTrackerPanelNavLootButton:SetText(T("NAV_LOOT", "Loot Types"))
-	MogTrackerPanelNavDebugButton:SetText(T("NAV_DEBUG", "Debug"))
 
 	MogTrackerPanelNavConfigButton:ClearAllPoints()
 	MogTrackerPanelNavConfigButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -102)
@@ -312,8 +305,6 @@ function ConfigPanelController.InitializePanelNavigation()
 	MogTrackerPanelNavClassButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -164)
 	MogTrackerPanelNavLootButton:ClearAllPoints()
 	MogTrackerPanelNavLootButton:SetPoint("TOPLEFT", MogTrackerPanelNavClassButton, "BOTTOMLEFT", 0, -8)
-	MogTrackerPanelNavDebugButton:ClearAllPoints()
-	MogTrackerPanelNavDebugButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -250)
 end
 
 function ConfigPanelController.SetPanelView(view)
@@ -322,9 +313,7 @@ function ConfigPanelController.SetPanelView(view)
 		return
 	end
 
-	if view == "debug" then
-		SetCurrentPanelView("debug")
-	elseif view == "classes" then
+	if view == "classes" then
 		SetCurrentPanelView("classes")
 	elseif view == "loot" then
 		SetCurrentPanelView("loot")
@@ -333,7 +322,6 @@ function ConfigPanelController.SetPanelView(view)
 	end
 
 	local currentPanelView = GetCurrentPanelView()
-	local isDebug = currentPanelView == "debug"
 	local isClasses = currentPanelView == "classes"
 	local isLoot = currentPanelView == "loot"
 	local isConfig = currentPanelView == "config"
@@ -343,7 +331,6 @@ function ConfigPanelController.SetPanelView(view)
 	local classScrollChild = MogTrackerPanelClassScrollChild
 	local itemScrollFrame = MogTrackerPanelItemScrollFrame
 	local itemScrollChild = MogTrackerPanelItemScrollChild
-	local debugSectionHeader = panel.debugLogSectionsHeader
 
 	MogTrackerPanelConfigHeader:SetShown(isConfig)
 	if MogTrackerPanelConfigDescription then
@@ -368,39 +355,22 @@ function ConfigPanelController.SetPanelView(view)
 	itemScrollFrame:SetShown(isLoot)
 	itemScrollChild:SetShown(isLoot)
 	MogTrackerPanelResetButton:SetShown(false)
-	scrollFrame:SetShown(isDebug)
-	scrollChild:SetShown(isDebug)
-	MogTrackerPanelListHeader:SetShown(isDebug)
-	MogTrackerPanelListHeader:SetText(T("DEBUG_HEADER", "Debug Output"))
-	if debugSectionHeader then
-		debugSectionHeader:SetShown(isDebug)
-	end
-	for _, button in ipairs(panel.debugLogSectionButtons or {}) do
-		button:SetShown(isDebug)
-		if button.text then
-			button.text:SetShown(isDebug)
-		end
-	end
-	MogTrackerPanelRefreshButton:SetText(isDebug and T("BUTTON_COLLECT_DEBUG", "Collect Logs") or T("BUTTON_REFRESH", "Refresh"))
-	MogTrackerPanelRefreshButton:SetShown(isDebug)
+	scrollFrame:SetShown(false)
+	scrollChild:SetShown(false)
+	MogTrackerPanelListHeader:SetShown(false)
+	MogTrackerPanelRefreshButton:SetText(T("BUTTON_REFRESH", "Refresh"))
+	MogTrackerPanelRefreshButton:SetShown(true)
 	scrollFrame:SetScrollChild(scrollChild)
 
 	MogTrackerPanelNavConfigButton:SetEnabled(not isConfig)
 	MogTrackerPanelNavClassButton:SetEnabled(not isClasses)
 	MogTrackerPanelNavLootButton:SetEnabled(not isLoot)
-	MogTrackerPanelNavDebugButton:SetEnabled(not isDebug)
 
 	scrollFrame:ClearAllPoints()
 	classScrollFrame:ClearAllPoints()
 	itemScrollFrame:ClearAllPoints()
 	MogTrackerPanelListHeader:ClearAllPoints()
-	if isDebug then
-		local debugLayout = dependencies.GetDebugLogSectionLayout()
-		MogTrackerPanelListHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, debugLayout.listHeaderOffset)
-		scrollFrame:SetSize(500, debugLayout.scrollHeight)
-		scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, debugLayout.scrollTopOffset)
-		scrollChild:SetWidth(478)
-	elseif isClasses then
+	if isClasses then
 		MogTrackerPanelClassHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
 		classScrollFrame:SetSize(456, 176)
 		classScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -84)
@@ -458,9 +428,6 @@ function ConfigPanelController.SetPanelView(view)
 
 	ConfigPanelController.UpdateClassFilterUI(GetSettings())
 	ConfigPanelController.UpdateLootTypeFilterUI(GetSettings())
-	if addon.UpdateDebugLogSectionUI then
-		addon.UpdateDebugLogSectionUI(GetSettings())
-	end
 	RefreshPanelText()
 end
 
@@ -480,16 +447,30 @@ function ConfigPanelController.InitializePanel()
 	settings.showExpired = false
 
 	panel:SetFrameStrata("DIALOG")
+	if panel.SetToplevel then
+		panel:SetToplevel(true)
+	end
 	panel:SetClampedToScreen(true)
+	panel:HookScript("OnShow", function(self)
+		if self.Raise then
+			self:Raise()
+		end
+	end)
+	panel:HookScript("OnMouseDown", function(self)
+		if self.Raise then
+			self:Raise()
+		end
+	end)
 	dependencies.ApplyDefaultPanelStyle()
 
 	MogTrackerPanelTitle:SetText(T("ADDON_TITLE", "幻化追踪"))
 	MogTrackerPanelSubtitle:SetText(T("ADDON_SUBTITLE", "Lightweight dungeon and raid lockout tracking for your characters."))
-	local addonVersion = dependencies.GetAddonMetadataCompat(dependencies.addonName, "Version") or "0.0.0"
+	local addonVersion = dependencies.GetAddonMetadata(dependencies.addonName, "Version") or "0.0.0"
 	MogTrackerPanelFooter:SetText(string.format("%s · v%s", T("PANEL_FOOTER", "MogTracker，风之小祈是 Vibe coder"), tostring(addonVersion)))
 	MogTrackerPanelNavHeader:SetText(T("NAV_SECTIONS", "Sections"))
 	MogTrackerPanelNavFiltersHeader:SetText(T("NAV_FILTERS", "Filters"))
-	MogTrackerPanelNavDebugHeader:SetText(T("NAV_DEBUG_GROUP", "Debug"))
+	MogTrackerPanelNavDebugHeader:Hide()
+	MogTrackerPanelNavDebugButton:Hide()
 	ConfigPanelController.InitializePanelNavigation()
 	MogTrackerPanelConfigHeader:SetText(T("CONFIG_HEADER", "Config"))
 	if MogTrackerPanelConfigDescription then
@@ -534,15 +515,14 @@ function ConfigPanelController.InitializePanel()
 	_G["MogTrackerPanelCheckbox1Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_TRANSMOG", "Hide collected appearances"))
 	_G["MogTrackerPanelCheckbox2Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_MOUNTS", "Hide collected mounts"))
 	_G["MogTrackerPanelCheckbox3Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_PETS", "Hide collected pets"))
-	MogTrackerPanelCheckbox1:SetChecked(settings.hideCollectedTransmog)
+	settings.hideCollectedTransmog = true
+	MogTrackerPanelCheckbox1:SetChecked(true)
 	MogTrackerPanelCheckbox2:SetChecked(settings.hideCollectedMounts)
 	MogTrackerPanelCheckbox3:SetChecked(settings.hideCollectedPets)
 	MogTrackerPanelStyleDropdownButton:SetText(dependencies.GetPanelStyleLabel(settings.panelStyle))
 
-	MogTrackerPanelCheckbox1:SetScript("OnClick", function(self)
-		settings.hideCollectedTransmog = self:GetChecked() and true or false
-		RefreshLootPanel()
-	end)
+	MogTrackerPanelCheckbox1:Disable()
+	MogTrackerPanelCheckbox1:SetScript("OnClick", nil)
 	MogTrackerPanelCheckbox2:SetScript("OnClick", function(self)
 		settings.hideCollectedMounts = self:GetChecked() and true or false
 		RefreshLootPanel()
@@ -577,19 +557,11 @@ function ConfigPanelController.InitializePanel()
 	MogTrackerPanelItemScrollChild:SetSize(196, 328)
 	MogTrackerPanelItemScrollFrame:SetScrollChild(MogTrackerPanelItemScrollChild)
 	ConfigPanelController.UpdateLootTypeFilterUI(settings)
-	if addon.UpdateDebugLogSectionUI then
-		addon.UpdateDebugLogSectionUI(settings)
-	end
 
 	MogTrackerPanelNavConfigButton:SetScript("OnClick", function() ConfigPanelController.SetPanelView("config") end)
 	MogTrackerPanelNavClassButton:SetScript("OnClick", function() ConfigPanelController.SetPanelView("classes") end)
 	MogTrackerPanelNavLootButton:SetScript("OnClick", function() ConfigPanelController.SetPanelView("loot") end)
-	MogTrackerPanelNavDebugButton:SetScript("OnClick", function() ConfigPanelController.SetPanelView("debug") end)
 	MogTrackerPanelRefreshButton:SetScript("OnClick", function()
-		if GetCurrentPanelView() == "debug" then
-			CaptureAndShowDebugDump()
-			return
-		end
 		if RequestRaidInfo then
 			RequestRaidInfo()
 		end
@@ -602,7 +574,6 @@ function ConfigPanelController.InitializePanel()
 	end)
 	MogTrackerPanelResetButton:SetScript("OnClick", function()
 		dependencies.clearCharacters()
-		InvalidateLootPanelSelectionCache()
 		InvalidateLootDataCache()
 		if addon.RaidDashboard and addon.RaidDashboard.ClearStoredData then
 			addon.RaidDashboard.ClearStoredData()

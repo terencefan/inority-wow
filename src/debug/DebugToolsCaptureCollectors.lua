@@ -374,11 +374,17 @@ function DebugTools.CaptureEncounterDebugDump()
 	local api = dependencies.API or addon.API
 	local compute = dependencies.Compute or addon.Compute
 	local getDB = dependencies.getDB
-	local db = getDB and getDB() or MogTrackerDB
+	local db = getDB and getDB() or {}
 	local settings = dependencies.getSettings and dependencies.getSettings() or {}
 	local getSelectedLootPanelInstance = dependencies.getSelectedLootPanelInstance
 	local getLootPanelRenderDebugHistory = dependencies.getLootPanelRenderDebugHistory
+	local getLootPanelOpenDebugHistory = dependencies.getLootPanelOpenDebugHistory
+	local getMinimapClickDebugHistory = dependencies.getMinimapClickDebugHistory
+	local getMinimapHoverDebugHistory = dependencies.getMinimapHoverDebugHistory
+	local getMinimapButtonDebugState = dependencies.getMinimapButtonDebugState
 	local buildLootPanelInstanceSelections = dependencies.buildLootPanelInstanceSelections
+	local getDashboardBulkScanSelections = dependencies.getDashboardBulkScanSelections
+	local getJournalInstanceDifficultyOptions = dependencies.getJournalInstanceDifficultyOptions
 	local getLootPanelSelectedInstanceKey = dependencies.getLootPanelSelectedInstanceKey
 	local getSelectedLootClassFiles = dependencies.getSelectedLootClassFiles
 	local collectCurrentInstanceLootData = dependencies.collectCurrentInstanceLootData
@@ -412,6 +418,9 @@ function DebugTools.CaptureEncounterDebugDump()
 			db.debugTemp[key] = value
 		end,
 	})
+	dump.startupLifecycleDebug = db.debugTemp and db.debugTemp.startupLifecycleDebug or nil
+	dump.runtimeErrorDebug = db.debugTemp and db.debugTemp.runtimeErrorDebug or nil
+	dump.bulkScanProfileDebug = db.debugTemp and db.debugTemp.bulkScanProfileDebug or nil
 
 	local selectedInstance = getSelectedLootPanelInstance and getSelectedLootPanelInstance() or nil
 	local data = collectCurrentInstanceLootData and collectCurrentInstanceLootData() or {}
@@ -422,6 +431,18 @@ function DebugTools.CaptureEncounterDebugDump()
 		selectedInstanceLabel = selectedInstance and selectedInstance.label or nil,
 		currentDebugInfo = data and data.debugInfo or nil,
 		selections = {},
+	}
+	local bulkScanQueueDebug = {
+		targetInstanceName = nil,
+		targetJournalInstanceID = nil,
+		targetDifficultyID = nil,
+		targetDifficultyName = nil,
+		selectionTreeCount = 0,
+		raidQueueCount = 0,
+		difficultyOptions = {},
+		rawDifficultyCandidates = {},
+		matchingSelections = {},
+		matchingRaidQueueSelections = {},
 	}
 	local tooltipSettings = {}
 	for key, value in pairs(settings or {}) do
@@ -447,6 +468,106 @@ function DebugTools.CaptureEncounterDebugDump()
 			difficultyName = selection.difficultyName,
 			journalInstanceID = selection.journalInstanceID,
 		}
+	end
+	do
+		local currentDebugInfo = data and data.debugInfo or nil
+		local targetInstanceName = tostring(
+			(selectedInstance and selectedInstance.instanceName)
+			or (currentDebugInfo and currentDebugInfo.instanceName)
+			or ""
+		)
+		local targetJournalInstanceID = tonumber(
+			(selectedInstance and selectedInstance.journalInstanceID)
+			or (currentDebugInfo and currentDebugInfo.journalInstanceID)
+			or 0
+		) or 0
+		local normalizedTargetName = NormalizeDebugName(targetInstanceName)
+		local raidQueueSelections = getDashboardBulkScanSelections and getDashboardBulkScanSelections("raid") or {}
+
+		bulkScanQueueDebug.targetInstanceName = targetInstanceName ~= "" and targetInstanceName or nil
+		bulkScanQueueDebug.targetJournalInstanceID = targetJournalInstanceID > 0 and targetJournalInstanceID or nil
+		bulkScanQueueDebug.targetDifficultyID = tonumber(
+			(selectedInstance and selectedInstance.difficultyID)
+			or (currentDebugInfo and currentDebugInfo.difficultyID)
+			or 0
+		) or 0
+		bulkScanQueueDebug.targetDifficultyName = tostring(
+			(selectedInstance and selectedInstance.difficultyName)
+			or (currentDebugInfo and currentDebugInfo.difficultyName)
+			or ""
+		)
+		bulkScanQueueDebug.selectionTreeCount = #(selectionCandidates or {})
+		bulkScanQueueDebug.raidQueueCount = #(raidQueueSelections or {})
+
+		if targetJournalInstanceID > 0 and type(getJournalInstanceDifficultyOptions) == "function" then
+			for _, option in ipairs(getJournalInstanceDifficultyOptions(targetJournalInstanceID, true) or {}) do
+				bulkScanQueueDebug.difficultyOptions[#bulkScanQueueDebug.difficultyOptions + 1] = {
+					difficultyID = tonumber(option.difficultyID) or 0,
+					difficultyName = tostring(option.difficultyName or ""),
+					observed = option.observed and true or false,
+				}
+			end
+		end
+
+		do
+			local difficultyRules = addon.DifficultyRules or {}
+			local difficultyCandidates = difficultyRules.RAID_DIFFICULTY_CANDIDATES or {}
+			local C_EncounterJournal = _G.C_EncounterJournal
+			local EJ_IsValidInstanceDifficulty = _G.EJ_IsValidInstanceDifficulty
+			for _, difficultyID in ipairs(difficultyCandidates) do
+				local valid
+				if C_EncounterJournal and C_EncounterJournal.IsValidInstanceDifficulty and targetJournalInstanceID > 0 then
+					valid = C_EncounterJournal.IsValidInstanceDifficulty(targetJournalInstanceID, difficultyID)
+				elseif EJ_IsValidInstanceDifficulty then
+					valid = EJ_IsValidInstanceDifficulty(difficultyID)
+				else
+					valid = nil
+				end
+				bulkScanQueueDebug.rawDifficultyCandidates[#bulkScanQueueDebug.rawDifficultyCandidates + 1] = {
+					difficultyID = tonumber(difficultyID) or 0,
+					difficultyName = tostring((difficultyRules.GetDifficultyName and difficultyRules.GetDifficultyName(difficultyID)) or ""),
+					ejValid = valid == nil and nil or (valid and true or false),
+				}
+			end
+		end
+
+		local function MatchesTarget(selection)
+			local selectionJournalInstanceID = tonumber(selection and selection.journalInstanceID) or 0
+			local selectionName = tostring(selection and selection.instanceName or "")
+			local normalizedSelectionName = NormalizeDebugName(selectionName)
+			if targetJournalInstanceID > 0 and selectionJournalInstanceID == targetJournalInstanceID then
+				return true
+			end
+			if normalizedTargetName ~= "" and normalizedSelectionName == normalizedTargetName then
+				return true
+			end
+			return false
+		end
+
+		local function AppendSelection(targetList, selection)
+			targetList[#targetList + 1] = {
+				key = selection.key or nil,
+				instanceName = selection.instanceName,
+				journalInstanceID = tonumber(selection.journalInstanceID) or 0,
+				instanceType = selection.instanceType,
+				difficultyID = tonumber(selection.difficultyID) or 0,
+				difficultyName = selection.difficultyName,
+				isCurrent = selection.isCurrent and true or false,
+				label = selection.label,
+			}
+		end
+
+		for _, selection in ipairs(selectionCandidates or {}) do
+			if MatchesTarget(selection) then
+				AppendSelection(bulkScanQueueDebug.matchingSelections, selection)
+			end
+		end
+
+		for _, selection in ipairs(raidQueueSelections or {}) do
+			if MatchesTarget(selection) then
+				AppendSelection(bulkScanQueueDebug.matchingRaidQueueSelections, selection)
+			end
+		end
 	end
 	if compute and compute.BuildTooltipMatrix and getSortedCharacters then
 		local maxCharacters = tonumber(tooltipSettings.maxCharacters) or 10
@@ -823,8 +944,17 @@ function DebugTools.CaptureEncounterDebugDump()
 	dump.lootApiRawDebug = lootApiRawDebug
 	dump.collectionStateDebug = collectionStateDebug
 	dump.lootPanelSelectionDebug = lootPanelSelectionDebug
+	dump.bulkScanQueueDebug = bulkScanQueueDebug
 	dump.lootPanelRenderTimingDebug = {
 		entries = getLootPanelRenderDebugHistory and getLootPanelRenderDebugHistory() or {},
+	}
+	dump.lootPanelOpenDebug = {
+		entries = getLootPanelOpenDebugHistory and getLootPanelOpenDebugHistory() or {},
+	}
+	dump.minimapClickDebug = {
+		entries = getMinimapClickDebugHistory and getMinimapClickDebugHistory() or {},
+		hoverEntries = getMinimapHoverDebugHistory and getMinimapHoverDebugHistory() or {},
+		buttonState = getMinimapButtonDebugState and getMinimapButtonDebugState() or { exists = false },
 	}
 
 	if selectedInstance then
@@ -980,7 +1110,6 @@ end
 function DebugTools.CaptureAndShowDebugDump()
 	local requestRaidInfo = dependencies.requestRaidInfo
 	local setLastDebugDump = dependencies.setLastDebugDump
-	local setPanelView = dependencies.setPanelView
 	local refreshPanelText = dependencies.refreshPanelText
 	local showPanel = dependencies.showPanel
 	local focusDebugOutput = dependencies.focusDebugOutput
@@ -993,9 +1122,6 @@ function DebugTools.CaptureAndShowDebugDump()
 	local dump = DebugTools.CaptureEncounterDebugDump()
 	if setLastDebugDump then
 		setLastDebugDump(dump)
-	end
-	if setPanelView then
-		setPanelView("debug")
 	end
 	if refreshPanelText then
 		refreshPanelText()

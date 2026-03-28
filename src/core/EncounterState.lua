@@ -139,12 +139,6 @@ local function RefreshLootPanel()
 	end
 end
 
-local function QueueLootPanelCacheWarmup()
-	if type(dependencies.QueueLootPanelCacheWarmup) == "function" then
-		dependencies.QueueLootPanelCacheWarmup()
-	end
-end
-
 local function InvalidateRaidDashboard()
 	if type(dependencies.InvalidateRaidDashboard) == "function" then
 		dependencies.InvalidateRaidDashboard()
@@ -362,7 +356,6 @@ function EncounterState.HandleManualInstanceReset()
 	EncounterState.ClearTransientDungeonRunState()
 	InvalidateLootDataCache()
 	InvalidateRaidDashboard()
-	QueueLootPanelCacheWarmup()
 	if IsLootPanelShown() then
 		RefreshLootPanel()
 	end

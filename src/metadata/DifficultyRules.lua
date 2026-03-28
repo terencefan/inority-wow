@@ -90,7 +90,7 @@ local RAID_DIFFICULTY_RULES = {
 
 DifficultyRules.RAID_DIFFICULTY_RULES = RAID_DIFFICULTY_RULES
 
-function DifficultyRules.GetDifficultyNameCompat(difficultyID)
+function DifficultyRules.GetDifficultyName(difficultyID)
 	if not difficultyID or difficultyID == 0 then
 		return Translate("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度")
 	end
@@ -154,13 +154,13 @@ function DifficultyRules.GetDifficultyColorCode(difficultyID)
 	if difficultyID == ID.RAID_LFR or difficultyID == ID.RAID_LEGACY_LFR then
 		return COLOR_HEX.LFR
 	end
-	if difficultyID == ID.RAID_NORMAL or difficultyID == ID.RAID_10_NORMAL or difficultyID == ID.RAID_25_NORMAL then
+	if difficultyID == ID.RAID_NORMAL or difficultyID == ID.RAID_10_NORMAL or difficultyID == ID.RAID_25_NORMAL or difficultyID == ID.DUNGEON_NORMAL then
 		return COLOR_HEX.NORMAL
 	end
 	if difficultyID == ID.RAID_HEROIC or difficultyID == ID.DUNGEON_HEROIC or difficultyID == ID.RAID_10_HEROIC or difficultyID == ID.RAID_25_HEROIC then
 		return COLOR_HEX.HEROIC
 	end
-	if difficultyID == ID.RAID_MYTHIC or difficultyID == ID.DUNGEON_MYTHIC_KEYSTONE or difficultyID == ID.RAID_40 then
+	if difficultyID == ID.RAID_MYTHIC or difficultyID == ID.DUNGEON_MYTHIC or difficultyID == ID.DUNGEON_MYTHIC_KEYSTONE or difficultyID == ID.RAID_40 then
 		return COLOR_HEX.MYTHIC
 	end
 	return COLOR_HEX.WHITE

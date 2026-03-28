@@ -4,12 +4,13 @@ local InstanceMetadata = addon.CoreInstanceMetadata or {}
 addon.CoreInstanceMetadata = InstanceMetadata
 
 local dependencies = InstanceMetadata._dependencies or {}
-local journalInstanceLookupCache = InstanceMetadata._journalInstanceLookupCache
-local lootPanelSelectionCache = InstanceMetadata._lootPanelSelectionCache
+local metadataCaches = InstanceMetadata._metadataCaches or {
+	journalLookup = nil,
+	selectionTree = nil,
+}
 
 InstanceMetadata._dependencies = dependencies
-InstanceMetadata._journalInstanceLookupCache = journalInstanceLookupCache
-InstanceMetadata._lootPanelSelectionCache = lootPanelSelectionCache
+InstanceMetadata._metadataCaches = metadataCaches
 
 local EXPANSION_NAME_ALIASES = {
 	["经典旧世"] = "魔兽世界",
@@ -36,6 +37,19 @@ local EXPANSION_NAME_ALIASES = {
 	Dragonflight = "巨龙时代",
 	["The War Within"] = "地心之战",
 }
+
+local function NormalizeInstanceDisplayName(name)
+	name = tostring(name or "")
+	if name == "" then
+		return ""
+	end
+	name = name:gsub("^%s*%[[^%]]+%]%s*", "")
+	name = name:gsub("[%(%（]%s*%d+%s*[人Pp]+%s*[%)）]%s*$", "")
+	name = name:gsub("%s+%d+%s*[人Pp]+%s*$", "")
+	name = name:gsub("^%s+", "")
+	name = name:gsub("%s+$", "")
+	return name
+end
 
 function InstanceMetadata.Configure(config)
 	dependencies = config or {}
@@ -90,26 +104,34 @@ end
 
 function InstanceMetadata.GetJournalInstanceLookupCacheEntries()
 	local version = tonumber(dependencies.journalInstanceLookupRulesVersion) or 0
-	if not journalInstanceLookupCache or journalInstanceLookupCache.version ~= version then
-		journalInstanceLookupCache = {
+	local cache = metadataCaches.journalLookup
+	if not cache or cache.version ~= version then
+		cache = {
 			version = version,
 			entries = {},
 		}
-		InstanceMetadata._journalInstanceLookupCache = journalInstanceLookupCache
+		metadataCaches.journalLookup = cache
 	end
-	return journalInstanceLookupCache.entries
+	return cache.entries
 end
 
 function InstanceMetadata.GetLootPanelSelectionCacheEntries()
 	local version = tonumber(dependencies.lootPanelSelectionRulesVersion) or 0
-	if not lootPanelSelectionCache or lootPanelSelectionCache.version ~= version then
-		lootPanelSelectionCache = {
+	local cache = metadataCaches.selectionTree
+	if not cache or cache.version ~= version then
+		cache = {
 			version = version,
 			entries = nil,
 		}
-		InstanceMetadata._lootPanelSelectionCache = lootPanelSelectionCache
+		metadataCaches.selectionTree = cache
 	end
-	return lootPanelSelectionCache
+	return cache
+end
+
+function InstanceMetadata.InvalidateLootPanelSelectionCacheEntries()
+	local cache = InstanceMetadata.GetLootPanelSelectionCacheEntries()
+	cache.entries = nil
+	return cache
 end
 
 function InstanceMetadata.FindJournalInstanceByInstanceInfo(instanceName, instanceID, instanceType)
@@ -135,8 +157,11 @@ function InstanceMetadata.FindJournalInstanceByInstanceInfo(instanceName, instan
 	local isRaidOnly = instanceType == "raid"
 	local isDungeonOnly = instanceType == "party"
 	local normalizedInstanceName = tostring(instanceName or "")
+	local normalizedComparableName = NormalizeInstanceDisplayName(normalizedInstanceName)
 	local numTiers = tonumber(EJ_GetNumTiers()) or 0
 	local mapMatchJournalInstanceID = nil
+	local normalizedNameMatchJournalInstanceID = nil
+	local fuzzyNameMatchJournalInstanceID = nil
 
 	for tierIndex = 1, numTiers do
 		EJ_SelectTier(tierIndex)
@@ -156,6 +181,17 @@ function InstanceMetadata.FindJournalInstanceByInstanceInfo(instanceName, instan
 						}
 						return journalInstanceID, "name"
 					end
+					local normalizedJournalName = NormalizeInstanceDisplayName(journalName)
+					if normalizedComparableName ~= "" and normalizedJournalName == normalizedComparableName and normalizedNameMatchJournalInstanceID == nil then
+						normalizedNameMatchJournalInstanceID = journalInstanceID
+					end
+					if normalizedComparableName ~= ""
+						and normalizedJournalName ~= ""
+						and fuzzyNameMatchJournalInstanceID == nil
+						and (normalizedJournalName:find(normalizedComparableName, 1, true)
+							or normalizedComparableName:find(normalizedJournalName, 1, true)) then
+						fuzzyNameMatchJournalInstanceID = journalInstanceID
+					end
 					if mapMatchJournalInstanceID == nil and tonumber(journalMapID) == tonumber(instanceID) then
 						mapMatchJournalInstanceID = journalInstanceID
 					end
@@ -163,6 +199,22 @@ function InstanceMetadata.FindJournalInstanceByInstanceInfo(instanceName, instan
 				end
 			end
 		end
+	end
+
+	if normalizedNameMatchJournalInstanceID then
+		lookupEntries[cacheKey] = {
+			journalInstanceID = normalizedNameMatchJournalInstanceID,
+			resolution = "normalized_name",
+		}
+		return normalizedNameMatchJournalInstanceID, "normalized_name"
+	end
+
+	if fuzzyNameMatchJournalInstanceID then
+		lookupEntries[cacheKey] = {
+			journalInstanceID = fuzzyNameMatchJournalInstanceID,
+			resolution = "fuzzy_name",
+		}
+		return fuzzyNameMatchJournalInstanceID, "fuzzy_name"
 	end
 
 	if mapMatchJournalInstanceID then

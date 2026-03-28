@@ -129,7 +129,7 @@ function LootFilterController.BuildClassFilterMenu(button)
 	}
 
 	for classID = 1, 20 do
-		local className = dependencies.GetClassInfoCompat(classID)
+		local className = dependencies.GetClassInfo(classID)
 		if className then
 			items[#items + 1] = {
 				text = className,
@@ -164,9 +164,9 @@ function LootFilterController.BuildSpecFilterMenu(button)
 		},
 	}
 
-	local numSpecs = tonumber(dependencies.GetNumSpecializationsForClassIDCompat(classID)) or 0
+	local numSpecs = tonumber(dependencies.GetNumSpecializationsForClassID(classID)) or 0
 	for specIndex = 1, numSpecs do
-		local specID, specName = dependencies.GetSpecInfoForClassIDCompat(classID, specIndex)
+		local specID, specName = dependencies.GetSpecInfoForClassID(classID, specIndex)
 		if specID and specName then
 			items[#items + 1] = {
 				text = specName,

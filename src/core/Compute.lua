@@ -44,6 +44,10 @@ function Compute.GetSelectedLootClassFiles(settings, selectableClasses)
 end
 
 function Compute.LockoutMatchesSettings(lockout, settings)
+	if lockout and lockout.isPreviousCycleSnapshot then
+		return settings and settings.includePreviousCycleLockouts and true or false
+	end
+
 	if settings and settings.onlyActiveLockouts and (tonumber(lockout and lockout.resetSeconds) or 0) <= 0 then
 		return false
 	end
@@ -65,6 +69,11 @@ end
 function Compute.GetVisibleLockouts(info, settings)
 	local visibleLockouts = {}
 	for _, lockout in ipairs(info.lockouts or {}) do
+		if Compute.LockoutMatchesSettings(lockout, settings) then
+			visibleLockouts[#visibleLockouts + 1] = lockout
+		end
+	end
+	for _, lockout in ipairs(info.previousCycleLockouts or {}) do
 		if Compute.LockoutMatchesSettings(lockout, settings) then
 			visibleLockouts[#visibleLockouts + 1] = lockout
 		end

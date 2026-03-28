@@ -5,6 +5,44 @@
 - This applies across tasks, not only WoW addon work.
 - Prefer putting cross-cutting behavior rules here in global rules; put domain-specific repair patterns in the relevant skill.
 - After extracting a real module from a runtime/orchestrator file, update `README.md` in the same patch so the documented architecture and module ownership stay current.
+- For API-heavy WoW data flows, prefer maintaining a mock-first closed loop: define the fixture contract, add or update an offline validator under `tools/validate_*.lua` or `tests/*.lua`, and ask the user only for the smallest missing captured dataset needed to complete that loop.
+- When editing Mermaid diagrams in project docs, keep node labels short; move detailed explanations into the surrounding prose instead of long node text.
+- For Mermaid function-call nodes, keep the explicit function signature style with the real function name plus `()`, and do not compress them into generic action labels.
+
+## Key Files
+
+- This list is for agent navigation, not for user-facing docs. Use it as the shortest path for cross-module tracing, runtime wiring checks, and feature entrypoint discovery.
+- `MogTracker.toc`
+- `src/runtime/CoreRuntime.lua`
+- `src/runtime/CoreFeatureWiring.lua`
+- `src/runtime/EventsCommandController.lua`
+- `src/storage/Storage.lua`
+- `src/storage/StorageGateway.lua`
+- `src/core/API.lua`
+- `src/core/Compute.lua`
+- `src/core/ClassLogic.lua`
+- `src/core/CollectionState.lua`
+- `src/core/EncounterState.lua`
+- `src/core/UIChromeController.lua`
+- `src/core/SetDashboardBridge.lua`
+- `src/metadata/CoreMetadata.lua`
+- `src/metadata/DifficultyRules.lua`
+- `src/metadata/InstanceMetadata.lua`
+- `src/loot/LootSelection.lua`
+- `src/loot/LootFilterController.lua`
+- `src/loot/LootDataController.lua`
+- `src/loot/LootPanelController.lua`
+- `src/loot/LootPanelRows.lua`
+- `src/loot/LootPanelRenderer.lua`
+- `src/loot/sets/LootSets.lua`
+- `src/dashboard/DashboardPanelController.lua`
+- `src/dashboard/bulk/DashboardBulkScan.lua`
+- `src/dashboard/raid/RaidDashboard.lua`
+- `src/dashboard/set/SetDashboard.lua`
+- `src/dashboard/pvp/PvpDashboard.lua`
+- `src/config/ConfigDebugData.lua`
+- `src/config/ConfigPanelController.lua`
+- `src/ui/UI.xml`
 
 ## Postmortems
 
@@ -15,6 +53,27 @@
 - Repair pattern: preserve the original call contract exactly when moving logic behind `addon.API`, `addon.Compute`, or `addon.Storage`; return the same positional values in the same order.
 - Preventative check: when refactoring a Lua helper behind a module boundary, search all call sites and verify whether callers use tuple unpacking (`local a, b = ...`) or single-value consumption before finalizing the wrapper.
 
+### Icon-only actions should not masquerade as text buttons
+
+- Symptom: a compact panel action is described or perceived as a normal button, but in-game it is really a small icon affordance embedded in a row.
+- Root cause: the implementation reused a generic button template for convenience, so the control looked like a text button instead of matching the surrounding icon-tool interaction model.
+- Repair pattern: for row-level utility actions that only need an icon, use the shared icon-tool button styling and reserve an explicit narrow column for the affordance instead of squeezing a labeled button into the content area.
+- Preventative check: when adding a compact action to a dense WoW table row, verify the control's visual weight and hit area match the intended UX, and document it as an icon action rather than a generic button if it occupies its own narrow column.
+
+### Dashboard column order should preserve selection priority
+
+- Symptom: dashboard class columns stop honoring the "selected classes first" rule and instead snap back to a generic class sort.
+- Root cause: a downstream dashboard helper re-sorted the already prepared class list, discarding the semantic ordering produced by `GetDashboardClassFiles()`.
+- Repair pattern: treat dashboard class-file lists as presentation-ready order; copy them if needed, but do not re-sort unless the feature explicitly wants a different user-visible order.
+- Preventative check: when a WoW dashboard consumes a class list from a higher-level selector, verify whether that list already encodes user intent before applying any fallback comparator such as alphabetical or class-ID order.
+
+### Lua row callbacks must snapshot loop values
+
+- Symptom: clicking different rows in a WoW panel triggers the same action target, usually the last row rendered.
+- Root cause: a click or tooltip callback closed over a loop variable like `rowInfo` or `expansionName`, and Lua reused that variable across iterations so every handler saw the final value.
+- Repair pattern: inside render loops, copy each callback-relevant field into a per-iteration local before assigning `OnClick`, `OnEnter`, or similar scripts.
+- Preventative check: whenever a Lua UI render loop installs frame scripts, scan each closure for direct references to loop variables and snapshot those values first.
+
 ### EJ-backed selection menu cold-start scans
 
 - Symptom: the first open of a panel or dropdown backed by Encounter Journal data freezes noticeably, especially when tracked characters have many raid lockouts.
@@ -22,12 +81,68 @@
 - Repair pattern: cache `lockout -> journalInstanceID` resolution and cache the derived selection tree separately from the current-area entry; invalidate those caches only when saved-instance data or relevant instance state actually changes.
 - Preventative check: for any WoW UI refresh path that touches `EJ_SelectTier`, `EJ_GetInstanceByIndex`, or full SavedInstances iteration, check whether it runs during open/refresh callbacks and add cache or background warmup before shipping.
 
+### Repeated `UPDATE_INSTANCE_INFO` bursts should be deduped by snapshot
+
+- Symptom: login or raid-info refresh feels heavier than expected even though each individual update path is simple.
+- Root cause: `UPDATE_INSTANCE_INFO` can fire multiple times for the same saved-instance state, and the addon reruns full `GetSavedInstanceInfo()` persistence, cache invalidation, and UI refresh work on every duplicate event.
+- Repair pattern: build a compact signature from the current `GetSavedInstanceInfo()` payload and skip the heavy update path when the signature matches the last processed snapshot.
+- Preventative check: when wiring `RequestRaidInfo()` or `UPDATE_INSTANCE_INFO`, log both event count and snapshot changes; if duplicate events outnumber actual snapshot changes, add dedupe before optimizing downstream work.
+
 ### Lua helper forward references in init paths
 
 - Symptom: runtime errors like `attempt to call global 'X' (a nil value)` appear even though helper `X` exists later in the same file.
 - Root cause: an initialization-time callback or earlier helper references a later `local function`, so Lua resolves the early call site against a global before the local is defined.
 - Repair pattern: predeclare init-path helpers near the top with `local X` and assign them later using `X = function(...) ... end` whenever earlier code, menus, events, or refresh paths call them.
 - Preventative check: after adding a new shared helper to a long Lua file, search all call sites and verify none execute before the helper's definition unless it was predeclared.
+
+### Early wiring should pass late-bound wrappers for later outputs
+
+- Symptom: a controller path appears to call a dependency like `RefreshLootPanel`, but nothing happens and downstream debug hooks never fire.
+- Root cause: `Configure(...)` captured `outputs.SomeFunction` before that output was assigned later in the wiring sequence, so the dependency stayed `nil` permanently.
+- Repair pattern: when wiring an earlier module to a later-produced output, pass a wrapper function that reads `outputs.SomeFunction` at call time instead of passing the current value directly.
+- Preventative check: in staged module wiring, audit any `Configure(...)` call that references `outputs.*` defined further down the file; if assignment happens later, wrap it.
+
+### Encounter Journal loot APIs may require selected-encounter mode
+
+- Symptom: the addon resolves the correct raid, difficulty, and encounters, but every loot scan still reports `totalLoot=0`.
+- Root cause: the code passed an encounter index into `C_EncounterJournal.GetNumLoot` / `GetLootInfoByIndex` even after calling `EJ_SelectEncounter`, while the client build only exposed loot through the currently selected encounter state.
+- Repair pattern: after selecting the encounter, support both call styles: try the explicit encounter-parameter form first, then fall back to the no-argument "currently selected encounter" form, and keep `EJ_*` fallbacks for older API shapes.
+- Preventative check: when a WoW EJ scan returns zero loot for a known raid, log one real encounter after `EJ_SelectEncounter` and verify both the explicit-parameter and selected-encounter call styles before blaming filters or difficulty resolution.
+
+### Panel open paths should not stack duplicate first-render refreshes
+
+- Symptom: a panel opens with noticeable hitching or "script ran too long" behavior even though the underlying data path is otherwise correct.
+- Root cause: the open sequence triggered the same heavy refresh during initialization, immediate show, and a follow-up zero-delay timer, multiplying EJ and item-resolution work on first open.
+- Repair pattern: keep first render on a single explicit open-phase refresh; initialization should only build widgets and normalize state, while later refreshes should come from real events or user actions.
+- Preventative check: when a WoW panel scans EJ, inventory, or item metadata, trace the open path and count how many refresh calls happen before the user can interact; if it is more than one without a state change, remove the extras.
+
+### Missing-item refresh loops need an explicit retry budget
+
+- Symptom: keeping a loot or dashboard panel open causes recurring rescans and can snowball into lag or repeated runtime errors whenever some EJ item data never resolves.
+- Root cause: the UI treats `missingItemData` as a reason to schedule another timer-driven refresh, but the retry path has no per-selection budget or stop condition when Blizzard never delivers the requested item/appearance payload.
+- Repair pattern: track retry attempts by semantic selection key, cap timer-driven retries to a small fixed budget, and reset that budget only when the selection changes or the data resolves.
+- Preventative check: any WoW panel that auto-refreshes on partial API data must prove there is a bounded retry path; if the stop condition depends on an external event, add a mock validation that keeps the data unresolved and confirms the timers stop anyway.
+
+### Bulk scans should batch missing-item reconciliation at natural boundaries
+
+- Symptom: long raid or dungeon scans stay laggy even after removing synchronous waits, because late item metadata still triggers many tiny follow-up recomputes.
+- Root cause: the scan hot path or item-info events consume `missingItemData` immediately, turning one bulk operation into a stream of per-item or per-selection mini-reconciles.
+- Repair pattern: let the main scan record partial selections and continue, then reconcile those queued selections only at natural batch boundaries such as "expansion finished" and one final delayed pass after the full scan.
+- Preventative check: when optimizing a WoW bulk collector, count how many times item metadata can interrupt the hot loop; if the answer is more than a few batch boundaries, move reconciliation out of the event path.
+
+### Noisy collection-updated events should be deferred behind UI consumption
+
+- Symptom: login or wardrobe warmup causes repeated background refresh work and possible error storms even when the related dashboard is not open.
+- Root cause: a high-frequency event such as `TRANSMOG_COLLECTION_UPDATED` is wired directly to expensive dashboard reconciliation, so the addon keeps consuming bursty API updates in the background.
+- Repair pattern: coalesce those events into one pending-refresh flag with duplicate counting, and consume that flag only when the user opens or explicitly refreshes the affected UI.
+- Preventative check: for any event-driven dashboard refresh, ask whether the refreshed surface is currently visible; if not, prefer deferred consumption over immediate background recompute.
+
+### Schema-normalized stores should not be renormalized on hot read paths
+
+- Symptom: a scan gets progressively slower even though the per-instance compute work stays roughly flat, and profiling shows the storage/read phase dominating by an increasing margin.
+- Root cause: a hot accessor such as `GetStoredCache()` or `Ensure*Container()` reruns full schema normalization over an already-normalized container on every read, so the work grows with stored data volume.
+- Repair pattern: add a cheap schema-shape fast path for normalized containers/stores, and reserve full normalization for startup cutover, legacy data repair, or first-touch of an unnormalized entry.
+- Preventative check: when profiling points at a `store` or `get cache` phase, inspect whether the path mutates or walks the entire persisted container on every access; if yes, gate it behind an explicit `IsNormalized...` check.
 
 ### Raid difficulty menus across old and new expansions
 
@@ -57,6 +172,13 @@
 - Repair pattern: for changes in `API`, `Compute`, `Storage`, or compute-heavy sections of `Core.lua`, run at least one mocked path validation that exercises the changed branch before handing back the change.
 - Preventative check: when a refactor changes filter scope, selection logic, or shared helper ownership, do not stop at syntax validation; require a mocked input/output or mocked call-path sanity check first.
 
+### Mock-safe validation must cover debug branches too
+
+- Symptom: a feature's primary logic works in-game, but offline or mocked validation crashes inside a debug-info branch before the real assertion even runs.
+- Root cause: debug capture code assumes Blizzard globals like `GetItemInfo` always exist, while mocked validators often stub only the APIs needed for the main logic path.
+- Repair pattern: guard debug-only API calls the same way as production fallbacks, so debug enrichment becomes optional metadata instead of a hard dependency for validation.
+- Preventative check: when adding mocked-path validators for WoW compute code, run at least one case with minimal API stubs and verify debug-enabled code paths degrade gracefully instead of requiring full Blizzard globals.
+
 ### Rule-driven caches need explicit schema versions
 
 - Symptom: dropdowns or derived data keep reflecting an older selection/difficulty rule even after the generation logic was changed.
@@ -70,6 +192,13 @@
 - Root cause: the code assumes `item.sourceID` is already populated and that `C_TransmogSets.GetSetsContainingSourceID` returns a flat list of numeric set IDs; in practice the source ID may need to be refreshed and the returned entries may be objects.
 - Repair pattern: centralize transmog source/set resolution in helpers that refresh `sourceID` from the item when needed and normalize set entries into numeric `setID`s before any set logic consumes them.
 - Preventative check: when writing WoW transmog-set logic, validate one real item path end-to-end and avoid calling set APIs directly from multiple UI features with copy-pasted assumptions.
+
+### Shared derived metadata should be persisted once and indexed
+
+- Symptom: multiple UI paths repeatedly recompute the same derived metadata, such as `sourceID -> setIDs`, and small API quirks or cache warmup differences make the consumers drift.
+- Root cause: the derived relationship is treated as transient per-call output instead of being promoted into the shared fact/index layer after the first successful resolution.
+- Repair pattern: once a stable Blizzard-derived mapping is normalized, write it back into shared facts such as `itemFacts`, then expose indexed lookup helpers so later consumers read the same persisted result instead of recomputing it.
+- Preventative check: when two or more features depend on the same derived identifier mapping, ask whether the first successful resolution can be cached into facts and indexed before adding another direct API call site.
 
 ### Data-valid pages should reuse proven row layouts
 
@@ -105,6 +234,13 @@
 - Root cause: `C_TransmogSets.GetSetPrimaryAppearances` can degrade into progress-only rows (`sourceID=0`, no `name`, `slot`, `itemLink`, or `icon`), so treating it as a full missing-piece catalog is unsafe.
 - Repair pattern: derive concrete missing-piece rows from the current raid's real loot table first, then use optional third-party databases like ATT only as a soft enhancement layer for extra source hints, and keep a generic fallback for the unresolved remainder.
 - Preventative check: when building WoW set-piece UX, log one real `GetSetPrimaryAppearances` payload first; if it lacks source metadata, reverse-map from concrete loot rows instead of designing around idealized API fields.
+
+### Set progress should reuse same-appearance collection rules
+
+- Symptom: a set page reports a cloak or other slot as uncollected even though the player already unlocked that appearance from another source.
+- Root cause: set progress and missing-piece code trusted `C_TransmogSets.GetSetPrimaryAppearances(...).collected` directly, while the normal loot collection path correctly upgrades through same-appearance ownership.
+- Repair pattern: whenever set progress or set missing pieces are derived from primary appearance rows, run those rows back through the shared collection-state resolver keyed by `sourceID`/`appearanceID` instead of trusting the raw set API flag alone.
+- Preventative check: for any WoW transmog set change, validate one case where the exact set source is uncollected but another source of the same appearance is already unlocked; set and loot pages must agree.
 
 ### Shared row renderers need explicit visual resets
 
@@ -232,6 +368,13 @@
 - Repair pattern: use `-LiteralPath` consistently for existence checks and file moves when working with user filesystem entries that may contain wildcard characters.
 - Preventative check: if a Windows automation script handles arbitrary desktop/download filenames, audit every path-consuming command and switch wildcard-sensitive calls to their literal-path variant before trusting the result.
 
+### In-place table merges can corrupt incremental index removal
+
+- Symptom: updating a cached fact changes the new reverse index, but stale reverse lookups for the old key still keep resolving.
+- Root cause: the code reused and mutated the existing table before removing old index entries, so the "previous" snapshot already contained the new values.
+- Repair pattern: take a shallow snapshot of the old record before merging, then remove old index links from the snapshot and apply new links from the normalized merged record.
+- Preventative check: when maintaining incremental indexes around Lua tables, verify whether the pre-update object is mutated in place before any old-key cleanup runs.
+
 ### Statistics pages should read summaries, not trigger bulk collection
 
 - Symptom: opening a dashboard or statistics page causes large EJ scans, heavy first-open cost, and data volume that scales with every raid instead of with user activity.
@@ -239,12 +382,54 @@
 - Repair pattern: persist compact per-raid summaries when a raid has already been computed elsewhere, and make the statistics page read only those cached summaries.
 - Preventative check: when adding a matrix, dashboard, or overview page, verify that opening the page does not call bulk collection APIs; only explicit data-collection paths should populate the cache it reads.
 
+### Dashboard fold toggles should not rebuild view data
+
+- Symptom: expanding or collapsing a dashboard group like a raid-expansion header causes visible UI hitching even though no underlying loot facts changed.
+- Root cause: the fold state was encoded into cached row construction, so a simple visibility toggle rebuilt the dashboard row data and then rebound the whole widget tree.
+- Repair pattern: keep cached dashboard rows independent from fold state, and apply collapse/expand only in the render layer by hiding or showing existing rows.
+- Preventative check: when adding a UI-only state toggle to a cached dashboard or matrix, verify that clicking it does not invalidate or recompute the backing view data unless the data itself changed.
+
+### Filter-complete loot groups should collapse by filtered state
+
+- Symptom: a loot-panel boss group expands even though the current class/type filter leaves only already collected drops under that boss.
+- Root cause: the collapse rule required an unrelated runtime state like "boss killed" before honoring `fullyCollected`, so the UI ignored the current filtered completion state.
+- Repair pattern: compute group auto-collapse from the filtered loot display state first; if the current filtered set is fully collected, keep the group collapsed regardless of kill-state decoration.
+- Preventative check: whenever a WoW panel mixes runtime status with filter-aware completion, test one case where the filtered result is fully complete but the runtime flag differs, and ensure the UI still follows the filtered completion semantics.
+
+### Dashboard view builds must not deep-copy large summary maps
+
+- Symptom: opening a statistics/dashboard panel raises `script ran too long` inside row-building helpers even though the underlying snapshot data is already cached.
+- Root cause: the view-model build step deep-copied large `setPieces`, `setIDs`, or `collectibles` maps again for every row, turning cached summary reads back into O(n)-or-worse allocation work on panel open.
+- Repair pattern: normalize and copy data at storage/aggregation boundaries only; once a summary bucket is already owned by the current build, let dashboard rows and tooltips reuse the existing read-only tables instead of cloning them again.
+- Preventative check: when a view layer consumes cached summary families, search for `Copy*` helpers in render/build paths and verify they are not rebuilding large maps just to hand them to read-only UI code.
+
 ### Menu open paths must not invalidate expensive selection caches
 
 - Symptom: opening a loot-panel selector can raise `script ran too long` even when the cached selection tree already exists.
 - Root cause: the menu-builder path invalidated the selection cache before reading it, forcing a fresh full Encounter Journal tier/instance/difficulty scan on every open.
 - Repair pattern: let menu open/build paths consume the cached selection tree and reserve invalidation for real state-change events such as saved-instance refreshes or rule-version bumps.
 - Preventative check: if a selector depends on EJ-wide enumeration, search its open/build function for cache invalidation calls and remove any invalidation that is not tied to a true input change.
+
+### Snapshot jobs should refresh state-derived queues before freezing them
+
+- Symptom: a long-running action like bulk scan keeps using an outdated selection queue and misses difficulties or instances that the live UI can already observe.
+- Root cause: the job snapshots a cached selection tree without first invalidating state-derived entries, so the queue freezes an older view of SavedInstances/current-instance state.
+- Repair pattern: invalidate the affected derived cache immediately before building the job queue, then keep the resulting queue stable for the rest of that run.
+- Preventative check: for any queued scan/export job that depends on cached UI selections, verify whether its source cache is state-derived; if yes, refresh once at job start instead of only relying on steady-state cache reuse.
+
+### Current-entry dedupe must not erase non-current variants
+
+- Symptom: a selector correctly shows the current-area entry, but the equivalent non-current cached row for the same instance+difficulty disappears, so downstream jobs that skip `current` miss that difficulty entirely.
+- Root cause: deduplication keyed only on `journalInstanceID + instanceName + difficultyID`, treating the current placeholder row and the regular cached row as the same record even though consumers use them differently.
+- Repair pattern: include row role in the dedupe key, such as separating `current` from regular cached selections, so both can coexist when needed.
+- Preventative check: if a UI exposes both a synthetic current entry and persisted selection rows, verify dedupe with one case where they share the same semantic difficulty and confirm downstream consumers that exclude one role still see the other.
+
+### Current-instance panels should not hard-require a preselected row
+
+- Symptom: opening a current-instance loot panel directly shows `未知副本` and an empty list even though current-instance debug capture resolves the raid/dungeon correctly.
+- Root cause: the panel data controller treated `selectedInstance == nil` as `no_selection` and returned early, so the downstream current-instance EJ resolution path never ran.
+- Repair pattern: let current-instance collectors fall back to live instance resolution when no explicit selection row exists; use preselected rows as an override, not as a prerequisite.
+- Preventative check: for any panel that supports a `current` mode, test the direct-open path separately from dropdown/dashboard selection and verify the data layer still works when `GetSelected...()` returns `nil`.
 
 ### Scan breadth and dashboard semantics can diverge on purpose
 
@@ -259,6 +444,13 @@
 - Root cause: the dashboard reader iterates every cached difficulty entry instead of reducing them to the one difficulty that represents the raid for that surface.
 - Repair pattern: keep snapshot storage broad if useful, but choose one difficulty at read time; for highest-difficulty raid views, select the minimum display-order difficulty and ignore the rest.
 - Preventative check: when rendering cached `difficultyData`, decide explicitly whether the surface is per-difficulty or per-raid before looping all entries.
+
+### Highest-difficulty reducers must skip empty snapshot buckets
+
+- Symptom: a raid summary can disappear or report the wrong effective difficulty even though a lower-difficulty snapshot still has valid data.
+- Root cause: the reducer picks the numerically highest-ranked difficulty bucket first and only afterwards checks whether that bucket has any renderable content, so an empty higher bucket blocks lower populated buckets.
+- Repair pattern: sort difficulty buckets by semantic order, then return the first bucket that actually has data instead of committing to the top-ranked bucket before validation.
+- Preventative check: whenever reducing cached `difficultyData` to one representative raid row, test one case with a populated lower bucket plus an empty higher bucket and verify the reducer falls through correctly.
 
 ### Legacy raid size ordering should prefer larger lockout variants
 
@@ -847,3 +1039,185 @@
 - Root cause: the detail-row serializer only preserved precomputed totals and dropped the underlying unionable payload (for example `collectibles` maps), so the next aggregation layer had nothing real to merge.
 - Repair pattern: when one summary layer aggregates another, carry both the displayed counts and the raw set/map payload needed for re-unioning at the next level.
 - Preventative check: if a row type can feed a higher-level summary, verify its exported shape contains every collection/map field that the aggregator unions, not just the already-formatted totals.
+
+### Helper wrappers must preserve argument order
+
+- Symptom: UI labels that should inherit difficulty coloring render without the expected color even though the color helper is being called.
+- Root cause: a thin wrapper or injected helper forwards the right values in the wrong positional order, so downstream logic receives `text` where it expected `difficultyID`.
+- Repair pattern: when wrapping shared helpers like colorizers, formatters, or lookup functions, copy the callee signature exactly and keep wrapper parameter names in the same order.
+- Preventative check: for any new wrapper around a positional helper, compare the wrapper signature and first call site against the real callee before shipping; pay extra attention when both arguments are truthy but different types.
+
+### Enum-backed color rules must cover every displayed variant
+
+- Symptom: one family of difficulty labels shows partial coloring, for example heroic has a color while normal and mythic still render as plain white text.
+- Root cause: the enum-to-color table was updated for only some IDs in the family, so shared label coloring silently fell back to the default color for the omitted variants.
+- Repair pattern: when a helper colors labels from difficulty or mode IDs, update the full family together and keep normal/heroic/mythic variants aligned across raid and dungeon IDs.
+- Preventative check: after changing shared difficulty color rules, verify at least one raid and one dungeon menu and confirm every displayed variant in that family resolves to a non-default color where intended.
+
+### Missing fact layers force coarse derived-cache invalidation
+
+- Symptom: asynchronous item enrichment like `GET_ITEM_INFO_RECEIVED` keeps invalidating large derived caches because loot rows and dashboards do not share a stable item-level truth source.
+- Root cause: item facts such as `name`, `link`, `itemType`, `appearanceID`, and `sourceID` are resolved inline inside panel/dashboard collection code and never persisted as a reusable lower layer.
+- Repair pattern: store item-level facts in a dedicated fact cache first, then rebuild `lootDataCache` and dashboard snapshots from that cache instead of treating item resolution as part of every higher-level cache.
+- Preventative check: when a derived cache depends on Blizzard async enrichment, ask whether the enriched fields are really facts; if yes, persist them in a lower fact layer before adding more invalidation to the upper caches.
+
+### Time-window retention should not mix with replacement semantics
+
+- Symptom: expired lockouts disappear too early or stop greying as soon as a new-cycle entry exists, even though the intended product rule is purely time-based.
+- Root cause: retention and styling mixed two different concerns: elapsed time and a separate "new progress replaces old progress" rule.
+- Repair pattern: when UX is defined by elapsed time, make both storage retention and render styling read the same explicit time window, and remove unrelated replacement conditions from that path.
+- Preventative check: for any expired-state UI, verify the docs and code answer the same question: "is this shown because of time, or because of replacement state?" If both are present, split them or choose one.
+
+### Encounter Journal loot scans may need encounter-level enumeration
+
+- Symptom: the addon correctly resolves the current raid and difficulty, but `GetNumLoot()` still returns `0` for every filter run so the loot panel renders blank.
+- Root cause: some Encounter Journal paths do not expose a usable instance-level aggregated loot list even after `EJ_SelectInstance()` and `EJ_SetDifficulty()`, so relying on a single instance-wide `GetNumLoot()` call undercounts to zero.
+- Repair pattern: enumerate encounters first, then select each encounter and read loot per encounter instead of assuming the instance-level loot list is populated.
+- Preventative check: when an EJ-backed loot scan yields zero rows for a known raid, compare instance-level and encounter-level loot enumeration before debugging selection or class filters further.
+
+### Diagnostic surfaces should not piggyback on primary config panels
+
+- Symptom: a debug/log view keeps conflicting with normal configuration navigation, which makes reproduction flows noisy and leaves users switching tabs or checkboxes just to collect one capture.
+- Root cause: the diagnostic surface was implemented as another view inside the main config panel, so command-driven debug capture and normal settings navigation shared the same frame lifecycle and controls.
+- Repair pattern: move debug/log output into a dedicated panel with its own controls, and route it through a dedicated slash-command namespace instead of reusing the primary settings surface.
+- Preventative check: when adding a developer/debug UI to a WoW addon, ask whether users should ever reach it through normal product navigation; if the answer is no, keep it on a separate frame from the start.
+
+### Retired loot-visibility toggles must become fixed runtime rules
+
+- Symptom: the panel keeps showing old visibility behavior because a SavedVariables checkbox still overrides the new product rule.
+- Root cause: the code changed the intended default, but runtime filtering and settings normalization still treated the retired checkbox as authoritative.
+- Repair pattern: force the retired setting to its invariant value during normalization, make the runtime filter read the invariant directly, and disable or remove the obsolete control in the config UI.
+- Preventative check: when a loot/filter rule becomes mandatory, search both storage normalization and UI event handlers so the old toggle cannot silently re-enable legacy behavior.
+
+### Current-state tooltips should not ingest historical lockout snapshots
+
+- Symptom: a compact tooltip meant to summarize current lockouts starts showing rows that behave like stale facts, previous-cycle carry-over, or long-expired progress history.
+- Root cause: the tooltip reused a broad shared lockout dataset without first narrowing it to the tooltip's own semantics, so previous-cycle snapshots and non-current carry-over rows leaked into the surface.
+- Repair pattern: build a tooltip-specific character snapshot first, keep only the lockouts that match the surface contract (for example active rows plus an explicit expired grace window), and feed that narrowed snapshot into shared matrix builders.
+- Preventative check: when a summary surface is supposed to show "current state", verify that it explicitly filters out historical snapshot layers before reusing generic compute helpers.
+
+### Startup default normalization should be version-gated
+
+- Symptom: login hitches heavily during `ADDON_LOADED`, and timing logs point at storage default initialization before any UI is opened.
+- Root cause: `InitializeDefaults` re-normalizes large SavedVariables families like character snapshots, item facts, or dashboard summaries on every startup even when their stored schema is already current.
+- Repair pattern: give each persisted data family an explicit schema/version marker and skip full normalization when the stored structure already matches the current version.
+- Preventative check: whenever a startup/defaults path touches whole SavedVariables subtrees, require a version gate before adding any full-table normalization or deep copy loop.
+
+### Per-item fact writes must not re-normalize the whole fact cache
+
+- Symptom: opening a loot-heavy panel hits `script ran too long` inside storage normalization while item facts are being resolved.
+- Root cause: each `UpsertItemFact()` call re-ran full-cache normalization across every stored item fact, turning a bulk loot scan into quadratic work.
+- Repair pattern: expose a single-entry normalizer for item facts, use it on per-item writes, and reserve full-cache normalization for startup migration or explicit schema repair.
+- Preventative check: whenever a persistence helper is called in a per-row or per-item scan loop, check whether it accidentally traverses the entire stored collection before shipping.
+
+### Kill-state refreshes should not invalidate static loot tables
+
+- Symptom: after an encounter kill, a loot panel briefly regresses and starts showing previously hidden collected appearances again.
+- Root cause: the encounter-end event invalidated the entire loot-data cache even though the raid's loot table did not change, forcing a full rescan during which some collection facts temporarily degraded to non-collected or unknown.
+- Repair pattern: on kill-state events, refresh only the encounter-status/collapse layer and keep the static loot table cache intact; reserve loot-data invalidation for real loot-table or item-fact changes.
+- Preventative check: before invalidating a heavy cache from an event handler, ask whether the event changed data contents or only changed UI state around that data.
+
+### Session-stable collected items should survive transient `unknown` states
+
+- Symptom: after a boss kill or collection update, already hidden collected appearances briefly reappear in the loot panel.
+- Root cause: a refresh hit a transient `unknown` collection state from Blizzard APIs, and the panel treated that as new visible data instead of preserving the session's already-known collected baseline.
+- Repair pattern: when the loot-panel session baseline already knows an item was `collected`, treat later transient `unknown` states as still `collected` for display/filter purposes; only promote baseline-to-current changes in the direction `not_collected -> collected`.
+- Preventative check: if a session-stable WoW panel hides collected entries, test one refresh path while collection APIs are still settling and verify a temporary `unknown` does not make hidden rows visible again.
+
+### Timed auto-collapse needs an explicit session override
+
+- Symptom: a boss row that should stay open briefly after a kill either collapses immediately on refresh or stays expanded forever for the rest of the open panel session.
+- Root cause: live kill state and session-stable encounter baselines were both correct in isolation, but there was no explicit timed override bridging "delay first, then collapse" behavior.
+- Repair pattern: record a short-lived per-encounter delay in session state, keep auto-collapse disabled while that timer is active, then flip the encounter baseline to collapsed and refresh once when the delay expires.
+- Preventative check: whenever a session-stable panel needs delayed state transitions, test both the immediate post-event refresh and the later timer-driven refresh instead of assuming the baseline alone can represent both phases.
+
+### Collection-update events should mutate row data before repainting dashboards
+
+- Symptom: `TRANSMOG_COLLECTION_UPDATED` makes a statistics dashboard stutter because the event blows away the whole dashboard cache and forces a full rebuild.
+- Root cause: the event handler treated collection-state changes as if the dashboard's structural row graph had changed, even though only collected/not-collected bits inside existing row metrics were different.
+- Repair pattern: keep the cached row structure, reconcile the affected metric payloads (`collectibles`, `setPieces`, derived counts) in place, and then repaint the panel from the updated cache instead of invalidating the full table.
+- Preventative check: for event-driven dashboards, ask whether the event changes row topology or only row facts; if topology is unchanged, prefer in-place row mutation over cache invalidation.
+
+### Mock entrypoints must cover wrapper helpers too
+
+- Symptom: offline validators claim to mock the API layer, but some call paths still read live globals and produce different results than the fixture expected.
+- Root cause: a shared wrapper helper bypassed `runtimeOverrides` and called the Blizzard/global API directly, so `API.UseMock()` only partially replaced the data source.
+- Repair pattern: route wrapper helpers like `GetClassInfo` through the same override lookup used elsewhere before falling back to live globals.
+- Preventative check: when adding or auditing mock support, search the wrapper module for direct global/API reads and verify each test-facing helper honors the mock override path.
+
+### Storage schema cutovers belong in initialization, not in view reads
+
+- Symptom: opening a panel or running a lightweight validator starts failing or stalling because the read path is trying to interpret mixed legacy and current cache shapes.
+- Root cause: storage consumers accepted old and new schemas at the same boundary, so view-time reads silently became migration or repair code.
+- Repair pattern: perform schema cutover in storage initialization, replace incompatible persisted state eagerly, and keep panel/dashboard readers on one canonical store shape; if a legacy view is still needed, build it through an explicit adapter.
+- Preventative check: whenever a persistent schema changes, verify panel open paths and validators only read already-normalized data and never branch into legacy repair logic.
+
+### Shared selector helpers should normalize ordering once
+
+- Symptom: different surfaces render the same class list in different orders, and special ordering rules like `PRIEST`-first silently disappear after a refactor.
+- Root cause: a shared helper returned provider order verbatim, leaving each caller to assume or reimplement canonical sorting on its own.
+- Repair pattern: sort copied selector output at the shared boundary with the canonical comparator before caching or rendering, so every consumer sees the same order by default.
+- Preventative check: when a provider-backed list feeds multiple panels or caches, inspect the shared accessor and confirm it normalizes order instead of preserving arbitrary caller order.
+
+### Same-strata floating panels still need explicit frontmost behavior
+
+- Symptom: two addon panels overlap, but the one the user just opened or clicked does not visually cover the other, which makes the front panel look unexpectedly translucent or "under" the back one.
+- Root cause: multiple root frames share the same frame strata, but the panel setup never marks them top-level or raises them on show/click, so draw order stays stuck on creation order.
+- Repair pattern: for draggable floating WoW panels, set `SetToplevel(true)` when available and raise the frame on `OnShow` and `OnMouseDown` so the active panel becomes frontmost.
+- Preventative check: whenever two addon windows can overlap, test open-order and click-to-focus behavior explicitly; if the active window does not move in front, fix frame stacking before tweaking alpha or backdrop colors.
+
+### Selection-tree rule fixes need a cache-version bump
+
+- Symptom: the loot-panel selector or bulk-scan queue keeps reflecting an older selection-tree rule even after the underlying dedupe/build logic was fixed.
+- Root cause: the in-memory selection-tree cache key only tracked `LOOT_PANEL_SELECTION_RULES_VERSION`, so corrected builder logic could still reuse entries produced by the old rule set until the version changed.
+- Repair pattern: whenever a real bug fix changes loot-panel selection-tree build semantics, bump `LOOT_PANEL_SELECTION_RULES_VERSION` in the same patch so cached entries rebuild immediately.
+- Preventative check: after changing selection-tree dedupe, current-instance coexistence, or queue-source semantics, verify the patch also invalidates prior cache generations through a rules-version bump.
+
+### Dependency indexes should match the actual mutation granularity
+
+- Symptom: a dashboard store carries and updates several fine-grained reverse indexes, but no runtime path consumes them and every snapshot write pays unnecessary maintenance cost.
+- Root cause: the index design followed theoretical fact shapes like `item/source/appearance/set`, while the real invalidation events only ever arrive at the enclosing instance level.
+- Repair pattern: collapse the reverse index to the smallest granularity the mutation pipeline can actually target, such as `instanceKey -> bucketKeys`, and remove unused per-member index maintenance.
+- Preventative check: before adding or preserving a reverse index, trace one real mutation event end-to-end and verify the event source can address that index granularity and that a consumer actually reads it.
+
+### Reused popup dialogs need runtime payload, not first-call closures
+
+- Symptom: opening the same confirmation popup for a different target still executes the first target when the user accepts.
+- Root cause: the static popup definition was cached once, and its `OnAccept` closure captured the first call's locals even though later opens only updated the text.
+- Repair pattern: keep `OnAccept` generic and pass the per-open target through `dialog.data` or popup args when calling `StaticPopup_Show`.
+- Preventative check: whenever a WoW `StaticPopupDialogs[...]` entry can be reopened for different entities, verify that both the text and the accept payload change on every open.
+
+### Derived collection keys must be built after metadata backfill
+
+- Symptom: transmog pieces that are actually collected through same-appearance ownership, especially slots like cloaks, still enter dashboard stats as uncollected or unknown.
+- Root cause: the pipeline built `collectibleKey` and gated collection-state resolution before helper calls had a chance to backfill `sourceID` or `appearanceID` onto the item.
+- Repair pattern: run the metadata-enriching helper first, then rebuild any derived key and only then evaluate collection state or dedupe logic.
+- Preventative check: whenever a WoW stats path depends on `sourceID`, `appearanceID`, or similar derived transmog identifiers, verify those fields are populated before using them to branch or skip work.
+
+### Scan entrypoints must match the user-visible action scope
+
+- Symptom: a button labeled like a bulk scan only rebuilds a plan or a narrow subset, while a row-level refresh affordance ends up carrying the real scan behavior.
+- Root cause: the implementation reused one bulk-scan entrypoint for both planning and execution, so the top-level action and the row-level action drifted away from their intended scopes.
+- Repair pattern: keep bulk/top-level actions wired to full-scope execution, and reserve row-local refresh controls for scoped re-scan of the visible row or group only.
+- Preventative check: whenever a WoW panel exposes both global scan/update actions and row-local refresh actions, verify the executed data scope matches the label and placement of each control.
+
+### Bulk scans should not block on partial item metadata
+
+- Symptom: scanning many raids or dungeons takes disproportionately long even when the compute path itself is simple.
+- Root cause: the bulk scan loop pauses on `missingItemData` and retries individual selections synchronously, turning metadata lag into guaranteed wall-clock delay.
+- Repair pattern: persist the best current snapshot immediately, continue the bulk scan, and rely on later async item-info events plus reconcile to improve partial rows.
+- Preventative check: if a bulk loop handles dozens or hundreds of WoW selections, audit every timer-based retry inside the hot path and remove any wait that can be deferred to background reconciliation.
+
+### Hidden panels should not be initialized during login
+
+- Symptom: the addon feels laggy immediately after login even when the user has not opened any UI.
+- Root cause: `PLAYER_LOGIN` eagerly created hidden frames, buttons, scroll trees, and render state for panels which already support lazy creation on first open.
+- Repair pattern: keep login-time setup limited to data capture and lightweight entrypoints like the minimap button; initialize heavyweight panels only from their explicit open/toggle paths.
+- Preventative check: whenever a panel has an `Initialize...()` guard and a matching open/toggle entrypoint, do not call that initializer from startup events unless the user can already see and use the panel at that time.
+
+### Startup request/consume pairs should not double-scan the same snapshot
+
+- Symptom: login feels heavier than expected even before the user opens any panel, and profiling shows repeated full scans of the same SavedInstances payload.
+- Root cause: startup both requested fresh instance info and synchronously consumed the current snapshot immediately, then consumed the refreshed snapshot again on `UPDATE_INSTANCE_INFO`.
+- Repair pattern: when a startup path calls `RequestRaidInfo()`, treat the following `UPDATE_INSTANCE_INFO` as the canonical consume point and avoid an extra same-turn capture/signature pass unless the request API is unavailable.
+- Preventative check: for every startup `request -> event` pair, count how many full-state traversals happen before the user can interact; if both the requesting event and the follow-up event scan the same source, collapse them to one consumer.

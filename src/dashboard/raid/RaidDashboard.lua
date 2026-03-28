@@ -21,11 +21,40 @@ local GetClassDisplayName = Shared.GetClassDisplayName
 local GetDashboardInstanceType = Shared.GetDashboardInstanceType
 local GetDifficultyColorCode = Shared.GetDifficultyColorCode
 local OpenLootPanelForSelection = Shared.OpenLootPanelForSelection
+local IsExpansionCollapsed = Shared.IsExpansionCollapsed
 local ToggleExpansionCollapsed = Shared.ToggleExpansionCollapsed
 local GetColumnInstanceLabel = Shared.GetColumnInstanceLabel
-local GetDashboardEmptyMessage = Shared.GetDashboardEmptyMessage
-local BuildExpansionMatrixEntry = RaidDashboard.BuildExpansionMatrixEntry
+local StartDashboardBulkScan = Shared.StartDashboardBulkScan
 local ShowDashboardMetricTooltip = RaidDashboard.ShowDashboardMetricTooltip or RaidDashboard.ShowSetMetricTooltip
+
+local function ApplyLootHeaderIconToolButtonStyle(button)
+	local fn = dependencies.applyLootHeaderIconToolButtonStyle
+	if type(fn) == "function" then
+		fn(button)
+	end
+end
+
+local function SetLootHeaderButtonVisualState(button, state)
+	local fn = dependencies.setLootHeaderButtonVisualState
+	if type(fn) == "function" then
+		fn(button, state)
+	end
+end
+
+local function EnsureExpansionRefreshIcon(row)
+	if not row or row.refreshIconButton then
+		return
+	end
+	row.refreshIconButton = CreateFrame("Button", nil, row)
+	row.refreshIconButton:SetSize(18, 18)
+	ApplyLootHeaderIconToolButtonStyle(row.refreshIconButton)
+	row.refreshIconButton.icon = row.refreshIconButton:CreateTexture(nil, "ARTWORK")
+	row.refreshIconButton.icon:SetSize(13, 13)
+	row.refreshIconButton.icon:SetPoint("CENTER")
+	row.refreshIconButton.icon:SetTexture("Interface\\Buttons\\UI-RefreshButton")
+	row.refreshIconButton.keepCustomIconColor = true
+	SetLootHeaderButtonVisualState(row.refreshIconButton, "normal")
+end
 
 function RaidDashboard.HideWidgets(owner)
 	local dashboardUI = owner and owner.dashboardUI
@@ -64,6 +93,7 @@ function RaidDashboard.RenderContent(owner, content, scrollFrame)
 	local instanceRowCount = 0
 	local colorizeExpansionLabel = dependencies.colorizeExpansionLabel
 	local metricMode = owner.dashboardMetricMode == "collectibles" and "collectibles" or "sets"
+	local dashboardInstanceType = GetDashboardInstanceType()
 
 	local function MetricMatchesCurrentMode(metric)
 		if type(metric) ~= "table" then
@@ -81,62 +111,20 @@ function RaidDashboard.RenderContent(owner, content, scrollFrame)
 		return next(metric.setIDs or {}) ~= nil or next(metric.setPieces or {}) ~= nil
 	end
 
-	do
-		local filteredRows = {}
-		local dashboardInstanceType = GetDashboardInstanceType()
-		local currentExpansionRow = nil
-		local currentExpansionBucketsByClass = nil
-		local currentExpansionTotalBuckets = nil
-		for _, rowInfo in ipairs(rows) do
-			if rowInfo.type == "expansion" then
-				local expansionRowCopy = {}
-				for key, value in pairs(rowInfo) do
-					expansionRowCopy[key] = value
-				end
-				currentExpansionRow = expansionRowCopy
-				currentExpansionBucketsByClass = {}
-				for _, classFile in ipairs(classFiles) do
-					currentExpansionBucketsByClass[classFile] = {}
-				end
-				currentExpansionTotalBuckets = {}
-				filteredRows[#filteredRows + 1] = expansionRowCopy
-			elseif rowInfo.type == "instance" then
-				local visibleDifficultyRows = {}
-				local summaryDifficultyRows = {}
-				for _, difficultyRowInfo in ipairs(rowInfo.difficultyRows or {}) do
-					if dashboardInstanceType ~= "party" or MetricMatchesCurrentMode(difficultyRowInfo.total) then
-						summaryDifficultyRows[#summaryDifficultyRows + 1] = difficultyRowInfo
-						visibleDifficultyRows[#visibleDifficultyRows + 1] = difficultyRowInfo
-					end
-				end
-				if currentExpansionRow and currentExpansionBucketsByClass and currentExpansionTotalBuckets then
-					for _, difficultyRowInfo in ipairs(summaryDifficultyRows) do
-						for _, classFile in ipairs(classFiles) do
-							currentExpansionBucketsByClass[classFile][#currentExpansionBucketsByClass[classFile] + 1] = difficultyRowInfo.byClass and difficultyRowInfo.byClass[classFile] or nil
-						end
-						currentExpansionTotalBuckets[#currentExpansionTotalBuckets + 1] = difficultyRowInfo.total
-					end
-					local summary = BuildExpansionMatrixEntry(currentExpansionRow.expansionName, classFiles, currentExpansionBucketsByClass, currentExpansionTotalBuckets)
-					currentExpansionRow.byClass = summary.byClass
-					currentExpansionRow.total = summary.total
-				end
-				if #visibleDifficultyRows > 0 then
-					local rowCopy = {}
-					for key, value in pairs(rowInfo) do
-						rowCopy[key] = value
-					end
-					rowCopy.difficultyRows = visibleDifficultyRows
-					filteredRows[#filteredRows + 1] = rowCopy
-				end
-			else
-				filteredRows[#filteredRows + 1] = rowInfo
+	local function GetVisibleDifficultyRows(rowInfo)
+		local visibleDifficultyRows = {}
+		for _, difficultyRowInfo in ipairs(rowInfo.difficultyRows or {}) do
+			if dashboardInstanceType ~= "party" or MetricMatchesCurrentMode(difficultyRowInfo.total) then
+				visibleDifficultyRows[#visibleDifficultyRows + 1] = difficultyRowInfo
 			end
 		end
-		rows = filteredRows
+		return visibleDifficultyRows
 	end
 
 	for _, rowInfo in ipairs(rows) do
-		if rowInfo.type == "instance" then
+		if rowInfo.type == "instance"
+			and not IsExpansionCollapsed(rowInfo.expansionName)
+			and #GetVisibleDifficultyRows(rowInfo) > 0 then
 			instanceRowCount = instanceRowCount + 1
 		end
 	end
@@ -151,8 +139,59 @@ function RaidDashboard.RenderContent(owner, content, scrollFrame)
 	local tierColumnWidth = compact and 42 or 56
 	local firstColumnWidth = compact and math.max(88, math.floor(contentWidth * 0.20)) or math.max(132, math.floor(contentWidth * 0.22))
 	local difficultyColumnWidth = compact and 52 or 74
-	local cellWidth = math.max(compact and 16 or 24, math.floor((contentWidth - tierColumnWidth - firstColumnWidth - difficultyColumnWidth) / math.max(1, fixedColumns)))
-	local usedWidth = tierColumnWidth + firstColumnWidth + difficultyColumnWidth + (cellWidth * fixedColumns)
+	local refreshColumnWidth = 22
+	local cellWidth = math.max(
+		compact and 16 or 24,
+		math.floor((contentWidth - tierColumnWidth - firstColumnWidth - difficultyColumnWidth - refreshColumnWidth) / math.max(1, fixedColumns))
+	)
+	local usedWidth = tierColumnWidth + firstColumnWidth + difficultyColumnWidth + (cellWidth * fixedColumns) + refreshColumnWidth
+
+	local function ApplyCollapsedLayout(resetScroll)
+		local visibleInstanceRowCount = 0
+		local layoutYOffset = -32
+		for _, row in ipairs(dashboardUI.rows or {}) do
+			if row and row._dashboardUsed then
+				if row._dashboardRowType == "expansion" then
+					local collapsed = IsExpansionCollapsed(row._expansionName)
+					row:Show()
+					row:ClearAllPoints()
+					row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, layoutYOffset)
+					row:SetWidth(usedWidth)
+					if row.collectionIcon then
+						row.collectionIcon:SetTexture(collapsed and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+						row.collectionIcon:Show()
+					end
+					layoutYOffset = layoutYOffset - (tonumber(row._dashboardYOffsetStep) or 24)
+				elseif row._dashboardRowType == "instance" then
+					if IsExpansionCollapsed(row._expansionName) then
+						row:Hide()
+					else
+						row:Show()
+						row:ClearAllPoints()
+						row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, layoutYOffset)
+						row:SetWidth(usedWidth)
+						layoutYOffset = layoutYOffset - (tonumber(row._dashboardYOffsetStep) or (row:GetHeight() + 1))
+						visibleInstanceRowCount = visibleInstanceRowCount + 1
+					end
+				else
+					row:Show()
+				end
+			elseif row then
+				row:Hide()
+			end
+		end
+
+		local totalHeight
+		if visibleInstanceRowCount == 0 then
+			totalHeight = 72
+		else
+			totalHeight = math.max(1, -layoutYOffset + 8)
+		end
+		content:SetSize(math.max(contentWidth, usedWidth), totalHeight)
+		if resetScroll and scrollFrame.SetVerticalScroll then
+			scrollFrame:SetVerticalScroll(0)
+		end
+	end
 
 	local function EnsureMetricCell(parentFrame, cellTable, index)
 		cellTable[index] = cellTable[index] or CreateFrame("Frame", nil, parentFrame)
@@ -248,7 +287,6 @@ local function GetMetricParts(metric)
 	headerRow:ClearAllPoints()
 	headerRow:SetPoint("TOPLEFT", scrollFrame, "TOPLEFT", 0, -4)
 	headerRow:SetSize(usedWidth, 24)
-	headerRow:SetShown(instanceRowCount > 0)
 	headerRow.background = headerRow.background or headerRow:CreateTexture(nil, "BACKGROUND")
 	headerRow.background:SetAllPoints()
 	headerRow.background:SetColorTexture(0.09, 0.09, 0.11, 0.98)
@@ -319,55 +357,98 @@ local function GetMetricParts(metric)
 	dashboardUI.emptyText:SetPoint("TOPLEFT", content, "TOPLEFT", 4, -14)
 	dashboardUI.emptyText:SetPoint("TOPRIGHT", content, "TOPRIGHT", -8, -14)
 	dashboardUI.emptyText:SetJustifyH("LEFT")
-	dashboardUI.emptyText:SetText(data.message or GetDashboardEmptyMessage())
-	dashboardUI.emptyText:SetShown(instanceRowCount == 0)
+	dashboardUI.emptyText:SetText("")
+	dashboardUI.emptyText:Hide()
 
 	local yOffset = -32
 	local rowIndex = 0
 	for _, rowInfo in ipairs(rows) do
-		rowIndex = rowIndex + 1
-		local row = dashboardUI.rows[rowIndex]
-		if not row then
-			row = CreateFrame("Frame", nil, content)
-			row.background = row:CreateTexture(nil, "BACKGROUND")
-			row.background:SetAllPoints()
-			row.collectionIcon = row:CreateTexture(nil, "OVERLAY")
-			row.collectionIcon:SetSize(14, 14)
-			row.tierLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-			row.tierLabel:SetJustifyH("LEFT")
-			row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-			row.label:SetJustifyH("LEFT")
-			row.difficultyLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-			row.difficultyLabel:SetJustifyH("LEFT")
-			row.cells = {}
-			row.subRows = {}
-			dashboardUI.rows[rowIndex] = row
-		end
-
-		row:Show()
-		row:EnableMouse(rowInfo.type == "instance" or rowInfo.type == "expansion")
-		row:ClearAllPoints()
-		row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, yOffset)
-		row:SetWidth(usedWidth)
-
 		if rowInfo.type == "expansion" then
+			rowIndex = rowIndex + 1
+			local row = dashboardUI.rows[rowIndex]
+			if not row then
+				row = CreateFrame("Frame", nil, content)
+				row.background = row:CreateTexture(nil, "BACKGROUND")
+				row.background:SetAllPoints()
+				row.collectionIcon = row:CreateTexture(nil, "OVERLAY")
+				row.collectionIcon:SetSize(14, 14)
+				row.tierLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+				row.tierLabel:SetJustifyH("LEFT")
+				row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+				row.label:SetJustifyH("LEFT")
+				row.difficultyLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+				row.difficultyLabel:SetJustifyH("LEFT")
+				row.cells = {}
+				row.subRows = {}
+				dashboardUI.rows[rowIndex] = row
+			end
+			EnsureExpansionRefreshIcon(row)
+
+			local expansionName = tostring(rowInfo.expansionName or "Other")
+			local isCollapsed = IsExpansionCollapsed(expansionName)
+			local scanPlan = rowInfo.scanPlan
+			row:Show()
+			row:EnableMouse(true)
+			row:ClearAllPoints()
+			row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, yOffset)
+			row:SetWidth(usedWidth)
 			row:SetHeight(21)
+			row._dashboardUsed = true
+			row._dashboardRowType = "expansion"
+			row._expansionName = expansionName
+			row._dashboardYOffsetStep = 24
 			row.background:SetColorTexture(0.16, 0.16, 0.20, 0.95)
 			row.tierLabel:Hide()
 			row.collectionIcon:ClearAllPoints()
 			row.collectionIcon:SetPoint("LEFT", row, "LEFT", 2, 0)
-			row.collectionIcon:SetTexture(rowInfo.collapsed and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+			row.collectionIcon:SetTexture(isCollapsed and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
 			row.collectionIcon:Show()
-			row.label:SetWidth(usedWidth - 24)
+			row.label:SetWidth(usedWidth - 148 - refreshColumnWidth)
 			row.label:ClearAllPoints()
 			row.label:SetPoint("LEFT", row.collectionIcon, "RIGHT", 4, 0)
-			row.label:SetText(colorizeExpansionLabel and colorizeExpansionLabel(tostring(rowInfo.expansionName or "Other")) or tostring(rowInfo.expansionName or "Other"))
+			row.label:SetText(colorizeExpansionLabel and colorizeExpansionLabel(expansionName) or expansionName)
 			row.label:SetFontObject(GameFontNormal)
 			row.difficultyLabel:Hide()
+			row.refreshIconButton:ClearAllPoints()
+			row.refreshIconButton:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+			row.refreshIconButton:SetShown(scanPlan ~= nil)
+			row.refreshIconButton:SetEnabled(not (scanPlan and tostring(scanPlan.state or "") == "running"))
+			row.refreshIconButton:SetScript("OnClick", function()
+				StartDashboardBulkScan(GetDashboardInstanceType(), expansionName)
+			end)
+			row.refreshIconButton:SetScript("OnEnter", function(self)
+				local isRunning = scanPlan and tostring(scanPlan.state or "") == "running"
+				GameTooltip:SetOwner(self, "ANCHOR_TOP")
+				GameTooltip:ClearLines()
+				GameTooltip:AddLine(isRunning and Translate("BUTTON_REFRESH_RUNNING", "扫描中") or Translate("BUTTON_REFRESH", "Refresh"), 1, 0.82, 0)
+				GameTooltip:AddLine(
+					isRunning
+						and Translate("DASHBOARD_SCAN_EXPANSION_RUNNING_HINT", "当前资料片扫描进行中。")
+						or string.format(
+							Translate("DASHBOARD_SCAN_EXPANSION_HINT", "扫描资料片“%s”的已计划副本难度并重建这一行使用的摘要。"),
+							expansionName
+						),
+					1,
+					1,
+					1,
+					true
+				)
+				GameTooltip:Show()
+			end)
+			row.refreshIconButton:SetScript("OnLeave", function()
+				GameTooltip:Hide()
+			end)
+			if row.refreshIconButton.icon then
+				if scanPlan and tostring(scanPlan.state or "") == "running" then
+					row.refreshIconButton.icon:SetVertexColor(0.62, 0.62, 0.66, 0.95)
+				else
+					row.refreshIconButton.icon:SetVertexColor(0.95, 0.90, 0.72, 0.95)
+				end
+			end
 			row:SetScript("OnMouseUp", function(_, button)
 				if button == "LeftButton" then
-					ToggleExpansionCollapsed(rowInfo.expansionName)
-					RaidDashboard.RenderContent(owner, content, scrollFrame)
+					ToggleExpansionCollapsed(expansionName)
+					ApplyCollapsedLayout(false)
 				end
 			end)
 			row:SetScript("OnEnter", function()
@@ -447,135 +528,157 @@ local function GetMetricParts(metric)
 			end
 			yOffset = yOffset - 24
 		else
-			local difficultyRows = rowInfo.difficultyRows or {}
-			local subRowHeight = compact and 18 or 20
-			local rowHeight = math.max(22, math.max(1, #difficultyRows) * subRowHeight)
-			row:SetHeight(rowHeight)
-			local useEvenStripe = (rowIndex % 2 == 0)
-			if useEvenStripe then
-				row.background:SetColorTexture(0.08, 0.08, 0.10, 0.72)
-			else
-				row.background:SetColorTexture(0.13, 0.13, 0.16, 0.72)
-			end
-			row.collectionIcon:Hide()
-			row.tierLabel:Show()
-			row.tierLabel:ClearAllPoints()
-			row.tierLabel:SetPoint("LEFT", row, "LEFT", 0, 0)
-			row.tierLabel:SetWidth(tierColumnWidth - 4)
-			row.tierLabel:SetText(tostring(rowInfo.tierTag or ""))
-			row.tierLabel:SetFontObject(compact and GameFontDisableSmall or GameFontHighlightSmall)
-			row.label:SetWidth(firstColumnWidth - 6)
-			row.label:ClearAllPoints()
-			row.label:SetPoint("LEFT", row, "LEFT", tierColumnWidth, 0)
-			row.label:SetText("  " .. tostring(rowInfo.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")))
-			row.label:SetFontObject(compact and GameFontDisableSmall or GameFontHighlightSmall)
-			row.difficultyLabel:Hide()
-			row:SetScript("OnMouseUp", nil)
-			row:SetScript("OnEnter", nil)
-			row:SetScript("OnLeave", nil)
-
-			for _, cell in ipairs(row.cells or {}) do
-				cell:Hide()
-			end
-
-			for subIndex, difficultyRowInfo in ipairs(difficultyRows) do
-				local subRow = row.subRows[subIndex]
-				if not subRow then
-					subRow = CreateFrame("Button", nil, row)
-					subRow.difficultyLabel = subRow:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-					subRow.difficultyLabel:SetJustifyH("LEFT")
-					subRow.cells = {}
-					row.subRows[subIndex] = subRow
+			local difficultyRows = GetVisibleDifficultyRows(rowInfo)
+			if #difficultyRows > 0 then
+				rowIndex = rowIndex + 1
+				local row = dashboardUI.rows[rowIndex]
+				if not row then
+					row = CreateFrame("Frame", nil, content)
+					row.background = row:CreateTexture(nil, "BACKGROUND")
+					row.background:SetAllPoints()
+					row.collectionIcon = row:CreateTexture(nil, "OVERLAY")
+					row.collectionIcon:SetSize(14, 14)
+					row.tierLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+					row.tierLabel:SetJustifyH("LEFT")
+					row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+					row.label:SetJustifyH("LEFT")
+					row.difficultyLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+					row.difficultyLabel:SetJustifyH("LEFT")
+					row.cells = {}
+					row.subRows = {}
+					dashboardUI.rows[rowIndex] = row
 				end
-				subRow:Show()
-				subRow:EnableMouse(true)
-				subRow:ClearAllPoints()
-				subRow:SetPoint("TOPLEFT", row, "TOPLEFT", tierColumnWidth + firstColumnWidth, -((subIndex - 1) * subRowHeight))
-				subRow:SetSize(usedWidth - tierColumnWidth - firstColumnWidth, subRowHeight)
 
-				local rowInfoForHandlers = difficultyRowInfo
-				subRow.difficultyLabel:Show()
-				subRow.difficultyLabel:ClearAllPoints()
-				subRow.difficultyLabel:SetPoint("LEFT", subRow, "LEFT", 0, 0)
-				subRow.difficultyLabel:SetWidth(difficultyColumnWidth - 4)
-				local difficultyName = tostring(difficultyRowInfo.difficultyName or "-")
-				subRow.difficultyLabel:SetText(string.format("%s%s|r", GetDifficultyColorCode(difficultyName, difficultyRowInfo.difficultyID), difficultyName))
-				subRow.difficultyLabel:SetFontObject(compact and GameFontDisableSmall or GameFontHighlightSmall)
-				subRow:SetScript("OnMouseUp", function(_, button)
-					if button == "LeftButton" then
-						OpenLootPanelForSelection(rowInfoForHandlers)
-					end
-				end)
-				subRow:SetScript("OnEnter", function()
-					row.background:SetColorTexture(0.20, 0.18, 0.08, 0.82)
-				end)
-				subRow:SetScript("OnLeave", function()
-					if useEvenStripe then
-						row.background:SetColorTexture(0.08, 0.08, 0.10, 0.72)
-					else
-						row.background:SetColorTexture(0.13, 0.13, 0.16, 0.72)
-					end
-				end)
+				row:Show()
+				row:EnableMouse(true)
+				row:ClearAllPoints()
+				row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, yOffset)
+				row:SetWidth(usedWidth)
+				local subRowHeight = compact and 18 or 20
+				local rowHeight = math.max(22, math.max(1, #difficultyRows) * subRowHeight)
+				row:SetHeight(rowHeight)
+				row._dashboardUsed = true
+				row._dashboardRowType = "instance"
+				row._expansionName = tostring(rowInfo.expansionName or "Other")
+				row._dashboardYOffsetStep = rowHeight + 1
+				local useEvenStripe = (rowIndex % 2 == 0)
+				if useEvenStripe then
+					row.background:SetColorTexture(0.08, 0.08, 0.10, 0.72)
+				else
+					row.background:SetColorTexture(0.13, 0.13, 0.16, 0.72)
+				end
+				row.collectionIcon:Hide()
+				row.tierLabel:Show()
+				row.tierLabel:ClearAllPoints()
+				row.tierLabel:SetPoint("LEFT", row, "LEFT", 0, 0)
+				row.tierLabel:SetWidth(tierColumnWidth - 4)
+				row.tierLabel:SetText(tostring(rowInfo.tierTag or ""))
+				row.tierLabel:SetFontObject(compact and GameFontDisableSmall or GameFontHighlightSmall)
+				row.label:SetWidth(firstColumnWidth - 6)
+				row.label:ClearAllPoints()
+				row.label:SetPoint("LEFT", row, "LEFT", tierColumnWidth, 0)
+				row.label:SetText("  " .. tostring(rowInfo.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")))
+				row.label:SetFontObject(compact and GameFontDisableSmall or GameFontHighlightSmall)
+				row.difficultyLabel:Hide()
+				row:SetScript("OnMouseUp", nil)
+				row:SetScript("OnEnter", nil)
+				row:SetScript("OnLeave", nil)
 
-				local metricColumnIndex = 0
-				for _, classFile in ipairs(classFiles) do
+				for _, cell in ipairs(row.cells or {}) do
+					cell:Hide()
+				end
+
+				for subIndex, difficultyRowInfo in ipairs(difficultyRows) do
+					local subRow = row.subRows[subIndex]
+					if not subRow then
+						subRow = CreateFrame("Button", nil, row)
+						subRow.difficultyLabel = subRow:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+						subRow.difficultyLabel:SetJustifyH("LEFT")
+						subRow.cells = {}
+						row.subRows[subIndex] = subRow
+					end
+					subRow:Show()
+					subRow:EnableMouse(true)
+					subRow:ClearAllPoints()
+					subRow:SetPoint("TOPLEFT", row, "TOPLEFT", tierColumnWidth + firstColumnWidth, -((subIndex - 1) * subRowHeight))
+					subRow:SetSize(usedWidth - tierColumnWidth - firstColumnWidth, subRowHeight)
+
+					local rowInfoForHandlers = difficultyRowInfo
+					subRow.difficultyLabel:Show()
+					subRow.difficultyLabel:ClearAllPoints()
+					subRow.difficultyLabel:SetPoint("LEFT", subRow, "LEFT", 0, 0)
+					subRow.difficultyLabel:SetWidth(difficultyColumnWidth - 4)
+					local difficultyName = tostring(difficultyRowInfo.difficultyName or "-")
+					subRow.difficultyLabel:SetText(string.format("%s%s|r", GetDifficultyColorCode(difficultyName, difficultyRowInfo.difficultyID), difficultyName))
+					subRow.difficultyLabel:SetFontObject(compact and GameFontDisableSmall or GameFontHighlightSmall)
+					subRow:SetScript("OnMouseUp", function(_, button)
+						if button == "LeftButton" then
+							OpenLootPanelForSelection(rowInfoForHandlers)
+						end
+					end)
+					subRow:SetScript("OnEnter", function()
+						row.background:SetColorTexture(0.20, 0.18, 0.08, 0.82)
+					end)
+					subRow:SetScript("OnLeave", function()
+						if useEvenStripe then
+							row.background:SetColorTexture(0.08, 0.08, 0.10, 0.72)
+						else
+							row.background:SetColorTexture(0.13, 0.13, 0.16, 0.72)
+						end
+					end)
+
+					local metricColumnIndex = 0
+					for _, classFile in ipairs(classFiles) do
+						metricColumnIndex = metricColumnIndex + 1
+						local classCell = EnsureMetricCell(subRow, subRow.cells, metricColumnIndex)
+						classCell:ClearAllPoints()
+						classCell:SetPoint("LEFT", subRow, "LEFT", difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth), 0)
+						classCell:SetSize(cellWidth, subRowHeight - 1)
+						local classMetric = rowInfoForHandlers.byClass and rowInfoForHandlers.byClass[classFile] or nil
+						if classMetric then
+							classMetric.rowInfo = rowInfoForHandlers
+						end
+						local valueText, collected, total, defaultR, defaultG, defaultB = GetMetricParts(classMetric)
+						ApplyMetricCell(classCell, valueText, collected, total, defaultR, defaultG, defaultB, classMetric, GetClassDisplayName(classFile), classFile, rowInfoForHandlers)
+					end
+
 					metricColumnIndex = metricColumnIndex + 1
-					local classCell = EnsureMetricCell(subRow, subRow.cells, metricColumnIndex)
-					classCell:ClearAllPoints()
-					classCell:SetPoint("LEFT", subRow, "LEFT", difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth), 0)
-					classCell:SetSize(cellWidth, subRowHeight - 1)
-					local classMetric = rowInfoForHandlers.byClass and rowInfoForHandlers.byClass[classFile] or nil
-					if classMetric then
-						classMetric.rowInfo = rowInfoForHandlers
+					local totalCell = EnsureMetricCell(subRow, subRow.cells, metricColumnIndex)
+					totalCell:ClearAllPoints()
+					totalCell:SetPoint("LEFT", subRow, "LEFT", difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth), 0)
+					totalCell:SetSize(cellWidth, subRowHeight - 1)
+					local totalMetric = rowInfoForHandlers.total or nil
+					if totalMetric then
+						totalMetric.rowInfo = rowInfoForHandlers
 					end
-					local valueText, collected, total, defaultR, defaultG, defaultB = GetMetricParts(classMetric)
-					ApplyMetricCell(classCell, valueText, collected, total, defaultR, defaultG, defaultB, classMetric, GetClassDisplayName(classFile), classFile, rowInfoForHandlers)
-				end
+					local totalValueText, totalCollected, totalTotal, totalR, totalG, totalB = GetMetricParts(totalMetric)
+					ApplyMetricCell(totalCell, totalValueText, totalCollected, totalTotal, totalR, totalG, totalB, totalMetric, Translate("DASHBOARD_TOTAL", "Total"), nil, rowInfoForHandlers)
 
-				metricColumnIndex = metricColumnIndex + 1
-				local totalCell = EnsureMetricCell(subRow, subRow.cells, metricColumnIndex)
-				totalCell:ClearAllPoints()
-				totalCell:SetPoint("LEFT", subRow, "LEFT", difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth), 0)
-				totalCell:SetSize(cellWidth, subRowHeight - 1)
-				local totalMetric = rowInfoForHandlers.total or nil
-				if totalMetric then
-					totalMetric.rowInfo = rowInfoForHandlers
-				end
-				local totalValueText, totalCollected, totalTotal, totalR, totalG, totalB = GetMetricParts(totalMetric)
-				ApplyMetricCell(totalCell, totalValueText, totalCollected, totalTotal, totalR, totalG, totalB, totalMetric, Translate("DASHBOARD_TOTAL", "Total"), nil, rowInfoForHandlers)
-
-				for index = metricColumnIndex + 1, #(subRow.cells or {}) do
-					local cell = subRow.cells[index]
-					if cell then
-						cell:Hide()
+					for index = metricColumnIndex + 1, #(subRow.cells or {}) do
+						local cell = subRow.cells[index]
+						if cell then
+							cell:Hide()
+						end
 					end
 				end
-			end
 
-			for subIndex = #difficultyRows + 1, #(row.subRows or {}) do
-				local subRow = row.subRows[subIndex]
-				if subRow then
-					subRow:Hide()
+				for subIndex = #difficultyRows + 1, #(row.subRows or {}) do
+					local subRow = row.subRows[subIndex]
+					if subRow then
+						subRow:Hide()
+					end
 				end
-			end
 
-			yOffset = yOffset - (rowHeight + 1)
+				yOffset = yOffset - (rowHeight + 1)
+			end
 		end
 	end
 
 	for index = rowIndex + 1, #(dashboardUI.rows or {}) do
+		dashboardUI.rows[index]._dashboardUsed = nil
 		dashboardUI.rows[index]:Hide()
 	end
 
-	local totalHeight
-	if instanceRowCount == 0 then
-		totalHeight = 72
-	else
-		totalHeight = math.max(1, -yOffset + 8)
-	end
-	content:SetSize(math.max(contentWidth, usedWidth), totalHeight)
-	if scrollFrame.SetVerticalScroll then
-		scrollFrame:SetVerticalScroll(0)
-	end
+	ApplyCollapsedLayout(true)
 end
 

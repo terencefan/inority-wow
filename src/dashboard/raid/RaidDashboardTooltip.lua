@@ -8,6 +8,7 @@ local Shared = addon.RaidDashboardShared or {}
 local Translate = Shared.Translate
 local GetDisplaySetName = Shared.GetDisplaySetName
 local GetSetProgress = Shared.GetSetProgress
+local GetSetPieceSlotLabel = Shared.GetSetPieceSlotLabel
 
 local function GetDependencies()
 	return RaidDashboard._dependencies or {}
@@ -51,7 +52,7 @@ local function BuildSetPieceTooltipGroups(metric)
 				end
 				group.pieces[#group.pieces + 1] = {
 					name = tostring(pieceInfo and pieceInfo.name or Translate("LOOT_UNKNOWN_ITEM", "Unknown Item")),
-					slot = tostring(pieceInfo and pieceInfo.slot or Translate("UNKNOWN_SLOT", "Unknown Slot")),
+					slot = tostring(GetSetPieceSlotLabel and GetSetPieceSlotLabel(pieceInfo and pieceInfo.slot, pieceInfo and pieceInfo.slotKey) or pieceInfo and pieceInfo.slot or Translate("UNKNOWN_SLOT", "Unknown Slot")),
 					collected = pieceInfo and pieceInfo.collected and true or false,
 					classFile = pieceInfo and pieceInfo.classFile or nil,
 				}

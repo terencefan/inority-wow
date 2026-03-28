@@ -1,19 +1,42 @@
 local addon = {}
 
 assert(loadfile("src/core/API.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardShared.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardData.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardTooltip.lua"))("MogTracker", addon)
-local dashboardChunk = assert(loadfile("src/dashboard/RaidDashboard.lua"))
+assert(loadfile("src/core/DerivedSummaryStore.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardShared.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardData.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardTooltip.lua"))("MogTracker", addon)
+local dashboardChunk = assert(loadfile("src/dashboard/raid/RaidDashboard.lua"))
 dashboardChunk("MogTracker", addon)
 
 local RaidDashboard = assert(addon.RaidDashboard)
+local SummaryStore = assert(addon.DerivedSummaryStore)
 
 local setInfoByID = {
 	[3001] = { setID = 3001, name = "始源守护者的伪装", label = "奥迪尔" },
 }
 
-local storedCache = { entries = {} }
+local storedCache = {
+	summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey("raid", true),
+	instanceType = "raid",
+	rulesVersion = SummaryStore.GetRulesVersion("dashboardSummaryScope"),
+	collectSameAppearance = true,
+	revision = 0,
+	instances = {},
+	buckets = {},
+	scanManifest = {},
+	membershipIndex = {
+		summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey("raid", true),
+		byItemID = {},
+		bySourceID = {},
+		byAppearanceID = {},
+		bySetID = {},
+	},
+	reconcileQueue = {
+		summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey("raid", true),
+		order = {},
+		entries = {},
+	},
+}
 
 RaidDashboard.Configure({
 	T = function(_, fallback)
@@ -24,6 +47,12 @@ RaidDashboard.Configure({
 	end,
 	getStoredCache = function()
 		return storedCache
+	end,
+	ensureStoredCache = function()
+		return storedCache
+	end,
+	refreshDashboardPanel = function()
+		return nil
 	end,
 	getExpansionInfoForInstance = function()
 		return {

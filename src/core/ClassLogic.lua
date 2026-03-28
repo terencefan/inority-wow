@@ -78,28 +78,28 @@ function ClassLogic.CharacterKey()
 	return name .. " - " .. realm, name, realm, className, level
 end
 
-function ClassLogic.GetClassInfoCompat(classID)
-	return GetAPI().GetClassInfoCompat(classID)
+function ClassLogic.GetClassInfo(classID)
+	return GetAPI().GetClassInfo(classID)
 end
 
-function ClassLogic.GetSpecInfoForClassIDCompat(classID, specIndex)
-	return GetAPI().GetSpecInfoForClassIDCompat(classID, specIndex)
+function ClassLogic.GetSpecInfoForClassID(classID, specIndex)
+	return GetAPI().GetSpecInfoForClassID(classID, specIndex)
 end
 
-function ClassLogic.GetNumSpecializationsForClassIDCompat(classID)
-	return GetAPI().GetNumSpecializationsForClassIDCompat(classID)
+function ClassLogic.GetNumSpecializationsForClassID(classID)
+	return GetAPI().GetNumSpecializationsForClassID(classID)
 end
 
-function ClassLogic.GetJournalInstanceForMapCompat(mapID)
-	return GetAPI().GetJournalInstanceForMapCompat(mapID)
+function ClassLogic.GetJournalInstanceForMap(mapID)
+	return GetAPI().GetJournalInstanceForMap(mapID)
 end
 
-function ClassLogic.GetJournalNumLootCompat()
-	return GetAPI().GetJournalNumLootCompat()
+function ClassLogic.GetJournalNumLoot()
+	return GetAPI().GetJournalNumLoot()
 end
 
-function ClassLogic.GetJournalLootInfoByIndexCompat(index)
-	return GetAPI().GetJournalLootInfoByIndexCompat(index)
+function ClassLogic.GetJournalLootInfoByIndex(index)
+	return GetAPI().GetJournalLootInfoByIndex(index)
 end
 
 function ClassLogic.GetClassColorCode(className)
@@ -119,7 +119,7 @@ function ClassLogic.GetClassDisplayName(classFile)
 		return classDisplayNameByFile[classFile]
 	end
 	for classID = 1, 20 do
-		local className, currentClassFile = ClassLogic.GetClassInfoCompat(classID)
+		local className, currentClassFile = ClassLogic.GetClassInfo(classID)
 		if currentClassFile and currentClassFile ~= "" and classDisplayNameByFile[currentClassFile] == nil then
 			classDisplayNameByFile[currentClassFile] = className or currentClassFile
 		end
@@ -159,7 +159,7 @@ end
 
 function ClassLogic.GetClassIDByFile(classFile)
 	for classID = 1, 20 do
-		local _, currentClassFile = ClassLogic.GetClassInfoCompat(classID)
+		local _, currentClassFile = ClassLogic.GetClassInfo(classID)
 		if currentClassFile == classFile then
 			return classID
 		end
@@ -225,7 +225,7 @@ function ClassLogic.GetLootClassLabel(classID)
 	if not classID or classID == 0 then
 		return Translate("LOOT_FILTER_ALL_CLASSES", "全部职业")
 	end
-	local className = ClassLogic.GetClassInfoCompat(classID)
+	local className = ClassLogic.GetClassInfo(classID)
 	return className or Translate("LOOT_FILTER_UNKNOWN_CLASS", "未知职业")
 end
 
@@ -233,9 +233,9 @@ function ClassLogic.GetLootSpecLabel(classID, specID)
 	if not classID or classID == 0 or not specID or specID == 0 then
 		return Translate("LOOT_FILTER_ALL_SPECS", "全部专精")
 	end
-	local numSpecs = tonumber(ClassLogic.GetNumSpecializationsForClassIDCompat(classID)) or 0
+	local numSpecs = tonumber(ClassLogic.GetNumSpecializationsForClassID(classID)) or 0
 	for specIndex = 1, numSpecs do
-		local currentSpecID, specName = ClassLogic.GetSpecInfoForClassIDCompat(classID, specIndex)
+		local currentSpecID, specName = ClassLogic.GetSpecInfoForClassID(classID, specIndex)
 		if currentSpecID == specID then
 			return specName or Translate("LOOT_FILTER_UNKNOWN_SPEC", "未知专精")
 		end
@@ -244,25 +244,25 @@ function ClassLogic.GetLootSpecLabel(classID, specID)
 end
 
 function ClassLogic.GetLootClassScopeButtonLabel()
-	return Translate("LOOT_CLASS_SCOPE_TOGGLE", "已选/当前职业切换")
+	return Translate("LOOT_CLASS_SCOPE_CURRENT_ONLY", "仅看当前职业")
 end
 
 function ClassLogic.GetLootClassScopeTooltipLines()
 	local lootPanelState = GetLootPanelState()
 	if lootPanelState.classScopeMode == "current" then
 		return {
-			Translate("LOOT_CLASS_SCOPE_CURRENT", "当前职业"),
-			Translate("LOOT_CLASS_SCOPE_HINT_CURRENT", "点击切换到主面板已选择的职业集合。"),
+			Translate("LOOT_CLASS_SCOPE_CURRENT_ONLY", "仅看当前职业"),
+			Translate("LOOT_CLASS_SCOPE_HINT_CURRENT", "已启用，只显示当前角色职业可用的掉落。"),
 		}
 	end
 	return {
-		Translate("LOOT_CLASS_SCOPE_SELECTED", "已选择职业"),
-		Translate("LOOT_CLASS_SCOPE_HINT_SELECTED", "点击切换到当前角色职业。"),
+		Translate("LOOT_CLASS_SCOPE_CURRENT_ONLY", "仅看当前职业"),
+		Translate("LOOT_CLASS_SCOPE_HINT_SELECTED", "未启用，显示主面板职业筛选中的职业集合。"),
 	}
 end
 
-function ClassLogic.GetDifficultyNameCompat(difficultyID)
-	return GetDifficultyRules().GetDifficultyNameCompat(difficultyID)
+function ClassLogic.GetDifficultyName(difficultyID)
+	return GetDifficultyRules().GetDifficultyName(difficultyID)
 end
 
 function ClassLogic.GetRaidDifficultyDisplayOrder(difficultyID)
@@ -273,8 +273,8 @@ function ClassLogic.GetDifficultyColorCode(difficultyID)
 	return GetDifficultyRules().GetDifficultyColorCode(difficultyID)
 end
 
-function ClassLogic.ColorizeDifficultyLabel(difficultyID, text)
-	return GetDifficultyRules().ColorizeDifficultyLabel(difficultyID, text)
+function ClassLogic.ColorizeDifficultyLabel(text, difficultyID)
+	return GetDifficultyRules().ColorizeDifficultyLabel(text, difficultyID)
 end
 
 function ClassLogic.GetObservedRaidDifficultyOptions(instanceName, instanceID)
@@ -291,7 +291,7 @@ function ClassLogic.GetObservedRaidDifficultyOptions(instanceName, instanceID)
 						observed[difficultyID] = true
 						options[#options + 1] = {
 							difficultyID = difficultyID,
-							difficultyName = lockout.difficultyName or ClassLogic.GetDifficultyNameCompat(difficultyID),
+							difficultyName = lockout.difficultyName or ClassLogic.GetDifficultyName(difficultyID),
 						}
 					end
 				end
@@ -334,7 +334,7 @@ function ClassLogic.GetJournalInstanceDifficultyOptions(journalInstanceID, isRai
 		optionsByID[difficultyID] = true
 		options[#options + 1] = {
 			difficultyID = difficultyID,
-			difficultyName = difficultyName or ClassLogic.GetDifficultyNameCompat(difficultyID),
+			difficultyName = difficultyName or ClassLogic.GetDifficultyName(difficultyID),
 			observed = observedMap[difficultyID] == true,
 		}
 	end
@@ -349,7 +349,7 @@ function ClassLogic.GetJournalInstanceDifficultyOptions(journalInstanceID, isRai
 			valid = true
 		end
 		if valid then
-			AddOption(difficultyID, ClassLogic.GetDifficultyNameCompat(difficultyID))
+			AddOption(difficultyID, ClassLogic.GetDifficultyName(difficultyID))
 		end
 	end
 

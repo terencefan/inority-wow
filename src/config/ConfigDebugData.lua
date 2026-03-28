@@ -3,6 +3,8 @@ local _, addon = ...
 local ConfigDebugData = addon.ConfigDebugData or {}
 addon.ConfigDebugData = ConfigDebugData
 
+local EXPIRED_LOCKOUT_GRACE_MINUTES = 7 * 24 * 60
+
 local dependencies = ConfigDebugData._dependencies or {}
 
 function ConfigDebugData.Configure(config)
@@ -18,22 +20,18 @@ local function T(key, fallback)
 	return fallback or key
 end
 
-local function GetPanel()
-	return type(dependencies.getPanel) == "function" and dependencies.getPanel() or nil
+local function GetDebugPanel()
+	return type(dependencies.getDebugPanel) == "function" and dependencies.getDebugPanel() or nil
+end
+
+local function SetDebugPanel(panel)
+	if type(dependencies.setDebugPanel) == "function" then
+		dependencies.setDebugPanel(panel)
+	end
 end
 
 local function GetDB()
 	return type(dependencies.getDB) == "function" and dependencies.getDB() or nil
-end
-
-local function GetCurrentPanelView()
-	return type(dependencies.getCurrentPanelView) == "function" and dependencies.getCurrentPanelView() or "config"
-end
-
-local function SetCurrentPanelView(view)
-	if type(dependencies.setCurrentPanelView) == "function" then
-		dependencies.setCurrentPanelView(view)
-	end
 end
 
 local function GetLastDebugDump()
@@ -58,9 +56,19 @@ local function InvalidateLootDataCache()
 	end
 end
 
-local function InvalidateLootPanelSelectionCache()
-	if type(dependencies.InvalidateLootPanelSelectionCache) == "function" then
-		dependencies.InvalidateLootPanelSelectionCache()
+local function GetAddonMetadata(name, field)
+	return type(dependencies.GetAddonMetadata) == "function" and dependencies.GetAddonMetadata(name, field) or nil
+end
+
+local function ApplyDefaultFrameStyle(frame)
+	if type(dependencies.ApplyDefaultFrameStyle) == "function" then
+		dependencies.ApplyDefaultFrameStyle(frame)
+	end
+end
+
+local function ApplyElvUISkin()
+	if type(dependencies.ApplyElvUISkin) == "function" then
+		dependencies.ApplyElvUISkin()
 	end
 end
 
@@ -84,39 +92,98 @@ local function ExtractSavedInstanceProgress(returns)
 end
 
 function ConfigDebugData.CaptureAndShowDebugDump()
-	local panel = GetPanel()
+	local panel = ConfigDebugData.InitializeDebugPanel()
 	if RequestRaidInfo then
 		RequestRaidInfo()
 	end
 	local debugDump = addon.DebugTools and addon.DebugTools.CaptureEncounterDebugDump and addon.DebugTools.CaptureEncounterDebugDump() or nil
 	SetLastDebugDump(debugDump)
-	SetCurrentPanelView("debug")
 	ConfigDebugData.RefreshPanelText()
-	panel:Show()
+	if panel then
+		panel:Show()
+	end
 	if C_Timer and C_Timer.After then
 		C_Timer.After(0, function()
-			if MogTrackerPanelScrollChild and panel and panel:IsShown() then
-				MogTrackerPanelScrollChild:SetFocus()
-				MogTrackerPanelScrollChild:HighlightText()
+			if MogTrackerDebugPanelScrollChild and panel and panel:IsShown() then
+				MogTrackerDebugPanelScrollChild:SetFocus()
+				MogTrackerDebugPanelScrollChild:HighlightText()
 			end
 		end)
 	else
-		MogTrackerPanelScrollChild:SetFocus()
-		MogTrackerPanelScrollChild:HighlightText()
+		MogTrackerDebugPanelScrollChild:SetFocus()
+		MogTrackerDebugPanelScrollChild:HighlightText()
 	end
 	if debugDump then
 		PrintMessage(string.format(T("MESSAGE_DEBUG_CAPTURED", "Debug logs collected and selected (%d instances). Press Ctrl+C to copy."), #debugDump.lastEncounterDump.instances))
 	end
 end
 
+function ConfigDebugData.InitializeDebugPanel()
+	local panel = GetDebugPanel()
+	if not panel then
+		panel = MogTrackerDebugPanel
+		SetDebugPanel(panel)
+	end
+	if not panel or panel.initialized then
+		return panel
+	end
+
+	ApplyDefaultFrameStyle(panel)
+	MogTrackerDebugPanelTitle:SetText(T("DEBUG_PANEL_TITLE", "调试日志"))
+	MogTrackerDebugPanelSubtitle:SetText(T("DEBUG_PANEL_SUBTITLE", "只能通过 /img debug ... 打开。"))
+	MogTrackerDebugPanelSectionsHeader:SetText(T("DEBUG_SECTION_HEADER", "日志分段"))
+	MogTrackerDebugPanelListHeader:SetText(T("DEBUG_HEADER", "Debug Output"))
+	local addonVersion = GetAddonMetadata(dependencies.addonName, "Version") or "0.0.0"
+	MogTrackerDebugPanelFooter:SetText(string.format("%s · v%s", T("DEBUG_PANEL_FOOTER", "/img debug"), tostring(addonVersion)))
+	MogTrackerDebugPanelRefreshButton:SetText(T("BUTTON_COLLECT_DEBUG", "Collect Logs"))
+
+	MogTrackerDebugPanelScrollChild:SetMultiLine(true)
+	MogTrackerDebugPanelScrollChild:SetAutoFocus(false)
+	MogTrackerDebugPanelScrollChild:SetFontObject(GameFontHighlightSmall)
+	MogTrackerDebugPanelScrollChild:SetWidth(610)
+	MogTrackerDebugPanelScrollChild:SetTextInsets(4, 4, 4, 4)
+	MogTrackerDebugPanelScrollChild:EnableMouse(true)
+	MogTrackerDebugPanelScrollChild:SetMaxLetters(0)
+	MogTrackerDebugPanelScrollChild:SetScript("OnMouseUp", function(self) self:SetFocus() end)
+	MogTrackerDebugPanelScrollChild:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+	MogTrackerDebugPanelScrollFrame:SetScrollChild(MogTrackerDebugPanelScrollChild)
+
+	MogTrackerDebugPanelRefreshButton:SetScript("OnClick", function()
+		ConfigDebugData.CaptureAndShowDebugDump()
+	end)
+
+	panel:EnableMouse(true)
+	panel:SetMovable(true)
+	panel:RegisterForDrag("LeftButton")
+	panel:SetScript("OnDragStart", function(self) self:StartMoving() end)
+	panel:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+
+	local layout = ConfigDebugData.GetDebugLogSectionLayout()
+	MogTrackerDebugPanelListHeader:ClearAllPoints()
+	MogTrackerDebugPanelListHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, layout.listHeaderOffset)
+	MogTrackerDebugPanelScrollFrame:ClearAllPoints()
+	MogTrackerDebugPanelScrollFrame:SetSize(632, layout.scrollHeight)
+	MogTrackerDebugPanelScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, layout.scrollTopOffset)
+
+	panel.initialized = true
+	ApplyElvUISkin()
+	ConfigDebugData.UpdateDebugLogSectionUI(GetDB() and GetDB().settings or {})
+	return panel
+end
+
 function ConfigDebugData.GetDebugLogSectionLayout()
 	local definitions = {
+		{ key = "startupLifecycleDebug", label = "Startup Lifecycle Debug" },
+		{ key = "runtimeErrorDebug", label = "Runtime Error Debug" },
 		{ key = "rawSavedInstanceInfo", label = "Raw GetSavedInstanceInfo" },
 		{ key = "currentLootDebug", label = "Current Loot Encounter Debug" },
 		{ key = "minimapTooltipDebug", label = "Minimap Tooltip Debug" },
-		{ key = "lootPanelSelectionDebug", label = "Loot Panel Selection Debug" },
-		{ key = "lootPanelRenderTimingDebug", label = "Loot Panel Render Timing Debug" },
-		{ key = "selectedDifficultyProbe", label = "Selected Loot Panel Instance Difficulty Probe" },
+	{ key = "minimapClickDebug", label = "Minimap Click Debug" },
+	{ key = "lootPanelSelectionDebug", label = "Loot Panel Selection Debug" },
+	{ key = "lootPanelRenderTimingDebug", label = "Loot Panel Render Timing Debug" },
+	{ key = "lootPanelOpenDebug", label = "Loot Panel Open Debug" },
+	{ key = "bulkScanQueueDebug", label = "Bulk Scan Queue Debug" },
+	{ key = "selectedDifficultyProbe", label = "Selected Loot Panel Instance Difficulty Probe" },
 		{ key = "normalizedLockouts", label = "Normalized Lockouts" },
 		{ key = "setSummaryDebug", label = "Loot Set Summary Debug" },
 		{ key = "dashboardSetPieceDebug", label = "Dashboard Set Piece Metric Debug" },
@@ -150,7 +217,17 @@ function ConfigDebugData.CaptureSavedInstances()
 	local key, name, realm, className, level = CharacterKey()
 	local existingCharacter = db.characters and db.characters[key] or nil
 	local capturedAt = time()
-	local character = { name = name, realm = realm, className = className, level = level, lastUpdated = capturedAt, lockouts = {}, bossKillCounts = {} }
+	local capturedAtMinute = math.floor((capturedAt or 0) / 60)
+	local character = {
+		name = name,
+		realm = realm,
+		className = className,
+		level = level,
+		lastUpdated = capturedAt,
+		lockouts = {},
+		previousCycleLockouts = {},
+		bossKillCounts = {},
+	}
 	if existingCharacter then
 		if (not character.name or character.name == "") and existingCharacter.name and existingCharacter.name ~= "" then
 			character.name = existingCharacter.name
@@ -182,7 +259,7 @@ function ConfigDebugData.CaptureSavedInstances()
 		local shouldPersistLockout = instanceName and (locked or (tonumber(progressCount) or 0) > 0)
 		if shouldPersistLockout then
 			local cycleInfo = addon.BuildBossKillCycleInfo and addon.BuildBossKillCycleInfo(instanceName, instanceID, difficultyID, resetSeconds, capturedAt) or nil
-			character.lockouts[#character.lockouts + 1] = {
+			local lockoutEntry = {
 				name = instanceName,
 				id = instanceID,
 				resetSeconds = resetSeconds or 0,
@@ -194,9 +271,42 @@ function ConfigDebugData.CaptureSavedInstances()
 				maxPlayers = maxPlayers or 0,
 				extended = extended and true or false,
 				cycleResetAtMinute = cycleInfo and cycleInfo.resetAtMinute or 0,
+				isPreviousCycleSnapshot = false,
 			}
+			character.lockouts[#character.lockouts + 1] = lockoutEntry
 		end
 	end
+
+	local function CarryPreviousCycleLockouts(lockouts)
+		for _, lockout in ipairs(lockouts or {}) do
+			local progress = tonumber(lockout and lockout.progress) or 0
+			local cycleResetAtMinute = tonumber(lockout and lockout.cycleResetAtMinute) or 0
+			local expiredMinutes = capturedAtMinute - cycleResetAtMinute
+			if progress > 0
+				and cycleResetAtMinute > 0
+				and cycleResetAtMinute <= capturedAtMinute
+				and expiredMinutes <= EXPIRED_LOCKOUT_GRACE_MINUTES
+				and not (lockout and lockout.isPreviousCycleSnapshot) then
+				local previousLockout = {
+					name = lockout.name,
+					id = lockout.id,
+					resetSeconds = 0,
+					difficultyID = lockout.difficultyID,
+					difficultyName = lockout.difficultyName,
+					encounters = lockout.encounters,
+					progress = lockout.progress,
+					isRaid = lockout.isRaid and true or false,
+					maxPlayers = lockout.maxPlayers or 0,
+					extended = lockout.extended and true or false,
+					cycleResetAtMinute = cycleResetAtMinute,
+					isPreviousCycleSnapshot = true,
+				}
+				character.previousCycleLockouts[#character.previousCycleLockouts + 1] = previousLockout
+			end
+		end
+	end
+
+	CarryPreviousCycleLockouts(existingCharacter and existingCharacter.lockouts or {})
 	character.bossKillCounts = addon.NormalizeBossKillCountsForCharacter
 		and addon.NormalizeBossKillCountsForCharacter(existingCharacter and existingCharacter.bossKillCounts or {}, character.lockouts, capturedAt)
 		or (existingCharacter and existingCharacter.bossKillCounts or {})
@@ -208,8 +318,14 @@ function ConfigDebugData.CaptureSavedInstances()
 		if a.resetSeconds ~= b.resetSeconds then return a.resetSeconds < b.resetSeconds end
 		return (a.name or "") < (b.name or "")
 	end)
+	table.sort(character.previousCycleLockouts, function(a, b)
+		local aExpansion = GetExpansionForLockout(a)
+		local bExpansion = GetExpansionForLockout(b)
+		if aExpansion ~= bExpansion then return GetExpansionOrder(aExpansion) < GetExpansionOrder(bExpansion) end
+		if a.isRaid ~= b.isRaid then return a.isRaid end
+		return (a.name or "") < (b.name or "")
+	end)
 	db.characters[key] = character
-	InvalidateLootPanelSelectionCache()
 	InvalidateLootDataCache()
 	if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
 		addon.RaidDashboard.InvalidateCache()
@@ -218,34 +334,21 @@ function ConfigDebugData.CaptureSavedInstances()
 end
 
 function ConfigDebugData.RefreshPanelText()
-	local panel = GetPanel()
+	local panel = GetDebugPanel()
 	if not panel then return end
-	local text
-	if GetCurrentPanelView() == "debug" then
-		local debugFormatter = addon.DebugTools and addon.DebugTools.FormatDebugDump
-		text = debugFormatter and debugFormatter(GetLastDebugDump() or (GetDB() and GetDB().debugTemp)) or ""
-	else
-		text = ""
-	end
-	MogTrackerPanelScrollChild:SetText(text)
-	MogTrackerPanelScrollChild:SetCursorPosition(0)
+	local debugFormatter = addon.DebugTools and addon.DebugTools.FormatDebugDump
+	local text = debugFormatter and debugFormatter(GetLastDebugDump() or (GetDB() and GetDB().debugTemp)) or ""
+	MogTrackerDebugPanelScrollChild:SetText(text)
+	MogTrackerDebugPanelScrollChild:SetCursorPosition(0)
 end
 
 function ConfigDebugData.UpdateDebugLogSectionUI(settings)
-	local panel = GetPanel()
+	local panel = GetDebugPanel()
 	if not panel then return end
 	settings = settings or {}
 	settings.debugLogSections = settings.debugLogSections or {}
-	local isDebugView = GetCurrentPanelView() == "debug"
 	panel.debugLogSectionButtons = panel.debugLogSectionButtons or {}
-	if not panel.debugLogSectionsHeader then
-		panel.debugLogSectionsHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	end
 	local layout = ConfigDebugData.GetDebugLogSectionLayout()
-	panel.debugLogSectionsHeader:ClearAllPoints()
-	panel.debugLogSectionsHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
-	panel.debugLogSectionsHeader:SetText(T("DEBUG_SECTION_HEADER", "日志分段"))
-	panel.debugLogSectionsHeader:SetShown(isDebugView)
 	for index, definition in ipairs(layout.definitions) do
 		local button = panel.debugLogSectionButtons[index]
 		if not button then
@@ -258,7 +361,7 @@ function ConfigDebugData.UpdateDebugLogSectionUI(settings)
 		local columnIndex = (index - 1) % layout.columns
 		local rowIndex = math.floor((index - 1) / layout.columns)
 		button:ClearAllPoints()
-		button:SetPoint("TOPLEFT", panel, "TOPLEFT", 156 + (columnIndex * layout.columnWidth), -86 - (rowIndex * layout.rowHeight))
+		button:SetPoint("TOPLEFT", panel, "TOPLEFT", 24 + (columnIndex * layout.columnWidth), -86 - (rowIndex * layout.rowHeight))
 		button.text:SetText(definition.label)
 		button.text:SetWidth(layout.columnWidth - 26)
 		button.text:SetJustifyH("LEFT")
@@ -267,8 +370,8 @@ function ConfigDebugData.UpdateDebugLogSectionUI(settings)
 			settings.debugLogSections[definition.key] = self:GetChecked() and true or false
 			ConfigDebugData.RefreshPanelText()
 		end)
-		button:SetShown(isDebugView)
-		if button.text then button.text:SetShown(isDebugView) end
+		button:Show()
+		if button.text then button.text:Show() end
 	end
 	for index = #layout.definitions + 1, #(panel.debugLogSectionButtons or {}) do
 		panel.debugLogSectionButtons[index]:Hide()

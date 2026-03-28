@@ -1,20 +1,43 @@
 local addon = {}
 
 assert(loadfile("src/core/API.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardShared.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardData.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardTooltip.lua"))("MogTracker", addon)
-local dashboardChunk = assert(loadfile("src/dashboard/RaidDashboard.lua"))
+assert(loadfile("src/core/DerivedSummaryStore.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardShared.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardData.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardTooltip.lua"))("MogTracker", addon)
+local dashboardChunk = assert(loadfile("src/dashboard/raid/RaidDashboard.lua"))
 dashboardChunk("MogTracker", addon)
 
 local RaidDashboard = assert(addon.RaidDashboard)
+local SummaryStore = assert(addon.DerivedSummaryStore)
 
 local setInfoByID = {
 	[357] = { setID = 357, name = "预言", label = "熔火之心" },
 	[356] = { setID = 356, name = "卓越", label = "黑翼之巢" },
 }
 
-local storedCache = { entries = {} }
+local storedCache = {
+	summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey("raid", true),
+	instanceType = "raid",
+	rulesVersion = SummaryStore.GetRulesVersion("dashboardSummaryScope"),
+	collectSameAppearance = true,
+	revision = 0,
+	instances = {},
+	buckets = {},
+	scanManifest = {},
+	membershipIndex = {
+		summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey("raid", true),
+		byItemID = {},
+		bySourceID = {},
+		byAppearanceID = {},
+		bySetID = {},
+	},
+	reconcileQueue = {
+		summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey("raid", true),
+		order = {},
+		entries = {},
+	},
+}
 
 RaidDashboard.Configure({
 	T = function(_, fallback)
@@ -25,6 +48,12 @@ RaidDashboard.Configure({
 	end,
 	getStoredCache = function()
 		return storedCache
+	end,
+	ensureStoredCache = function()
+		return storedCache
+	end,
+	refreshDashboardPanel = function()
+		return nil
 	end,
 	getExpansionInfoForInstance = function()
 		return {
@@ -112,8 +141,30 @@ local data = {
 
 assert(RaidDashboard.UpdateSnapshot(selection, data, { classFiles = { "PRIEST" } }) == true)
 
-local priest = assert(_G.__snapshot_debug.byClass[1])
-print(string.format("snapshot_write_priest=%s/%s", tostring(priest.setPieceCollected), tostring(priest.setPieceTotal)))
-print(string.format("snapshot_write_keys=%s", table.concat(priest.setPieceKeys or {}, ",")))
+local built = RaidDashboard.BuildData()
+local priestMetric
+for _, row in ipairs(built.rows or {}) do
+	if row.type == "instance" and row.instanceName == "熔火之心" then
+		for _, difficultyRow in ipairs(row.difficultyRows or {}) do
+			if tonumber(difficultyRow.difficultyID) == 9 then
+				priestMetric = difficultyRow.byClass and difficultyRow.byClass.PRIEST or nil
+			end
+		end
+	end
+end
 
-assert(priest.setPieceCollected == 7 and priest.setPieceTotal == 7, "expected priest snapshot write 7/7")
+local priestBucket = storedCache.buckets["raid::741::9::CLASS::PRIEST"]
+assert(priestBucket, "expected stored priest bucket")
+assert(priestMetric, "expected priest metric in built dashboard")
+
+local memberCount = 0
+for _ in pairs(priestBucket.members and priestBucket.members.setPieces or {}) do
+	memberCount = memberCount + 1
+end
+
+print(string.format("snapshot_write_priest=%s/%s", tostring(priestMetric.setCollected), tostring(priestMetric.setTotal)))
+print(string.format("stored_member_count=%s", tostring(memberCount)))
+
+assert(_G.__snapshot_debug and _G.__snapshot_debug.summaryScopeKey == storedCache.summaryScopeKey, "expected new snapshot debug payload")
+assert(memberCount == 7, "expected stored priest bucket to keep 7 set-piece members")
+assert(priestMetric.setCollected == 7 and priestMetric.setTotal == 7, "expected priest dashboard metric 7/7")

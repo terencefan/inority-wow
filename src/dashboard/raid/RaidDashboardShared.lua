@@ -64,6 +64,16 @@ function Shared.GetSelectionLockoutProgress(selection)
 	return fn and fn(selection) or nil
 end
 
+function Shared.StartDashboardBulkScan(instanceType, expansionName)
+	local fn = GetDependencies().startDashboardBulkScan
+	return fn and fn(false, instanceType, expansionName) or nil
+end
+
+function Shared.GetDashboardBulkScanExpansionRows(instanceType)
+	local fn = GetDependencies().getDashboardBulkScanExpansionRows
+	return fn and fn(instanceType) or {}
+end
+
 function Shared.GetDifficultyColorCode(difficultyName, difficultyID)
 	difficultyName = string.lower(tostring(difficultyName or ""))
 	difficultyID = tonumber(difficultyID) or 0
@@ -97,7 +107,6 @@ function Shared.GetStoredCache(instanceType)
 	if type(cache) ~= "table" then
 		return nil
 	end
-	cache.entries = type(cache.entries) == "table" and cache.entries or {}
 	return cache
 end
 
@@ -186,12 +195,34 @@ end
 
 function Shared.GetDashboardEmptyMessage()
 	if Shared.GetDashboardInstanceType() == "party" then
-		return Shared.Translate("DASHBOARD_EMPTY_DUNGEON", "还没有已缓存的地下城数据。\n先打开任意地下城掉落面板，已经计算过的副本才会出现在这里。")
+		return Shared.Translate("DASHBOARD_EMPTY_DUNGEON", "还没有已扫描的地下城统计数据。\n请先扫描地下城。")
 	end
-	return Shared.Translate("DASHBOARD_EMPTY", "还没有已缓存的团队副本数据。\n先打开任意团队本掉落面板，已经计算过的副本才会出现在这里。")
+	return Shared.Translate("DASHBOARD_EMPTY", "还没有已扫描的团队副本统计数据。\n请先扫描副本。")
 end
 
 function Shared.DeriveLootTypeKey(item)
 	local fn = GetDependencies().deriveLootTypeKey
 	return fn and fn(item) or tostring(item and item.typeKey or "MISC")
+end
+
+function Shared.GetSetPieceSlotLabel(slot, slotKey)
+	local normalizedSlot = tostring(slot or "")
+	if normalizedSlot ~= "" then
+		return normalizedSlot
+	end
+
+	local normalizedSlotKey = string.upper(tostring(slotKey or ""))
+	local labels = {
+		INVTYPE_HEAD = Shared.Translate("LOOT_SLOT_HEAD", "头部"),
+		INVTYPE_SHOULDER = Shared.Translate("LOOT_SLOT_SHOULDER", "肩部"),
+		INVTYPE_CHEST = Shared.Translate("LOOT_SLOT_CHEST", "胸部"),
+		INVTYPE_ROBE = Shared.Translate("LOOT_SLOT_CHEST", "胸部"),
+		INVTYPE_HAND = Shared.Translate("LOOT_SLOT_HAND", "手部"),
+		INVTYPE_WAIST = Shared.Translate("LOOT_SLOT_WAIST", "腰部"),
+		INVTYPE_LEGS = Shared.Translate("LOOT_SLOT_LEGS", "腿部"),
+		INVTYPE_FEET = Shared.Translate("LOOT_SLOT_FEET", "脚部"),
+		INVTYPE_WRIST = Shared.Translate("LOOT_SLOT_WRIST", "手腕"),
+		INVTYPE_CLOAK = Shared.Translate("LOOT_SLOT_BACK", "披风"),
+	}
+	return labels[normalizedSlotKey] or Shared.Translate("UNKNOWN_SLOT", "Unknown Slot")
 end

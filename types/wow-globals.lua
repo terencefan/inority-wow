@@ -78,6 +78,36 @@ _G.MogTrackerPanelNavDebugHeader = MogTrackerPanelNavDebugHeader
 MogTrackerPanelNavFiltersHeader = MogTrackerPanelNavFiltersHeader or {}
 _G.MogTrackerPanelNavFiltersHeader = MogTrackerPanelNavFiltersHeader
 
+MogTrackerDebugPanel = MogTrackerDebugPanel or {}
+_G.MogTrackerDebugPanel = MogTrackerDebugPanel
+
+MogTrackerDebugPanelCloseButton = MogTrackerDebugPanelCloseButton or {}
+_G.MogTrackerDebugPanelCloseButton = MogTrackerDebugPanelCloseButton
+
+MogTrackerDebugPanelFooter = MogTrackerDebugPanelFooter or {}
+_G.MogTrackerDebugPanelFooter = MogTrackerDebugPanelFooter
+
+MogTrackerDebugPanelListHeader = MogTrackerDebugPanelListHeader or {}
+_G.MogTrackerDebugPanelListHeader = MogTrackerDebugPanelListHeader
+
+MogTrackerDebugPanelRefreshButton = MogTrackerDebugPanelRefreshButton or {}
+_G.MogTrackerDebugPanelRefreshButton = MogTrackerDebugPanelRefreshButton
+
+MogTrackerDebugPanelScrollChild = MogTrackerDebugPanelScrollChild or {}
+_G.MogTrackerDebugPanelScrollChild = MogTrackerDebugPanelScrollChild
+
+MogTrackerDebugPanelScrollFrame = MogTrackerDebugPanelScrollFrame or {}
+_G.MogTrackerDebugPanelScrollFrame = MogTrackerDebugPanelScrollFrame
+
+MogTrackerDebugPanelSectionsHeader = MogTrackerDebugPanelSectionsHeader or {}
+_G.MogTrackerDebugPanelSectionsHeader = MogTrackerDebugPanelSectionsHeader
+
+MogTrackerDebugPanelSubtitle = MogTrackerDebugPanelSubtitle or {}
+_G.MogTrackerDebugPanelSubtitle = MogTrackerDebugPanelSubtitle
+
+MogTrackerDebugPanelTitle = MogTrackerDebugPanelTitle or {}
+_G.MogTrackerDebugPanelTitle = MogTrackerDebugPanelTitle
+
 ATTC = ATTC or {}
 _G.ATTC = ATTC
 

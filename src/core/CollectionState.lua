@@ -45,6 +45,20 @@ local function GetPetCollectionState(item)
 	return nil
 end
 
+local function GetItemFact(itemID)
+	if type(dependencies.GetItemFact) == "function" then
+		return dependencies.GetItemFact(itemID)
+	end
+	return nil
+end
+
+local function GetItemFactBySourceID(sourceID)
+	if type(dependencies.GetItemFactBySourceID) == "function" then
+		return dependencies.GetItemFactBySourceID(sourceID)
+	end
+	return nil
+end
+
 local function MergeBossKillCache(state)
 	if type(dependencies.MergeBossKillCache) == "function" then
 		dependencies.MergeBossKillCache(state)
@@ -91,14 +105,39 @@ function CollectionState.ResolveLootItemCollectionState(item, includeDebug)
 	end
 
 	if debugInfo then
-		local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(itemInfo)
-		debugInfo.equipLoc = equipLoc
+		local itemInfoFn = _G.GetItemInfo
+		if itemInfoFn then
+			local _, _, _, _, _, _, _, _, equipLoc = itemInfoFn(itemInfo)
+			debugInfo.equipLoc = equipLoc
+		end
 	end
 
-	local appearanceID, sourceID = C_TransmogCollection.GetItemInfo(itemInfo)
+	local appearanceID = tonumber(item and item.appearanceID) or nil
+	local sourceID = tonumber(item and item.sourceID) or nil
+	local cachedFact = nil
+	if (not appearanceID or not sourceID) and item and tonumber(item.itemID) then
+		cachedFact = GetItemFact(item.itemID)
+		appearanceID = appearanceID or tonumber(cachedFact and cachedFact.appearanceID) or nil
+		sourceID = sourceID or tonumber(cachedFact and cachedFact.sourceID) or nil
+	end
+	if sourceID and not cachedFact then
+		cachedFact = GetItemFactBySourceID(sourceID)
+		appearanceID = appearanceID or tonumber(cachedFact and cachedFact.appearanceID) or nil
+	end
+	if (not appearanceID or not sourceID) and C_TransmogCollection.GetItemInfo then
+		local apiAppearanceID, apiSourceID = C_TransmogCollection.GetItemInfo(itemInfo)
+		appearanceID = appearanceID or tonumber(apiAppearanceID) or nil
+		sourceID = sourceID or tonumber(apiSourceID) or nil
+	end
+	if item then
+		item.appearanceID = appearanceID or item.appearanceID
+		item.sourceID = sourceID or item.sourceID
+	end
 	if debugInfo then
 		debugInfo.appearanceID = appearanceID
 		debugInfo.sourceID = sourceID
+		debugInfo.factAppearanceID = cachedFact and cachedFact.appearanceID or nil
+		debugInfo.factSourceID = cachedFact and cachedFact.sourceID or nil
 	end
 	if sourceID and C_TransmogCollection.GetAppearanceSourceInfo then
 		local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
@@ -241,6 +280,10 @@ function CollectionState.GetLootItemDisplayCollectionState(item)
 		return currentState
 	end
 
+	if baseline == "collected" and currentState == "unknown" then
+		return "collected"
+	end
+
 	if baseline ~= "collected" and currentState == "collected" then
 		return "newly_collected"
 	end
@@ -260,13 +303,14 @@ function CollectionState.LootItemMatchesTypeFilter(item)
 
 	local settings = db and db.settings or {}
 	local displayState = CollectionState.GetLootItemDisplayCollectionState(item)
+	local hideCollectedTransmog = true
 	if item.typeKey == "MOUNT" and settings.hideCollectedMounts and displayState == "collected" then
 		return false
 	end
 	if item.typeKey == "PET" and settings.hideCollectedPets and displayState == "collected" then
 		return false
 	end
-	if settings.hideCollectedTransmog and item.typeKey ~= "MOUNT" and item.typeKey ~= "PET" and displayState == "collected" then
+	if hideCollectedTransmog and item.typeKey ~= "MOUNT" and item.typeKey ~= "PET" and displayState == "collected" then
 		return false
 	end
 	return true

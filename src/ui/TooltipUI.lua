@@ -7,6 +7,7 @@ addon.TooltipUI = TooltipUI
 local dependencies = {}
 local tooltipFrame
 local QTip = LibStub("LibQTip-1.0")
+local EXPIRED_LOCKOUT_GRACE_MINUTES = 7 * 24 * 60
 
 function TooltipUI.Configure(config)
 	dependencies = config or {}
@@ -38,9 +39,61 @@ local function BuildTooltipSettings()
 		settings[key] = value
 	end
 	settings.selectedClasses = nil
-	settings.onlyActiveLockouts = true
+	settings.onlyActiveLockouts = false
 	settings.excludeExtendedLockouts = true
+	settings.includePreviousCycleLockouts = false
+	settings.showExpired = true
 	return settings
+end
+
+local function BuildTooltipCharactersSnapshot()
+	local snapshot = {}
+	local nowMinute = math.floor((time and time() or 0) / 60)
+
+	local function ShouldKeepLockout(lockout)
+		if not lockout or lockout.isPreviousCycleSnapshot then
+			return false
+		end
+		if lockout.extended then
+			return false
+		end
+
+		local resetSeconds = tonumber(lockout.resetSeconds) or 0
+		if resetSeconds > 0 then
+			return true
+		end
+
+		local cycleResetAtMinute = tonumber(lockout.cycleResetAtMinute) or 0
+		if cycleResetAtMinute <= 0 then
+			return false
+		end
+
+		local expiredMinutes = nowMinute - cycleResetAtMinute
+		return expiredMinutes >= 0 and expiredMinutes <= EXPIRED_LOCKOUT_GRACE_MINUTES
+	end
+
+	for key, info in pairs(GetCharacters() or {}) do
+		if type(info) == "table" then
+			local character = {}
+			for field, value in pairs(info) do
+				if field ~= "lockouts" and field ~= "previousCycleLockouts" then
+					character[field] = value
+				end
+			end
+			character.lockouts = {}
+			character.previousCycleLockouts = {}
+
+			for _, lockout in ipairs(info.lockouts or {}) do
+				if ShouldKeepLockout(lockout) then
+					character.lockouts[#character.lockouts + 1] = lockout
+				end
+			end
+
+			snapshot[key] = character
+		end
+	end
+
+	return snapshot
 end
 
 local function BuildTooltipMatrix(settings, maxCharacters)
@@ -50,7 +103,7 @@ local function BuildTooltipMatrix(settings, maxCharacters)
 	end
 
 	local getSortedCharacters = dependencies.getSortedCharacters
-	return compute.BuildTooltipMatrix(GetCharacters(), settings, maxCharacters, {
+	return compute.BuildTooltipMatrix(BuildTooltipCharactersSnapshot(), settings, maxCharacters, {
 		getSortedCharacters = getSortedCharacters,
 		getExpansionForLockout = dependencies.getExpansionForLockout,
 		getExpansionOrder = dependencies.getExpansionOrder,
@@ -79,8 +132,16 @@ local function FormatTooltipCellLockout(lockout)
 	end
 	local total = tonumber(lockout and lockout.encounters) or 0
 	local killed = tonumber(lockout and lockout.progress) or 0
+	local nowMinute = math.floor((time and time() or 0) / 60)
+	local cycleResetAtMinute = tonumber(lockout and lockout.cycleResetAtMinute) or 0
+	local expiredMinutes = cycleResetAtMinute > 0 and (nowMinute - cycleResetAtMinute) or nil
+	local isExpiredWithinGraceWindow = expiredMinutes
+		and expiredMinutes >= 0
+		and expiredMinutes <= EXPIRED_LOCKOUT_GRACE_MINUTES
 	local line = total > 0 and string.format("%d/%d", killed, total) or "-"
-	if total > 0 then
+	if isExpiredWithinGraceWindow then
+		line = string.format("|cff7f7f7f%s|r", line)
+	elseif total > 0 then
 		local colorCode = "ffffffff"
 		if killed >= total then
 			colorCode = "ff40c040"
@@ -184,7 +245,33 @@ local function ResolveTooltipCharacterIdentity(entry)
 	return characterNameText, realmName, tostring(info.className or "")
 end
 
+local function NormalizeTooltipClassToken(className)
+	className = tostring(className or "")
+	if className == "" then
+		return ""
+	end
+	if RAID_CLASS_COLORS and RAID_CLASS_COLORS[className] then
+		return className
+	end
+	local upperClassName = string.upper(className)
+	if RAID_CLASS_COLORS and RAID_CLASS_COLORS[upperClassName] then
+		return upperClassName
+	end
+	for localizedName, fileToken in pairs(LOCALIZED_CLASS_NAMES_MALE or {}) do
+		if localizedName == className and fileToken and fileToken ~= "" then
+			return tostring(fileToken)
+		end
+	end
+	for localizedName, fileToken in pairs(LOCALIZED_CLASS_NAMES_FEMALE or {}) do
+		if localizedName == className and fileToken and fileToken ~= "" then
+			return tostring(fileToken)
+		end
+	end
+	return className
+end
+
 local function ResolveTooltipHeaderTextColor(className)
+	className = NormalizeTooltipClassToken(className)
 	if RAID_CLASS_COLORS and className and className ~= "" and className ~= "UNKNOWN" and RAID_CLASS_COLORS[className] then
 		local color = RAID_CLASS_COLORS[className]
 		return color.r or 1, color.g or 1, color.b or 1

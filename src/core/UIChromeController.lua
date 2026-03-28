@@ -18,6 +18,10 @@ local function GetPanel()
 	return type(dependencies.getPanel) == "function" and dependencies.getPanel() or nil
 end
 
+local function GetDebugPanel()
+	return type(dependencies.getDebugPanel) == "function" and dependencies.getDebugPanel() or nil
+end
+
 local function GetLootPanel()
 	return type(dependencies.getLootPanel) == "function" and dependencies.getLootPanel() or nil
 end
@@ -33,6 +37,18 @@ end
 local function SetMinimapButton(button)
 	if type(dependencies.setMinimapButton) == "function" then
 		dependencies.setMinimapButton(button)
+	end
+end
+
+local function RecordMinimapClickDebug(stage, button)
+	if type(dependencies.RecordMinimapClickDebug) == "function" then
+		dependencies.RecordMinimapClickDebug(stage, button)
+	end
+end
+
+local function RecordMinimapHoverDebug(stage)
+	if type(dependencies.RecordMinimapHoverDebug) == "function" then
+		dependencies.RecordMinimapHoverDebug(stage)
 	end
 end
 
@@ -62,14 +78,8 @@ function UIChromeController.GetPanelStyleLabel(styleKey)
 	return translate("STYLE_BLIZZARD", "Blizzard")
 end
 
-function UIChromeController.IsAddonLoadedCompat(name)
-	if C_AddOns and C_AddOns.IsAddOnLoaded then
-		return C_AddOns.IsAddOnLoaded(name)
-	end
-	if IsAddOnLoaded then
-		return IsAddOnLoaded(name)
-	end
-	return false
+function UIChromeController.IsAddonLoaded(name)
+	return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name) or false
 end
 
 function UIChromeController.UpdateMinimapButtonPosition()
@@ -110,8 +120,9 @@ function UIChromeController.CreateMinimapButton()
 	icon:SetPoint("CENTER")
 	minimapButton.icon = icon
 
-	minimapButton:SetScript("OnClick", function(_, button)
+	local clickHandler = function(_, button)
 		if button == "LeftButton" and IsControlKeyDown and IsControlKeyDown() then
+			RecordMinimapClickDebug("left_control_config", button)
 			if type(dependencies.InitializePanel) == "function" then
 				dependencies.InitializePanel()
 			end
@@ -125,23 +136,29 @@ function UIChromeController.CreateMinimapButton()
 			return
 		end
 		if button == "LeftButton" then
+			RecordMinimapClickDebug("left_dashboard", button)
 			if type(dependencies.ToggleDashboardPanel) == "function" then
 				dependencies.ToggleDashboardPanel(IsShiftKeyDown and IsShiftKeyDown() and "party" or "raid")
 			end
 			return
 		end
+		RecordMinimapClickDebug("right_loot", button)
 		if type(dependencies.ToggleLootPanel) == "function" then
 			dependencies.ToggleLootPanel()
 		end
-	end)
+	end
+	minimapButton._mogTrackerClickHandler = clickHandler
+	minimapButton:SetScript("OnClick", clickHandler)
 
 	minimapButton:SetScript("OnEnter", function(self)
+		RecordMinimapHoverDebug("enter")
 		if addon.TooltipUI and addon.TooltipUI.ShowMinimapTooltip then
 			addon.TooltipUI.ShowMinimapTooltip(self)
 		end
 	end)
 
 	minimapButton:SetScript("OnLeave", function()
+		RecordMinimapHoverDebug("leave")
 		if addon.TooltipUI and addon.TooltipUI.HideTooltip then
 			addon.TooltipUI.HideTooltip()
 		end
@@ -169,6 +186,7 @@ function UIChromeController.CreateMinimapButton()
 	end)
 
 	SetMinimapButton(minimapButton)
+	RecordMinimapHoverDebug("created")
 	UIChromeController.UpdateMinimapButtonPosition()
 end
 
@@ -411,7 +429,7 @@ function UIChromeController.ApplyElvUISkin()
 	if selectedStyle ~= "elvui" then
 		return
 	end
-	if not UIChromeController.IsAddonLoadedCompat("ElvUI") or not ElvUI then
+	if not UIChromeController.IsAddonLoaded("ElvUI") or not ElvUI then
 		return
 	end
 
@@ -452,6 +470,29 @@ function UIChromeController.ApplyElvUISkin()
 		end
 	end
 
+	local debugPanel = GetDebugPanel()
+	if debugPanel and not (type(dependencies.getDebugPanelSkinApplied) == "function" and dependencies.getDebugPanelSkinApplied()) then
+		if debugPanel.background then debugPanel.background:Hide() end
+		if debugPanel.headerBackground then debugPanel.headerBackground:Hide() end
+		if debugPanel.border then debugPanel.border:Hide() end
+		if debugPanel.SetTemplate then
+			debugPanel:SetTemplate("Transparent")
+		end
+		if S.HandleCloseButton and MogTrackerDebugPanelCloseButton then
+			S:HandleCloseButton(MogTrackerDebugPanelCloseButton)
+		end
+		if S.HandleButton and MogTrackerDebugPanelRefreshButton then
+			S:HandleButton(MogTrackerDebugPanelRefreshButton)
+		end
+		if S.HandleScrollBar and MogTrackerDebugPanelScrollFrame and MogTrackerDebugPanelScrollFrame.ScrollBar then
+			S:HandleScrollBar(MogTrackerDebugPanelScrollFrame.ScrollBar)
+			UIChromeController.ApplyCompactScrollBarLayout(MogTrackerDebugPanelScrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
+		end
+		if type(dependencies.setDebugPanelSkinApplied) == "function" then
+			dependencies.setDebugPanelSkinApplied(true)
+		end
+	end
+
 	local lootPanel = GetLootPanel()
 	if lootPanel and not (type(dependencies.getLootPanelSkinApplied) == "function" and dependencies.getLootPanelSkinApplied()) then
 		if lootPanel.background then lootPanel.background:Hide() end
@@ -464,8 +505,10 @@ function UIChromeController.ApplyElvUISkin()
 			S:HandleCloseButton(lootPanel.closeButton)
 			lootPanel.closeButton:SetSize(20, 20)
 		end
+		if S.HandleCheckBox and lootPanel.classScopeButton then
+			S:HandleCheckBox(lootPanel.classScopeButton)
+		end
 		if S.HandleButton then
-			S:HandleButton(lootPanel.classScopeButton)
 			S:HandleButton(lootPanel.configButton)
 			S:HandleButton(lootPanel.refreshButton)
 			S:HandleButton(lootPanel.infoButton)
@@ -513,8 +556,11 @@ function UIChromeController.ApplyElvUISkin()
 				S:HandleButton(button)
 			end
 		end
-		if S.HandleButton and dashboardPanel.bulkScanButton then
-			S:HandleButton(dashboardPanel.bulkScanButton)
+		if S.HandleButton and dashboardPanel.scanRaidButton then
+			S:HandleButton(dashboardPanel.scanRaidButton)
+		end
+		if S.HandleButton and dashboardPanel.scanDungeonButton then
+			S:HandleButton(dashboardPanel.scanDungeonButton)
 		end
 		if S.HandleScrollBar and dashboardPanel.scrollFrame and dashboardPanel.scrollFrame.ScrollBar then
 			S:HandleScrollBar(dashboardPanel.scrollFrame.ScrollBar)
@@ -544,7 +590,7 @@ function UIChromeController.BuildStyleMenu(button)
 			text = UIChromeController.GetPanelStyleLabel("elvui"),
 			checked = (settings.panelStyle or "blizzard") == "elvui",
 			func = function()
-				if not UIChromeController.IsAddonLoadedCompat("ElvUI") or not ElvUI then
+				if not UIChromeController.IsAddonLoaded("ElvUI") or not ElvUI then
 					if type(dependencies.Print) == "function" then
 						dependencies.Print(dependencies.T("STYLE_ELVUI_UNAVAILABLE", "当前未加载 ElvUI，无法切换到 ElvUI 风格。"))
 					end

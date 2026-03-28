@@ -2,14 +2,16 @@ local addon = {}
 
 assert(loadfile("src/core/Compute.lua"))("MogTracker", addon)
 assert(loadfile("src/core/API.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardShared.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardData.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboardTooltip.lua"))("MogTracker", addon)
-assert(loadfile("src/dashboard/RaidDashboard.lua"))("MogTracker", addon)
+assert(loadfile("src/core/DerivedSummaryStore.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardShared.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardData.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboardTooltip.lua"))("MogTracker", addon)
+assert(loadfile("src/dashboard/raid/RaidDashboard.lua"))("MogTracker", addon)
 
 local API = assert(addon.API)
 local Compute = assert(addon.Compute)
 local RaidDashboard = assert(addon.RaidDashboard)
+local SummaryStore = assert(addon.DerivedSummaryStore)
 
 local classInfoByID = {
 	[1] = { name = "Warrior", file = "WARRIOR" },
@@ -62,6 +64,29 @@ end)
 assert(selectedIDs[1] == classIDByFile.PRIEST, "expected Compute.GetSelectedLootClassIDs to return PRIEST first")
 
 local snapshotDebug
+local raidStore = {
+	summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey("raid", false),
+	instanceType = "raid",
+	rulesVersion = SummaryStore.GetRulesVersion("dashboardSummaryScope"),
+	collectSameAppearance = false,
+	revision = 0,
+	instances = {},
+	buckets = {},
+	scanManifest = {},
+	membershipIndex = {
+		summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey("raid", false),
+		byItemID = {},
+		bySourceID = {},
+		byAppearanceID = {},
+		bySetID = {},
+	},
+	reconcileQueue = {
+		summaryScopeKey = SummaryStore.BuildDashboardSummaryScopeKey("raid", false),
+		order = {},
+		entries = {},
+	},
+}
+
 RaidDashboard.Configure({
 	T = function(_, fallback)
 		return fallback
@@ -70,7 +95,13 @@ RaidDashboard.Configure({
 		return { "MAGE", "PRIEST", "WARRIOR" }
 	end,
 	getStoredCache = function()
-		return { entries = {} }
+		return raidStore
+	end,
+	ensureStoredCache = function()
+		return raidStore
+	end,
+	refreshDashboardPanel = function()
+		return nil
 	end,
 	getExpansionInfoForInstance = function()
 		return { expansionName = "Test", expansionOrder = 1, raidOrder = 1 }
@@ -142,7 +173,10 @@ assert(RaidDashboard.UpdateSnapshot({
 	classFiles = { "MAGE", "PRIEST", "WARRIOR" },
 }) == true)
 
-assert(snapshotDebug and snapshotDebug.byClass and snapshotDebug.byClass[1], "expected dashboard debug snapshot")
-assert(snapshotDebug.byClass[1].classFile == "PRIEST", "expected dashboard byClass rows to keep PRIEST first")
+assert(snapshotDebug and snapshotDebug.summaryScopeKey, "expected dashboard debug snapshot")
+assert(snapshotDebug.summaryScopeKey == SummaryStore.BuildDashboardSummaryScopeKey("raid", false), "expected dashboard debug snapshot to use raid summary scope")
+
+local built = assert(RaidDashboard.BuildData())
+assert(built.classFiles and built.classFiles[1] == "PRIEST", "expected dashboard view class ordering to keep PRIEST first")
 
 print("priest_ordering_test passed")

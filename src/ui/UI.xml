@@ -191,5 +191,66 @@
 			</Button>
 		</Frames>
 	</Frame>
+	<Frame name="MogTrackerDebugPanel" parent="UIParent" hidden="true">
+		<Size x="680" y="520"/>
+		<Anchors>
+			<Anchor point="CENTER"/>
+		</Anchors>
+		<Layers>
+			<Layer level="ARTWORK">
+				<FontString name="$parentTitle" inherits="GameFontNormalLarge" text="调试日志">
+					<Anchors>
+						<Anchor point="TOP" x="0" y="-16"/>
+					</Anchors>
+				</FontString>
+				<FontString name="$parentSubtitle" inherits="GameFontHighlightSmall" text="仅通过 /img debug ... 打开。">
+					<Anchors>
+						<Anchor point="TOP" relativeTo="$parentTitle" relativePoint="BOTTOM" x="0" y="-8"/>
+					</Anchors>
+				</FontString>
+				<FontString name="$parentSectionsHeader" inherits="GameFontHighlight" text="日志分段">
+					<Anchors>
+						<Anchor point="TOPLEFT" x="24" y="-62"/>
+					</Anchors>
+				</FontString>
+				<FontString name="$parentListHeader" inherits="GameFontNormal" text="Debug Output">
+					<Anchors>
+						<Anchor point="TOPLEFT" x="24" y="-182"/>
+					</Anchors>
+				</FontString>
+				<FontString name="$parentFooter" inherits="GameFontDisableSmall" text="/img debug">
+					<Anchors>
+						<Anchor point="BOTTOM" x="0" y="8"/>
+					</Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+		<Frames>
+			<Button name="$parentCloseButton" inherits="UIPanelCloseButton">
+				<Anchors>
+					<Anchor point="TOPRIGHT" x="-6" y="-5"/>
+				</Anchors>
+			</Button>
+			<ScrollFrame name="$parentScrollFrame" inherits="UIPanelScrollFrameTemplate">
+				<Size x="632" y="270"/>
+				<Anchors>
+					<Anchor point="TOPLEFT" x="24" y="-206"/>
+				</Anchors>
+			</ScrollFrame>
+			<EditBox name="$parentScrollChild">
+				<Size x="610" y="270"/>
+				<Anchors>
+					<Anchor point="TOPLEFT"/>
+				</Anchors>
+				<FontString inherits="GameFontHighlightSmall"/>
+			</EditBox>
+			<Button name="$parentRefreshButton" inherits="UIPanelButtonTemplate" text="Collect Logs">
+				<Size x="96" y="24"/>
+				<Anchors>
+					<Anchor point="BOTTOMRIGHT" x="-24" y="20"/>
+				</Anchors>
+			</Button>
+		</Frames>
+	</Frame>
 </Ui>
 

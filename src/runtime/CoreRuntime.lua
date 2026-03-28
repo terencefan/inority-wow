@@ -3,6 +3,7 @@
 local addonName, addon = ...
 local API = addon.API
 local Storage = addon.Storage
+local StorageGateway = addon.StorageGateway
 local DifficultyRules = addon.DifficultyRules or {}
 local CoreMetadata = addon.CoreMetadata or {}
 
@@ -12,25 +13,19 @@ local function T(key, fallback)
 end
 addon.T = T
 
-local function GetAddonMetadataCompat(name, field)
-	if C_AddOns and C_AddOns.GetAddOnMetadata then
-		return C_AddOns.GetAddOnMetadata(name, field)
-	end
-	if GetAddOnMetadata then
-		return GetAddOnMetadata(name, field)
-	end
-	return nil
+local function GetAddonMetadata(name, field)
+	return C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(name, field) or nil
 end
 
-MogTrackerDB = MogTrackerDB or TransmogTrackerDB or CodexExampleAddonDB or {}
-TransmogTrackerDB = MogTrackerDB
-CodexExampleAddonDB = MogTrackerDB
+MogTrackerDB = MogTrackerDB or {}
 
 local frame = CreateFrame("Frame")
 addon.frame = frame
 local minimapButton
 local panel = MogTrackerPanel
+local debugPanel = MogTrackerDebugPanel
 local panelSkinApplied
+local debugPanelSkinApplied
 local lootPanelSkinApplied
 local RefreshLootPanel
 local InitializeLootPanel
@@ -51,7 +46,6 @@ local GetSelectedLootClassFiles
 local DeriveLootTypeKey
 local GetLootTypeLabel
 local CollectCurrentInstanceLootData
-local QueueLootPanelCacheWarmup
 local StartDashboardBulkScan
 local SetPanelView
 local SetLootPanelTab
@@ -77,11 +71,12 @@ local lootPanelSessionState = {
 	itemCollectionBaseline = {},
 	itemCelebrated = {},
 	encounterBaseline = {},
+	delayedAutoCollapseUntil = {},
 }
 local lootDropdownMenu
 local DB_VERSION = 2
 local JOURNAL_INSTANCE_LOOKUP_RULES_VERSION = 2
-local LOOT_PANEL_SELECTION_RULES_VERSION = 3
+local LOOT_PANEL_SELECTION_RULES_VERSION = 4
 local LOOT_DATA_RULES_VERSION = 2
 local expansionByInstanceKey
 local expansionOrderByName
@@ -89,10 +84,12 @@ local lastDebugDump
 local currentPanelView = "config"
 local lootRefreshPending
 local lootDataCache
-local lootCacheWarmupPending
 local journalInstanceLookupCache
 local lootPanelSelectionCache
 addon.lootPanelRenderDebugHistory = addon.lootPanelRenderDebugHistory or {}
+addon.lootPanelOpenDebugHistory = addon.lootPanelOpenDebugHistory or {}
+addon.minimapClickDebugHistory = addon.minimapClickDebugHistory or {}
+addon.minimapHoverDebugHistory = addon.minimapHoverDebugHistory or {}
 local selectableClasses = CoreMetadata.selectableClasses or {}
 local classDisplayNameByFile = {}
 
@@ -114,6 +111,83 @@ local function ResetLootPanelSessionState(active)
 	lootPanelSessionState.itemCollectionBaseline = {}
 	lootPanelSessionState.itemCelebrated = {}
 	lootPanelSessionState.encounterBaseline = {}
+	lootPanelSessionState.delayedAutoCollapseUntil = {}
+end
+
+local function GetLootPanelDelayClock()
+	if type(GetTime) == "function" then
+		return GetTime()
+	end
+	return time()
+end
+
+local function IsLootEncounterAutoCollapseDelayed(encounterName)
+	local delayed = lootPanelSessionState.delayedAutoCollapseUntil
+	if not lootPanelSessionState.active or type(delayed) ~= "table" then
+		return false
+	end
+	local key = tostring(encounterName or "")
+	if key == "" then
+		return false
+	end
+	local deadline = tonumber(delayed[key])
+	if not deadline then
+		return false
+	end
+	if deadline > GetLootPanelDelayClock() then
+		return true
+	end
+	delayed[key] = nil
+	return false
+end
+
+local function ApplyLootEncounterAutoCollapse(encounterName)
+	local key = tostring(encounterName or "")
+	if key == "" then
+		return
+	end
+	lootPanelSessionState.delayedAutoCollapseUntil[key] = nil
+	local encounterBaseline = lootPanelSessionState.encounterBaseline
+	if type(encounterBaseline) == "table" then
+		local suffix = "::" .. key
+		for encounterKey, baseline in pairs(encounterBaseline) do
+			if type(encounterKey) == "string" and encounterKey:sub(-#suffix) == suffix and type(baseline) == "table" then
+				baseline.autoCollapsed = true
+			end
+		end
+	end
+end
+
+local function MarkLootEncounterPendingAutoCollapse(encounterName, delaySeconds)
+	if not lootPanelSessionState.active then
+		return
+	end
+	local key = tostring(encounterName or "")
+	if key == "" then
+		return
+	end
+	local delay = tonumber(delaySeconds) or 0
+	if delay <= 0 then
+		ApplyLootEncounterAutoCollapse(key)
+		if lootPanel and lootPanel:IsShown() and RefreshLootPanel then
+			RefreshLootPanel()
+		end
+		return
+	end
+	lootPanelSessionState.delayedAutoCollapseUntil = lootPanelSessionState.delayedAutoCollapseUntil or {}
+	local deadline = GetLootPanelDelayClock() + delay
+	lootPanelSessionState.delayedAutoCollapseUntil[key] = deadline
+	if C_Timer and C_Timer.After then
+		C_Timer.After(delay, function()
+			local currentDeadline = tonumber(lootPanelSessionState.delayedAutoCollapseUntil and lootPanelSessionState.delayedAutoCollapseUntil[key])
+			if currentDeadline and currentDeadline == deadline then
+				ApplyLootEncounterAutoCollapse(key)
+				if lootPanel and lootPanel:IsShown() and RefreshLootPanel then
+					RefreshLootPanel()
+				end
+			end
+		end)
+	end
 end
 local classFilterArmorGroups = CoreMetadata.classFilterArmorGroups or {}
 local lootTypeGroups = CoreMetadata.lootTypeGroups or {}
@@ -127,11 +201,6 @@ local function InvalidateLootDataCache()
 	lootDataCache = nil
 end
 
-local function InvalidateLootPanelSelectionCache()
-	journalInstanceLookupCache = nil
-	lootPanelSelectionCache = nil
-end
-
 local function ResetLootPanelScrollPosition()
 	if lootPanel and lootPanel.scrollFrame and lootPanel.scrollFrame.SetVerticalScroll then
 		lootPanel.scrollFrame:SetVerticalScroll(0)
@@ -142,20 +211,33 @@ local function ResetLootPanelScrollPosition()
 end
 
 local function NormalizeSettings(settings)
-	return Storage.NormalizeSettings(settings)
+	return StorageGateway.NormalizeSettings(settings)
 end
 
 local function InitializeDefaults()
-	Storage.InitializeDefaults(MogTrackerDB, DB_VERSION)
+	StorageGateway.InitializeDefaults()
 end
-local UIChromeController = addon.UIChromeController
-UIChromeController.Configure({
-	T = T,
+StorageGateway.Configure({
 	getDB = function()
 		return MogTrackerDB
 	end,
+	initializeDefaults = Storage.InitializeDefaults,
+	normalizeSettings = Storage.NormalizeSettings,
+	normalizeItemFactEntry = Storage.NormalizeItemFactEntry,
+	normalizeItemFactCache = Storage.NormalizeItemFactCache,
+	normalizeDashboardSummaryStore = Storage.NormalizeDashboardSummaryStore,
+	normalizeDashboardSummaryContainer = Storage.NormalizeDashboardSummaryContainer,
+	dbVersion = DB_VERSION,
+})
+local UIChromeController = addon.UIChromeController
+UIChromeController.Configure({
+	T = T,
+	getDB = StorageGateway.GetDB,
 	getPanel = function()
 		return panel
+	end,
+	getDebugPanel = function()
+		return debugPanel
 	end,
 	getLootPanel = function()
 		return lootPanel
@@ -174,6 +256,12 @@ UIChromeController.Configure({
 	end,
 	setPanelSkinApplied = function(value)
 		panelSkinApplied = value and true or false
+	end,
+	getDebugPanelSkinApplied = function()
+		return debugPanelSkinApplied and true or false
+	end,
+	setDebugPanelSkinApplied = function(value)
+		debugPanelSkinApplied = value and true or false
 	end,
 	getLootPanelSkinApplied = function()
 		return lootPanelSkinApplied and true or false
@@ -201,12 +289,42 @@ UIChromeController.Configure({
 			ToggleLootPanel()
 		end
 	end,
+	RecordMinimapClickDebug = function(stage, button)
+		local history = addon.minimapClickDebugHistory or {}
+		history[#history + 1] = {
+			stage = stage,
+			button = button,
+			shift = IsShiftKeyDown and IsShiftKeyDown() and true or false,
+			control = IsControlKeyDown and IsControlKeyDown() and true or false,
+			panelShown = panel and panel.IsShown and panel:IsShown() or false,
+			lootPanelShown = lootPanel and lootPanel.IsShown and lootPanel:IsShown() or false,
+			currentPanelView = currentPanelView,
+			hasToggleLootPanel = ToggleLootPanel and true or false,
+		}
+		while #history > 20 do
+			table.remove(history, 1)
+		end
+		addon.minimapClickDebugHistory = history
+	end,
+	RecordMinimapHoverDebug = function(stage)
+		local history = addon.minimapHoverDebugHistory or {}
+		history[#history + 1] = {
+			stage = stage,
+			panelShown = panel and panel.IsShown and panel:IsShown() or false,
+			lootPanelShown = lootPanel and lootPanel.IsShown and lootPanel:IsShown() or false,
+			currentPanelView = currentPanelView,
+		}
+		while #history > 20 do
+			table.remove(history, 1)
+		end
+		addon.minimapHoverDebugHistory = history
+	end,
 	BuildLootFilterMenu = BuildLootFilterMenu,
 	Print = Print,
 })
 
 local GetPanelStyleLabel = UIChromeController.GetPanelStyleLabel
-local IsAddonLoadedCompat = UIChromeController.IsAddonLoadedCompat
+local IsAddonLoaded = UIChromeController.IsAddonLoaded
 local CreateMinimapButton = UIChromeController.CreateMinimapButton
 local ApplyDefaultPanelStyle = UIChromeController.ApplyDefaultPanelStyle
 local ApplyDefaultFrameStyle = UIChromeController.ApplyDefaultFrameStyle
@@ -225,21 +343,19 @@ ClassLogic.Configure({
 	API = API,
 	DifficultyRules = DifficultyRules,
 	selectableClasses = selectableClasses,
-	getDB = function()
-		return MogTrackerDB
-	end,
+	getDB = StorageGateway.GetDB,
 	getLootPanelState = function()
 		return lootPanelState
 	end,
 })
 
 local CharacterKey = ClassLogic.CharacterKey
-local GetClassInfoCompat = ClassLogic.GetClassInfoCompat
-local GetSpecInfoForClassIDCompat = ClassLogic.GetSpecInfoForClassIDCompat
-local GetNumSpecializationsForClassIDCompat = ClassLogic.GetNumSpecializationsForClassIDCompat
-local GetJournalInstanceForMapCompat = ClassLogic.GetJournalInstanceForMapCompat
-local GetJournalNumLootCompat = ClassLogic.GetJournalNumLootCompat
-local GetJournalLootInfoByIndexCompat = ClassLogic.GetJournalLootInfoByIndexCompat
+local GetClassInfo = ClassLogic.GetClassInfo
+local GetSpecInfoForClassID = ClassLogic.GetSpecInfoForClassID
+local GetNumSpecializationsForClassID = ClassLogic.GetNumSpecializationsForClassID
+local GetJournalInstanceForMap = ClassLogic.GetJournalInstanceForMap
+local GetJournalNumLoot = ClassLogic.GetJournalNumLoot
+local GetJournalLootInfoByIndex = ClassLogic.GetJournalLootInfoByIndex
 local GetClassColorCode = ClassLogic.GetClassColorCode
 local ColorizeCharacterName = ClassLogic.ColorizeCharacterName
 local GetClassDisplayName = ClassLogic.GetClassDisplayName
@@ -254,30 +370,13 @@ local function SyncCurrentCharacterIdentityToDB()
 		return
 	end
 
-	MogTrackerDB.characters = MogTrackerDB.characters or {}
-	local character = MogTrackerDB.characters[key] or {
-		lockouts = {},
-		bossKillCounts = {},
-		lastUpdated = 0,
-	}
-
-	if name and name ~= "" then
-		character.name = name
-	end
-	if realm and realm ~= "" then
-		character.realm = realm
-	end
-	if className and className ~= "" then
-		character.className = className
-	end
-	if level and tonumber(level) then
-		character.level = level
-	end
-	character.lockouts = type(character.lockouts) == "table" and character.lockouts or {}
-	character.bossKillCounts = type(character.bossKillCounts) == "table" and character.bossKillCounts or {}
-	character.lastUpdated = tonumber(character.lastUpdated) or 0
-
-	MogTrackerDB.characters[key] = character
+	StorageGateway.UpsertCharacterIdentity({
+		key = key,
+		name = name,
+		realm = realm,
+		className = className,
+		level = level,
+	})
 end
 
 local function GetVisibleEligibleClassesForLootItem(item)
@@ -310,7 +409,7 @@ local GetLootClassLabel = ClassLogic.GetLootClassLabel
 local GetLootSpecLabel = ClassLogic.GetLootSpecLabel
 local GetLootClassScopeButtonLabel = ClassLogic.GetLootClassScopeButtonLabel
 local GetLootClassScopeTooltipLines = ClassLogic.GetLootClassScopeTooltipLines
-local GetDifficultyNameCompat = ClassLogic.GetDifficultyNameCompat
+local GetDifficultyName = ClassLogic.GetDifficultyName
 local GetRaidDifficultyDisplayOrder = ClassLogic.GetRaidDifficultyDisplayOrder
 local GetDifficultyColorCode = ClassLogic.GetDifficultyColorCode
 local ColorizeDifficultyLabel = ClassLogic.ColorizeDifficultyLabel
@@ -411,7 +510,7 @@ GetSelectedLootClassFiles = function()
 			return { classFile }
 		end
 	end
-	return addon.Compute.GetSelectedLootClassFiles(MogTrackerDB.settings or {}, selectableClasses)
+	return addon.Compute.GetSelectedLootClassFiles(StorageGateway.GetSettings(), selectableClasses)
 end
 addon.GetSelectedLootClassFiles = GetSelectedLootClassFiles
 
@@ -458,20 +557,29 @@ local wired = CoreFeatureWiring.Wire({
 	lootDataRulesVersion = LOOT_DATA_RULES_VERSION,
 	CharacterKey = CharacterKey,
 	GetSortedCharacters = Storage.GetSortedCharacters,
-	getDB = function()
-		return MogTrackerDB
-	end,
-	getSettings = function()
-		return MogTrackerDB.settings or {}
-	end,
-	setSettings = function(settings)
-		MogTrackerDB.settings = settings
-	end,
+	getDB = StorageGateway.GetDB,
+	getSettings = StorageGateway.GetSettings,
+	setSettings = StorageGateway.SetSettings,
+	GetItemFact = StorageGateway.GetItemFact,
+	GetItemFactBySourceID = StorageGateway.GetItemFactBySourceID,
+	GetSetIDsBySourceID = StorageGateway.GetSetIDsBySourceID,
+	GetItemFactsBySetID = StorageGateway.GetItemFactsBySetID,
+	GetSourceIDsBySetID = StorageGateway.GetSourceIDsBySetID,
+	UpsertItemFact = StorageGateway.UpsertItemFact,
+	GetDashboardSummaryStore = StorageGateway.GetDashboardSummaryStore,
+	EnsureDashboardSummaryStore = StorageGateway.EnsureDashboardSummaryStore,
+	GetDashboardLegacyCache = StorageGateway.GetDashboardCache,
 	getPanel = function()
 		return panel
 	end,
 	setPanel = function(frameRef)
 		panel = frameRef
+	end,
+	getDebugPanel = function()
+		return debugPanel
+	end,
+	setDebugPanel = function(frameRef)
+		debugPanel = frameRef
 	end,
 	getLootPanel = function()
 		return lootPanel
@@ -521,23 +629,18 @@ local wired = CoreFeatureWiring.Wire({
 	setLootRefreshPending = function(value)
 		lootRefreshPending = value and true or nil
 	end,
-	getLootCacheWarmupPending = function()
-		return lootCacheWarmupPending
-	end,
-	setLootCacheWarmupPending = function(value)
-		lootCacheWarmupPending = value and true or nil
-	end,
 	InvalidateLootDataCache = InvalidateLootDataCache,
-	InvalidateLootPanelSelectionCache = InvalidateLootPanelSelectionCache,
 	ResetLootPanelScrollPosition = ResetLootPanelScrollPosition,
 	ResetLootPanelSessionState = ResetLootPanelSessionState,
+	IsLootEncounterAutoCollapseDelayed = IsLootEncounterAutoCollapseDelayed,
+	MarkLootEncounterPendingAutoCollapse = MarkLootEncounterPendingAutoCollapse,
 	NormalizeSettings = NormalizeSettings,
-	GetAddonMetadataCompat = GetAddonMetadataCompat,
+	GetAddonMetadata = GetAddonMetadata,
 	Print = Print,
 	ExtractSavedInstanceProgress = ExtractSavedInstanceProgress,
-	GetClassInfoCompat = GetClassInfoCompat,
-	GetNumSpecializationsForClassIDCompat = GetNumSpecializationsForClassIDCompat,
-	GetSpecInfoForClassIDCompat = GetSpecInfoForClassIDCompat,
+	GetClassInfo = GetClassInfo,
+	GetNumSpecializationsForClassID = GetNumSpecializationsForClassID,
+	GetSpecInfoForClassID = GetSpecInfoForClassID,
 	GetClassIDByFile = GetClassIDByFile,
 	CompareClassIDs = API.CompareClassIDs,
 	GetSelectedLootClassFiles = function()
@@ -602,15 +705,13 @@ local wired = CoreFeatureWiring.Wire({
 	GetLootClassScopeTooltipLines = GetLootClassScopeTooltipLines,
 	classFilterArmorGroups = classFilterArmorGroups,
 	lootTypeGroups = lootTypeGroups,
-	clearCharacters = function()
-		MogTrackerDB.characters = {}
-	end,
+	clearCharacters = StorageGateway.ClearCharacters,
 	getSelectableClasses = function()
 		return selectableClasses
 	end,
 	classMaskByFile = CLASS_MASK_BY_FILE,
 	GetEligibleClassesForLootItem = GetEligibleClassesForLootItem,
-	GetDifficultyNameCompat = GetDifficultyNameCompat,
+	GetDifficultyName = GetDifficultyName,
 	ColorizeExpansionLabel = ColorizeExpansionLabel,
 	GetVisibleEligibleClassesForLootItem = GetVisibleEligibleClassesForLootItem,
 	IsLootItemIncompleteSetPiece = function(item)
@@ -629,16 +730,86 @@ local wired = CoreFeatureWiring.Wire({
 			addon.LootSets.UpdateSetCompletionRowVisual(itemRow, setEntry)
 		end
 	end,
-	getDebugLogSections = function()
-		local settings = MogTrackerDB and MogTrackerDB.settings or nil
-		return settings and settings.debugLogSections or {}
+	RecordLootPanelOpenDebug = function(stage, details)
+		local selectedInstance = GetSelectedLootPanelInstance and GetSelectedLootPanelInstance() or nil
+		local currentJournalInstanceID, currentDebugInfo = InstanceMetadata and InstanceMetadata.GetCurrentJournalInstanceID and InstanceMetadata.GetCurrentJournalInstanceID() or nil, nil
+		if InstanceMetadata and InstanceMetadata.GetCurrentJournalInstanceID then
+			currentJournalInstanceID, currentDebugInfo = InstanceMetadata.GetCurrentJournalInstanceID()
+		end
+		details = type(details) == "table" and details or nil
+		local currentLootPanel = lootPanel
+		local history = addon.lootPanelOpenDebugHistory or {}
+		history[#history + 1] = {
+			stage = stage,
+			title = currentLootPanel and currentLootPanel.title and currentLootPanel.title.GetText and currentLootPanel.title:GetText() or nil,
+			selectedInstanceKey = lootPanelState and lootPanelState.selectedInstanceKey or nil,
+			selectedInstanceName = selectedInstance and selectedInstance.instanceName or nil,
+			selectedInstanceJournalInstanceID = selectedInstance and selectedInstance.journalInstanceID or nil,
+			currentJournalInstanceID = currentJournalInstanceID,
+			currentInstanceName = currentDebugInfo and currentDebugInfo.instanceName or nil,
+			currentInstanceType = currentDebugInfo and currentDebugInfo.instanceType or nil,
+			currentResolution = currentDebugInfo and currentDebugInfo.resolution or nil,
+			isShown = currentLootPanel and currentLootPanel.IsShown and currentLootPanel:IsShown() or false,
+			source = details and details.source or nil,
+			incomingTitle = details and details.incomingTitle or nil,
+			previousTitle = details and details.previousTitle or nil,
+			note = details and details.note or nil,
+		}
+		while #history > 60 do
+			table.remove(history, 1)
+		end
+		addon.lootPanelOpenDebugHistory = history
 	end,
+	getDebugLogSections = StorageGateway.GetDebugLogSections,
 	getLootPanelRenderDebugHistory = function()
 		local copy = {}
 		for index, entry in ipairs(addon.lootPanelRenderDebugHistory or {}) do
 			copy[index] = entry
 		end
 		return copy
+	end,
+	getLootPanelOpenDebugHistory = function()
+		local copy = {}
+		for index, entry in ipairs(addon.lootPanelOpenDebugHistory or {}) do
+			copy[index] = entry
+		end
+		return copy
+	end,
+	getMinimapClickDebugHistory = function()
+		local copy = {}
+		for index, entry in ipairs(addon.minimapClickDebugHistory or {}) do
+			copy[index] = entry
+		end
+		return copy
+	end,
+	getMinimapHoverDebugHistory = function()
+		local copy = {}
+		for index, entry in ipairs(addon.minimapHoverDebugHistory or {}) do
+			copy[index] = entry
+		end
+		return copy
+	end,
+	getMinimapButtonDebugState = function()
+		local currentButton = minimapButton
+		if not currentButton then
+			return {
+				exists = false,
+			}
+		end
+		local currentOnClick = currentButton.GetScript and currentButton:GetScript("OnClick") or nil
+		local currentOnEnter = currentButton.GetScript and currentButton:GetScript("OnEnter") or nil
+		local currentOnLeave = currentButton.GetScript and currentButton:GetScript("OnLeave") or nil
+		return {
+			exists = true,
+			name = currentButton.GetName and currentButton:GetName() or nil,
+			parent = currentButton.GetParent and currentButton:GetParent() and currentButton:GetParent():GetName() or nil,
+			isShown = currentButton.IsShown and currentButton:IsShown() or false,
+			hasOnClick = currentOnClick ~= nil,
+			hasOnEnter = currentOnEnter ~= nil,
+			hasOnLeave = currentOnLeave ~= nil,
+			onClickMatchesTracked = currentOnClick ~= nil and currentOnClick == currentButton._mogTrackerClickHandler or false,
+			onEnterMatchesTooltip = currentOnEnter ~= nil and addon.TooltipUI and currentOnEnter ~= nil or false,
+		}
 	end,
 	getLootPanelSelectedInstanceKey = function()
 		return lootPanelState and lootPanelState.selectedInstanceKey or nil
@@ -666,27 +837,9 @@ local wired = CoreFeatureWiring.Wire({
 		end
 		return nil
 	end,
-	getDashboardStoredCache = function(instanceType)
-		if not MogTrackerDB then
-			return nil
-		end
-		if tostring(instanceType or "party") == "party" then
-			return MogTrackerDB.dungeonDashboardCache or nil
-		end
-		return MogTrackerDB.raidDashboardCache or nil
-	end,
-	getStoredDashboardCache = function()
-		return MogTrackerDB and MogTrackerDB.raidDashboardCache or nil
-	end,
-	getStoredDashboardCacheForType = function(instanceType)
-		if not MogTrackerDB then
-			return nil
-		end
-		if tostring(instanceType or "") == "party" then
-			return MogTrackerDB.dungeonDashboardCache or nil
-		end
-		return MogTrackerDB.raidDashboardCache or nil
-	end,
+	getDashboardStoredCache = StorageGateway.GetDashboardCache,
+	getStoredDashboardCache = StorageGateway.GetRaidDashboardCache,
+	getStoredDashboardCacheForType = StorageGateway.GetDashboardCache,
 	getClassScopeMode = function()
 		return lootPanelState.classScopeMode
 	end,
@@ -700,9 +853,15 @@ local wired = CoreFeatureWiring.Wire({
 			})
 		end
 	end,
-	ClearRaidDashboardStoredData = function(instanceType)
+	RefreshRaidDashboardCollectionStates = function()
+		if addon.RaidDashboard and addon.RaidDashboard.RefreshCollectionStates then
+			return addon.RaidDashboard.RefreshCollectionStates()
+		end
+		return false
+	end,
+	ClearRaidDashboardStoredData = function(instanceType, expansionName)
 		if addon.RaidDashboard and addon.RaidDashboard.ClearStoredData then
-			addon.RaidDashboard.ClearStoredData(instanceType)
+			addon.RaidDashboard.ClearStoredData(instanceType, expansionName)
 		end
 	end,
 	InvalidateSetDashboard = function()
@@ -741,12 +900,8 @@ if addon.TooltipUI and addon.TooltipUI.Configure then
 	addon.TooltipUI.Configure({
 		T = T,
 		Compute = addon.Compute,
-		getCharacters = function()
-			return MogTrackerDB.characters or {}
-		end,
-		getSettings = function()
-			return MogTrackerDB.settings or {}
-		end,
+		getCharacters = StorageGateway.GetCharacters,
+		getSettings = StorageGateway.GetSettings,
 		syncCurrentCharacter = SyncCurrentCharacterIdentityToDB,
 		getSortedCharacters = Storage.GetSortedCharacters,
 		getExpansionForLockout = function(lockout)
@@ -775,7 +930,6 @@ UpdateLootTypeFilterUI = wired.UpdateLootTypeFilterUI
 GetExpansionForLockout = wired.GetExpansionForLockout
 GetExpansionOrder = wired.GetExpansionOrder
 CollectCurrentInstanceLootData = wired.CollectCurrentInstanceLootData
-QueueLootPanelCacheWarmup = wired.QueueLootPanelCacheWarmup
 StartDashboardBulkScan = wired.StartDashboardBulkScan
 SetPanelView = wired.SetPanelView
 SetLootPanelTab = wired.SetLootPanelTab
@@ -789,7 +943,6 @@ addon.UpdateConfigBulkUpdateButtons = wired.UpdateConfigBulkUpdateButtons
 addon.UpdateDebugLogSectionUI = wired.UpdateDebugLogSectionUI
 addon.NormalizeExpansionDisplayName = wired.NormalizeExpansionDisplayName
 addon.GetCurrentCharacterLockoutForSelection = wired.GetCurrentCharacterLockoutForSelection
-addon.QueueLootPanelCacheWarmup = QueueLootPanelCacheWarmup
 addon.ColorizeInstanceTypeLabel = addon.ColorizeInstanceTypeLabel or wired.ColorizeInstanceTypeLabel
 
 function addon.OpenWardrobeCollection(mode, searchText)
@@ -886,7 +1039,7 @@ UpdateResizeButtonTexture = function(button, state)
 	end
 
 	local useElvUITexture
-	if IsAddonLoadedCompat("ElvUI") and ElvUI then
+	if IsAddonLoaded("ElvUI") and ElvUI then
 		local E = unpack(ElvUI)
 		useElvUITexture = E and E.Media and E.Media.Textures and E.Media.Textures.Resize2
 	end
@@ -914,8 +1067,9 @@ UpdateResizeButtonTexture = function(button, state)
 end
 
 UpdateLootTypeFilterButtons = function()
-	if not MogTrackerDB or not MogTrackerDB.settings then
+	local settings = StorageGateway.GetSettings()
+	if not settings or next(settings) == nil then
 		return
 	end
-	UpdateLootTypeFilterUI(MogTrackerDB.settings)
+	UpdateLootTypeFilterUI(settings)
 end

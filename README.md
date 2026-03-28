@@ -4,314 +4,881 @@
 
 ## 功能概览
 
+> 这一段说明插件对玩家暴露的主要功能入口和能力范围。
+
 - 小地图 tooltip：按资料片聚合副本锁定，支持多角色对比。
-- 主面板：提供通用配置、职业过滤、物品过滤和调试日志。
+- 主面板：提供通用配置、职业过滤、物品过滤。
+- 独立调试面板：仅通过 `/img debug ...` 打开，用于复制 focused debug dump。
 - 掉落面板：提供 `掉落 / 套装` 两个 tab。
 - 套装页：按职业展示当前副本相关套装、缺失部位和来源。
-- 独立统计看板：展示按资料片 / 团本 / 难度 / 职业聚合的离线快照统计，只读取已缓存的摘要数据。
+- 独立统计看板：展示按资料片 / 团本 / 难度 / 职业聚合的离线快照统计，只读取已缓存的摘要数据；底部提供 `扫描团队副本` / `扫描地下城` 两个手动重建按钮。
 
 ## Architecture
 
+> 这一段用高层依赖图说明插件从入口、编排、领域模块到 UI 表面和外部系统的关系。
+
 ```mermaid
 flowchart TD
-    TOC["Addon TOC (幻化追踪)"]
-    Locale["Locale/*.lua"]
-    XML["src/ui/UI.xml / Bindings.xml"]
-    Core["src/runtime/CoreRuntime.lua\nruntime state + remaining pure helpers + public addon entrypoints"]
-    CoreWiring["src/runtime/CoreFeatureWiring.lua\ncontroller/module dependency wiring + registration order"]
-    Storage["src/core/Storage.lua\nSavedVariables defaults / normalize / sorting"]
-    Compute["src/core/Compute.lua\nfilters / tooltip matrix / pure aggregation"]
-    API["src/core/API.lua\nWoW API adapters / loot scans / debug capture / mock hooks"]
-    ClassLogic["src/core/ClassLogic.lua\nclass metadata / difficulty labels / class colors"]
-    InstanceMetadata["src/metadata/InstanceMetadata.lua\nEJ instance resolution / expansion normalization / selection cache metadata"]
-    EncounterState["src/core/EncounterState.lua\nboss kill cache / encounter collapsed state / reset handling"]
-    CollectionState["src/core/CollectionState.lua\ncollection-state resolution / loot visibility filters / session markers"]
-    LootSelection["src/loot/LootSelection.lua\nloot-panel selection keys / menus / lockout progress tooltip"]
-    BulkScan["src/dashboard/bulk/DashboardBulkScan.lua\ndashboard bulk-scan queue / state machine / progress updates"]
-    DashboardPanel["src/dashboard/DashboardPanelController.lua\ndashboard frame lifecycle / layout / visibility"]
-    ConfigDebug["src/config/ConfigDebugData.lua\ndebug capture / saved-instance sync / debug section ui"]
-    ConfigPanel["src/config/ConfigPanelController.lua\nconfig panel lifecycle / navigation / filter ui"]
-    EventsCommands["src/runtime/EventsCommandController.lua\nevent registration / slash commands / debug command routing"]
-    UIChrome["src/core/UIChromeController.lua\nminimap button / frame chrome / ElvUI skinning"]
-    LootFilter["src/loot/LootFilterController.lua\nloot filter menus / collectible family lookups"]
-    SetBridge["src/core/SetDashboardBridge.lua\nset helpers / LootSets wiring / dashboard bridge"]
-    LootData["src/loot/LootDataController.lua\nloot data cache / warmup / expansion lookup / encounter collapse state"]
-    LootPanel["src/loot/LootPanelController.lua\nloot frame lifecycle / header layout / tabs / dropdown shell"]
-    LootRows["src/loot/LootPanelRows.lua\nloot row widgets / collection visuals / encounter header state"]
-    LootRender["src/loot/LootPanelRenderer.lua\nloot panel row orchestration / loot+set tab rendering"]
-    LootSets["src/loot/sets/LootSets.lua\nset summary / missing pieces / ATT soft integration"]
-    Dashboard["src/dashboard/raid/RaidDashboard.lua\noffline raid snapshot aggregation"]
-    DB[("MogTrackerDB\ncompat aliases: TransmogTrackerDB, CodexExampleAddonDB")]
-    Blizzard["Blizzard WoW APIs\nEJ / SavedInstances / C_Item / C_Transmog* / C_MountJournal / C_PetJournal"]
-    ElvUI["ElvUI skin hooks\n(optional)"]
-    MainUI["Main panel\nGeneral / Filters / Debug"]
-    LootUI["Loot panel\nLoot / Sets"]
-    DashboardUI["Standalone dashboard\nCtrl + left click"]
-    Tooltip["Minimap tooltip\nlockout matrix"]
+    TOC["TOC"]
+    Locale["Locale"]
+    XML["UI.xml"]
+
+    subgraph Runtime["运行时编排"]
+        Core["CoreRuntime"]
+        Wiring["CoreFeatureWiring"]
+        Events["EventsCommandController"]
+    end
+
+    subgraph Domain["领域模块"]
+        CoreModule["core"]
+        StorageModule["storage"]
+        MetadataModule["metadata"]
+        LootModule["loot"]
+        DashboardModule["dashboard"]
+        ConfigModule["config"]
+        DebugModule["debug"]
+        UiModule["ui"]
+        DataModule["data"]
+    end
+
+    subgraph Surface["UI 表面"]
+        Minimap["小地图"]
+        LootSurface["掉落面板"]
+        DashboardSurface["统计看板"]
+        ConfigSurface["配置中心"]
+        Tooltip["Tooltip"]
+    end
+
+    subgraph External["数据与外部系统"]
+        DB[("MogTrackerDB")]
+        Blizzard["Blizzard APIs"]
+        ElvUI["ElvUI"]
+    end
+
+    subgraph Facts["事实链"]
+        ItemFacts["itemFacts"]
+        LootCache["lootDataCache"]
+        DerivedSummaries["derivedSummaries"]
+        DashboardSnapshot["dash snapshots"]
+    end
 
     TOC --> Locale
-    TOC --> Storage
-    TOC --> Compute
-    TOC --> API
-    TOC --> ClassLogic
-    TOC --> InstanceMetadata
-    TOC --> EncounterState
-    TOC --> CollectionState
-    TOC --> LootSelection
-    TOC --> BulkScan
-    TOC --> DashboardPanel
-    TOC --> ConfigDebug
-    TOC --> ConfigPanel
-    TOC --> EventsCommands
-    TOC --> UIChrome
-    TOC --> LootFilter
-    TOC --> SetBridge
-    TOC --> LootData
-    TOC --> LootPanel
-    TOC --> LootRows
-    TOC --> LootRender
-    TOC --> CoreWiring
-    TOC --> LootSets
-    TOC --> Dashboard
     TOC --> XML
     TOC --> Core
 
-    Core --> Storage
-    Core --> Compute
-    Core --> API
-    Core --> ClassLogic
-    Core --> InstanceMetadata
-    Core --> EncounterState
-    Core --> CollectionState
-    Core --> LootSelection
-    Core --> BulkScan
-    Core --> DashboardPanel
-    Core --> ConfigDebug
-    Core --> ConfigPanel
-    Core --> EventsCommands
-    Core --> UIChrome
-    Core --> LootFilter
-    Core --> SetBridge
-    Core --> LootData
-    Core --> LootPanel
-    Core --> LootRows
-    Core --> LootRender
-    Core --> CoreWiring
-    Core --> LootSets
-    Core --> Dashboard
-    Core --> MainUI
-    Core --> LootUI
-    Core --> DashboardUI
-    Core --> Tooltip
-    Storage <--> DB
-    Dashboard <--> DB
-    API --> Blizzard
-    LootSets --> Blizzard
-    Core <--> DB
-    Compute --> Core
-    Core -. optional skinning .-> ElvUI
+    Core --> Wiring
+    Core --> Events
+    Core --> CoreModule
+    Core --> StorageModule
+    Core --> MetadataModule
+    Core --> LootModule
+    Core --> DashboardModule
+    Core --> ConfigModule
+    Core --> DebugModule
+    Core --> UiModule
+    Core --> DataModule
+
+    Wiring --> LootModule
+    Wiring --> DashboardModule
+    Wiring --> ConfigModule
+    Wiring --> DebugModule
+
+    Events --> Core
+    Events --> ConfigModule
+    Events --> LootModule
+    Events --> DashboardModule
+
+    Core --> Minimap
+    LootModule --> LootSurface
+    DashboardModule --> DashboardSurface
+    ConfigModule --> ConfigSurface
+    UiModule --> Tooltip
+    CoreModule --> Minimap
+    CoreModule --> Tooltip
+
+    StorageModule <--> DB
+    DashboardModule <--> DB
+    MetadataModule --> Blizzard
+    CoreModule --> Blizzard
+    LootModule --> Blizzard
+    DashboardModule --> Blizzard
+    StorageModule --> ItemFacts
+    ItemFacts --> LootModule
+    ItemFacts --> DashboardModule
+    LootModule --> LootCache
+    ItemFacts --> LootCache
+    LootCache --> DerivedSummaries
+    DerivedSummaries --> LootModule
+    LootCache --> DashboardModule
+    DashboardModule --> DashboardSnapshot
+    CoreModule -. optional skinning .-> ElvUI
+
+    classDef entryNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef runtimeNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef domainNode fill:#e9f7ef,stroke:#2e8b57,stroke-width:1.5px,color:#123524;
+    classDef surfaceNode fill:#fce8f3,stroke:#c0508a,stroke-width:1.5px,color:#4a1832;
+    classDef externalNode fill:#f0f0f0,stroke:#7a7a7a,stroke-width:1.5px,color:#2f2f2f;
+    classDef factNode fill:#fdeaea,stroke:#c05050,stroke-width:1.5px,color:#4a1818;
+
+    class TOC,Locale,XML entryNode;
+    class Core,Wiring,Events runtimeNode;
+    class CoreModule,StorageModule,MetadataModule,LootModule,DashboardModule,ConfigModule,DebugModule,UiModule,DataModule domainNode;
+    class Minimap,LootSurface,DashboardSurface,ConfigSurface,Tooltip surfaceNode;
+    class DB,Blizzard,ElvUI externalNode;
+    class ItemFacts,LootCache,DerivedSummaries,DashboardSnapshot factNode;
 ```
 
-## EventsCommandController 交互图
+图里的方向表示“谁依赖谁 / 谁向下调用谁”，并且这里以当前代码接线为准：
+
+- `runtime` 是编排层，负责启动、接线和事件分发。
+- `core / loot / dashboard` 是主要业务层。
+- `storage / metadata / data` 都属于数据层：`storage` 负责 `MogTrackerDB` 访问与归一化，`metadata` 负责规则解释和元数据解析，`data` 负责静态数据定义。
+- `config / debug / ui` 是支撑和表现层。
+- `itemFacts -> lootDataCache -> derivedSummaries -> dashboard snapshots` 是当前事实到派生缓存的主链路。
+
+这里的“真模块”指已经从 `CoreRuntime.lua` 那类运行时编排文件里抽离出来、拥有明确 `Configure(...)` 依赖边界并可独立承载职责的模块；不是只做一层转发的薄 wrapper，也不是纯数据或纯资源文件。
+
+### 编排层
+
+> 这一组模块负责启动、接线和事件分发，是其余层的统一编排入口。
+
+#### `src/runtime/`
+
+> 这一段说明运行时编排目录的职责，以及其中已经独立成型的真模块。
+
+- 运行时入口、模块接线、事件与 slash 命令分发。
+- 细节见 [src/runtime/README.md](./src/runtime/README.md)。
+- 真模块：
+  - [src/runtime/EventsCommandController.lua](./src/runtime/EventsCommandController.lua)
+
+### 业务层
+
+> 这一组模块负责核心业务计算、掉落面板逻辑和统计看板聚合。
+
+#### `src/core/`
+
+> 这一段说明跨功能公共能力所在的核心目录，以及其中的真模块。
+
+- 通用计算、状态、UI 外壳，以及 dashboard bridge 这类跨功能公共能力。
+- 细节见 [src/core/README.md](./src/core/README.md)。
+- 真模块：
+  - [src/core/ClassLogic.lua](./src/core/ClassLogic.lua)
+  - [src/core/EncounterState.lua](./src/core/EncounterState.lua)
+  - [src/core/CollectionState.lua](./src/core/CollectionState.lua)
+  - [src/core/UIChromeController.lua](./src/core/UIChromeController.lua)
+  - [src/core/DerivedSummaryStore.lua](./src/core/DerivedSummaryStore.lua)
+  - [src/core/SetDashboardBridge.lua](./src/core/SetDashboardBridge.lua)
+
+#### `src/loot/`
+
+> 这一段说明掉落面板相关目录，以及其中的真模块。
+
+- 掉落面板选择、缓存、渲染、行组件和套装页逻辑。
+- 细节见 [src/loot/README.md](./src/loot/README.md)。
+- 真模块：
+  - [src/loot/LootSelection.lua](./src/loot/LootSelection.lua)
+  - [src/loot/LootFilterController.lua](./src/loot/LootFilterController.lua)
+  - [src/loot/LootDataController.lua](./src/loot/LootDataController.lua)
+  - [src/loot/LootPanelController.lua](./src/loot/LootPanelController.lua)
+  - [src/loot/LootPanelRows.lua](./src/loot/LootPanelRows.lua)
+  - [src/loot/LootPanelRenderer.lua](./src/loot/LootPanelRenderer.lua)
+
+#### `src/dashboard/`
+
+> 这一段说明统计看板相关目录，以及其中的真模块。
+
+- 独立统计看板窗口、批量扫描、团队本/套装/PVP 看板聚合。
+- 细节见 [src/dashboard/README.md](./src/dashboard/README.md)。
+- 真模块：
+  - [src/dashboard/bulk/DashboardBulkScan.lua](./src/dashboard/bulk/DashboardBulkScan.lua)
+  - [src/dashboard/DashboardPanelController.lua](./src/dashboard/DashboardPanelController.lua)
+
+### 数据层
+
+> 这一组模块负责持久化访问、规则解释和静态数据定义。
+
+#### `src/storage/`
+
+> 这一段说明存储层目录，以及作为南下入口的 storage gateway。
+
+- 存储归一化、数据库初始化，以及对 `MogTrackerDB` 的南下访问入口。
+- 细节见 [src/storage/README.md](./src/storage/README.md)。
+- 真模块：
+  - [src/storage/StorageGateway.lua](./src/storage/StorageGateway.lua)
+
+#### `src/metadata/`
+
+> 这一段说明静态元数据和规则目录，以及其中的真模块。
+
+- 静态元数据、难度语义规则、EJ 实例定位和 metadata 级缓存。
+- 细节见 [src/metadata/README.md](./src/metadata/README.md)。
+- 真模块：
+  - [src/metadata/InstanceMetadata.lua](./src/metadata/InstanceMetadata.lua)
+
+#### `src/data/`
+
+> 这一段说明纯静态数据目录的职责。
+
+- 纯静态数据定义，目前主要承载套装分类配置。
+- 细节见 [src/data/README.md](./src/data/README.md)。
+
+### 支撑与表现层
+
+> 这一组模块负责配置中心、调试工具和轻量 UI 资源装配。
+
+#### `src/config/`
+
+> 这一段说明配置中心相关目录，以及其中的真模块。
+
+- 主配置面板和调试数据链路。
+- 细节见 [src/config/README.md](./src/config/README.md)。
+- 真模块：
+  - [src/config/ConfigDebugData.lua](./src/config/ConfigDebugData.lua)
+  - [src/config/ConfigPanelController.lua](./src/config/ConfigPanelController.lua)
+
+#### `src/debug/`
+
+> 这一段说明调试工具目录的职责。
+
+- 调试采集器、调试工具和调试输出辅助。
+- 细节见 [src/debug/README.md](./src/debug/README.md)。
+
+#### `src/ui/`
+
+> 这一段说明 UI 资源和轻量 UI 装配目录的职责。
+
+- XML/UI 资源和 tooltip 这类轻量 UI 装配文件。
+- 细节见 [src/ui/README.md](./src/ui/README.md)。
+
+## 事件流
+
+> 这一段说明运行时事件和 slash 命令如何进入事件入口并分发到各模块。
 
 ```mermaid
 flowchart TD
-    WoW["WoW Event System\nADDON_LOADED / PLAYER_LOGIN / UPDATE_INSTANCE_INFO\nGET_ITEM_INFO_RECEIVED / ENCOUNTER_END / TRANSMOG_COLLECTION_UPDATED"]
-    Slash["Slash Commands\n/iit /tmtrack /mogtracker /transmogtracker\nand debug subcommands"]
-    Wiring["src/runtime/CoreFeatureWiring.lua\nConfigure(...) + Register*"]
-    ECC["src/runtime/EventsCommandController.lua\nregister + dispatch only"]
+    WoW["WoW events"]
+    Slash["slash commands"]
 
-    Storage["Storage\nInitializeDefaults"]
-    ConfigDebug["ConfigDebugData\nCaptureAndShowDebugDump"]
-    ConfigPanel["ConfigPanelController\nSetPanelView / RefreshPanelText"]
-    LootPanel["LootPanelController / Renderer\nInitializeLootPanel / RefreshLootPanel"]
-    LootData["LootDataController\nInvalidateLootDataCache / QueueLootPanelCacheWarmup"]
-    Encounter["EncounterState\nRecordEncounterKill / HandleManualInstanceReset\nPruneExpiredBossKillCaches"]
-    UIChrome["UIChromeController\nCreateMinimapButton"]
-    Dashboard["Raid dashboard cache\nInvalidateRaidDashboardCache"]
+    subgraph Orchestration["编排层"]
+        Wiring["wiring"]
+        EventEntry["event entry"]
+    end
+
+    subgraph Modules["下游模块"]
+        Storage["storage init"]
+        Config["config"]
+        Loot["loot"]
+        Encounter["encounter"]
+        Dashboard["dashboard"]
+        Debug["debug"]
+        UIChrome["ui chrome"]
+    end
+
     DB[("MogTrackerDB")]
 
-    WoW --> ECC
-    Slash --> ECC
-    Wiring --> ECC
+    WoW --> EventEntry
+    Slash --> EventEntry
+    Wiring --> EventEntry
 
-    ECC --> Storage
-    ECC --> ConfigDebug
-    ECC --> ConfigPanel
-    ECC --> LootPanel
-    ECC --> LootData
-    ECC --> Encounter
-    ECC --> UIChrome
-    ECC --> Dashboard
-    ECC --> DB
+    EventEntry --> Storage
+    EventEntry --> Config
+    EventEntry --> Loot
+    EventEntry --> Encounter
+    EventEntry --> Dashboard
+    EventEntry --> Debug
+    EventEntry --> UIChrome
 
     Storage <--> DB
-    ConfigDebug <--> DB
+    Config <--> DB
     Encounter <--> DB
     Dashboard <--> DB
+    Debug <--> DB
+
+    classDef inputNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef orchestrationNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef moduleNode fill:#ece8ff,stroke:#6f5bb7,stroke-width:1.5px,color:#24184a;
+    classDef storageNode fill:#fdeaea,stroke:#c05050,stroke-width:1.5px,color:#4a1818;
+
+    class WoW,Slash inputNode;
+    class Wiring,EventEntry orchestrationNode;
+    class Storage,Config,Loot,Encounter,Dashboard,Debug,UIChrome moduleNode;
+    class DB storageNode;
 ```
 
-- 事件链：
-  - `ADDON_LOADED` 初始化默认值。
-  - `PLAYER_LOGIN` 触发 UI 初始化、锁定采集、小地图按钮创建和 cache warmup。
-  - `UPDATE_INSTANCE_INFO` / `GET_ITEM_INFO_RECEIVED` / `ENCOUNTER_END` / `TRANSMOG_COLLECTION_UPDATED` 负责缓存失效和界面刷新。
-- 命令链：
-  - 普通 slash 命令默认打开主配置面板。
-  - `debug` 系列命令走 `ConfigDebugData` / `DebugTools` 采集，再切到 debug 页并聚焦输出框。
-- 模块定位：
-  - `EventsCommandController` 只做“外部输入 -> 内部动作分发”，不承载业务计算。
-  - 因为它主要连接 WoW 事件系统和 slash 命令系统，所以归到 `src/runtime/` 而不是 `src/core/`。
+### 魔兽世界事件
 
-## 模块职责
+> 这一段按事件逐个说明当前真正注册的 WoW 事件及其运行路径。
 
-- `src/runtime/CoreRuntime.lua`
-  - 当前运行时入口。
-  - 负责运行时状态、少量纯 helper、以及暴露给 addon 其余部分的顶层入口。
-- `src/runtime/CoreFeatureWiring.lua`
-  - 负责核心模块接线。
-  - 包括 controller / data module 的 `Configure(...)` 顺序、跨模块依赖注入、slash/event 注册，以及少量公开别名回写。
-- `src/core/API.lua`
-  - 隔离 Blizzard API 调用。
-  - 负责当前副本解析、Encounter Journal 掉落扫描、调试抓取和 mock 入口。
-- `src/core/Compute.lua`
-  - 负责纯计算逻辑。
-  - 包含职业过滤、锁定过滤、tooltip 矩阵聚合等不直接创建 UI 的逻辑。
-- `src/core/Storage.lua`
-  - 负责 `SavedVariables` 默认值、版本迁移、归一化和角色排序。
-- `src/metadata/CoreMetadata.lua`
-  - 负责全局静态元数据。
-  - 包括职业列表、职业分组、掉落类型分组和类掩码常量。
-- `src/metadata/DifficultyRules.lua`
-  - 负责副本难度语义规则。
-  - 包括显示顺序、tooltip 顺序、颜色质量映射和难度归类辅助。
-- `src/core/ClassLogic.lua`
-  - 负责职业元数据、职业显示名、职业颜色和副本难度显示辅助。
-- `src/metadata/InstanceMetadata.lua`
-  - 负责资料片名归一化、EJ 实例定位、实例选择缓存和副本元数据解析。
-- `src/core/EncounterState.lua`
-  - 负责击杀周期、当前副本 boss 击杀缓存、手动重置副本后的状态清理、遭遇折叠缓存。
-- `src/core/CollectionState.lua`
-  - 负责物品收集状态解析。
-  - 包括幻化 / 坐骑 / 宠物的 collected state、session baseline、掉落过滤和 boss fully-collected 判断。
-- `src/loot/LootSelection.lua`
-  - 负责掉落面板实例选择逻辑。
-  - 包括 selection key、cache key、实例菜单构建、dashboard 跳转打开、角色锁定进度 tooltip。
-- `src/dashboard/bulk/DashboardBulkScan.lua`
-  - 负责独立看板的全量扫描状态机。
-  - 包括扫描队列构建、进度推进、重试、完成收尾，以及配置页批量更新按钮状态。
-- `src/dashboard/DashboardPanelController.lua`
-  - 负责独立统计看板窗口本身。
-  - 包括 frame 初始化、布局、显隐切换、刷新和 info tooltip。
-- `src/config/ConfigDebugData.lua`
-  - 负责主配置面板里的调试数据链路。
-  - 包括 debug dump 采集、SavedInstances 捕获、debug 分段 UI 和主面板文本刷新。
-- `src/config/ConfigPanelController.lua`
-  - 负责主配置面板窗口本体。
-  - 包括 panel 初始化、分栏导航、职业/物品过滤 UI、样式入口和批量更新按钮区。
-- `src/runtime/EventsCommandController.lua`
-  - 负责运行时事件和 slash 命令入口。
-  - 包括 `ADDON_LOADED / PLAYER_LOGIN / UPDATE_INSTANCE_INFO` 等事件注册，以及 debug / 面板打开命令分发。
-- `src/core/UIChromeController.lua`
-  - 负责插件通用 UI 外壳。
-  - 包括 minimap 按钮、默认 frame chrome、header button 视觉规则、滚动条布局和 ElvUI 皮肤接管。
-- `src/loot/LootFilterController.lua`
-  - 负责掉落过滤辅助层。
-  - 包括职业/专精/类型 dropdown 菜单，以及坐骑/宠物家族的收集状态查询辅助。
-- `src/core/SetDashboardBridge.lua`
-  - 负责套装与看板桥接层。
-  - 包括 transmog source/set 解析、套装进度、`LootSets` 依赖接线，以及 `Raid/Set/Pvp Dashboard` 的配置注入。
-- `src/loot/LootDataController.lua`
-  - 负责掉落面板相关的数据控制层。
-  - 包括当前副本 loot data cache、warmup、团本/地下城资料片归类，以及 encounter 折叠状态切换。
-- `src/loot/LootPanelController.lua`
-  - 负责掉落面板窗口本身。
-  - 包括 frame 初始化、header/tool 按钮、tab 切换、布局、自定义下拉菜单壳和显隐切换。
-- `src/loot/LootPanelRows.lua`
-  - 负责掉落面板里的行级 widget 和视觉状态。
-  - 包括 loot row 创建、collection/newly-collected 高亮、职业图标、encounter header 视觉和自动折叠基线。
-- `src/loot/LootPanelRenderer.lua`
-  - 负责掉落面板内容渲染。
-  - 包括 `掉落 / 套装` 两个 tab 的内容构建、error/empty state、set summary 组装和 render debug 记录。
-- `src/data/sets/SetCategoryConfig.lua`
-  - 负责套装分类的静态配置。
-- `src/data/sets/SetCategories.lua`
-  - 负责套装分类数据定义。
-- `src/loot/sets/LootSets.lua`
-  - 负责掉落面板套装页相关逻辑。
-  - 包括套装聚合、缺失部位、当前副本掉落来源映射、AllTheThings 软增强等。
-- `src/dashboard/raid/RaidDashboard.lua`
-  - 负责离线统计快照和独立统计看板的数据组织。
-  - 只读取和汇总已缓存的团队本摘要，不在打开看板时触发全量采集。
-- `src/dashboard/set/SetDashboard.lua`
-  - 负责套装统计看板的数据聚合与渲染。
-  - 按资料片与来源类型组织套装进度矩阵，并渲染 set dashboard 专属表格。
-- `src/dashboard/pvp/PvpDashboard.lua`
-  - 负责 PVP 套装统计看板的数据聚合与渲染。
-  - 按赛季与 track 分类组织进度矩阵，并渲染 pvp dashboard 专属表格。
+#### `ADDON_LOADED`
+
+> 这一段说明插件加载完成后如何初始化默认存储结构。
+
+```mermaid
+flowchart LR
+    A["ADDON_LOADED"] --> B["event entry"]
+    B --> C["InitializeDefaults()"]
+    C --> D["MogTrackerDB ready"]
+
+    classDef eventNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef orchestrationNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef actionNode fill:#ece8ff,stroke:#6f5bb7,stroke-width:1.5px,color:#24184a;
+    classDef stateNode fill:#fdeaea,stroke:#c05050,stroke-width:1.5px,color:#4a1818;
+
+    class A eventNode;
+    class B orchestrationNode;
+    class C actionNode;
+    class D stateNode;
+```
+
+- 只在 `arg1 == addonName` 时处理。
+- 主要动作是调用 `InitializeDefaults()`，完成 `MogTrackerDB` 默认值和归一化初始化。
+
+#### `PLAYER_LOGIN`
+
+> 这一段说明角色进入世界后如何完成运行时启动和 UI 初始化。
+
+```mermaid
+flowchart LR
+    A["PLAYER_LOGIN"] --> B["event entry"]
+    B --> C["PruneExpiredBossKillCaches()"]
+    C --> D["RequestRaidInfo()"]
+    D --> E["CaptureSavedInstances()"]
+    E --> F["InitializePanel()"]
+    F --> G["InitializeLootPanel()"]
+    G --> H["CreateMinimapButton()"]
+
+    classDef eventNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef orchestrationNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef actionNode fill:#ece8ff,stroke:#6f5bb7,stroke-width:1.5px,color:#24184a;
+
+    class A eventNode;
+    class B orchestrationNode;
+    class C,D,E,F,G,H actionNode;
+```
+
+- 这一条是主要启动路径。
+- 除了 UI 初始化外，还会挂上 `ResetInstances` 的 hook。
+
+#### `UPDATE_INSTANCE_INFO`
+
+> 这一段说明副本信息刷新后如何同步存储、失效缓存并更新界面。
+
+```mermaid
+flowchart LR
+    A["UPDATE_INSTANCE_INFO"] --> B["event entry"]
+    B --> C["CaptureSavedInstances()"]
+    C --> D["PruneExpiredBossKillCaches()"]
+    D --> E["InvalidateLootDataCache()"]
+    E --> F["InvalidateRaidDashboardCache()"]
+    F --> G["RefreshPanelText()"]
+
+    classDef eventNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef orchestrationNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef actionNode fill:#ece8ff,stroke:#6f5bb7,stroke-width:1.5px,color:#24184a;
+
+    class A eventNode;
+    class B orchestrationNode;
+    class C,D,E,F,G actionNode;
+```
+
+- 这是“副本锁定刷新”后的主要同步路径。
+- 重点是刷新已存实例信息并失效相关缓存。
+
+#### `GET_ITEM_INFO_RECEIVED`
+
+> 这一段说明异步物品信息补全后如何刷新依赖缺失物品数据的面板。
+
+```mermaid
+flowchart TD
+    A["GET_ITEM_INFO_RECEIVED"] --> B["event entry"]
+    B --> C["lootDataCache"]
+    C --> D{"missing?"}
+    D -- "no" --> E["return"]
+    D -- "yes" --> F["invalidate loot"]
+    F --> G["invalidate dashboard"]
+    G --> H{"panel shown?"}
+    H -- "no" --> I["next open"]
+    H -- "yes" --> J{"pending?"}
+    J -- "yes" --> K["skip"]
+    J -- "no" --> L["schedule"]
+    L --> M["timer 0.05"]
+    M --> N["clear pending"]
+    N --> O{"still shown?"}
+    O -- "yes" --> P["RefreshLootPanel()"]
+    O -- "no" --> Q["stop"]
+    P --> R["CollectCurrentInstanceLootData()"]
+    R --> S["itemFacts"]
+    S --> T["lootDataCache"]
+    T --> U["dashboard snapshots"]
+
+    classDef eventNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef orchestrationNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef decisionNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef actionNode fill:#ece8ff,stroke:#6f5bb7,stroke-width:1.5px,color:#24184a;
+    classDef stateNode fill:#fdeaea,stroke:#c05050,stroke-width:1.5px,color:#4a1818;
+    classDef factNode fill:#fdeaea,stroke:#c05050,stroke-width:1.5px,color:#4a1818;
+    classDef renderNode fill:#e9f7ef,stroke:#2e8b57,stroke-width:1.5px,color:#123524;
+
+    class A eventNode;
+    class B orchestrationNode;
+    class D,H,J,O decisionNode;
+    class C,F,G,L,M,N,R actionNode;
+    class E,I,K,Q stateNode;
+    class S,T,U factNode;
+    class P renderNode;
+```
+
+- 这个事件是统一入口，不是每个物品单独注册一个回调。
+- 每次收到事件时，代码不会按 `itemID` 精确匹配，而是先看当前 `lootDataCache.data.missingItemData` 是否还存在。
+- 只有存在缺失物品数据时，才会失效 `lootDataCache` 和看板运行时缓存；事件本身不直接写 `itemFacts`。
+- 真正的 `itemFacts` 回填发生在后续 `RefreshLootPanel() -> CollectCurrentInstanceLootData()` 重采集时；这时会把新可用的 `name / link / appearanceID / sourceID` 写回事实层。
+- 如果掉落面板没开，流程会停在“失效缓存”，等下次打开或主动采集时再重建并补写 `itemFacts`。
+- 如果掉落面板开着，代码会用 `addon.lootItemInfoRefreshPending` 加 `C_Timer.After(0.05)` 做一次轻量合并，避免短时间内重复排很多次刷新。
+- 所以当 100 个物品陆续补全时，事件可能会触发很多次，但通常表现为“少量失效 + 少量重采集”，而不是 100 次完整重绘。
+
+#### `ENCOUNTER_END`
+
+> 这一段说明首领战结束后如何记录击杀并刷新相关缓存。
+
+```mermaid
+flowchart LR
+    A["ENCOUNTER_END"] --> B["event entry"]
+    B --> C{"success?"}
+    C -- "yes" --> D["RecordEncounterKill()"]
+    D --> E["InvalidateRaidDashboardCache()"]
+    E --> F{"loot panel shown?"}
+    F -- "yes" --> G["RefreshLootPanel()"]
+    F -- "no" --> H["return"]
+    C -- "no" --> H["return"]
+
+    classDef eventNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef orchestrationNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef decisionNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef actionNode fill:#ece8ff,stroke:#6f5bb7,stroke-width:1.5px,color:#24184a;
+    classDef stateNode fill:#fdeaea,stroke:#c05050,stroke-width:1.5px,color:#4a1818;
+
+    class A eventNode;
+    class B orchestrationNode;
+    class C decisionNode;
+    class D,E,G actionNode;
+    class F decisionNode;
+    class H stateNode;
+```
+
+- 只有 `arg5 == 1` 时才会处理，也就是击杀成功。
+- 这条路径只更新击杀结果、折叠状态和统计看板缓存，不再在击杀事件里失效整张掉落表缓存。
+- 如果掉落面板当时开着，会直接按当前 session baseline 重绘；如果没开，就等下次打开时再应用新的击杀结果。
+
+#### `TRANSMOG_COLLECTION_UPDATED`
+
+> 这一段说明收藏状态变化后，统计看板和掉落面板为什么会走两条不同的刷新链路。
+
+**统计看板链路**
+
+```mermaid
+flowchart LR
+    A["TRANSMOG_COLLECTION_UPDATED"] --> B["event entry"]
+    B --> C{"row-level refresh helper?"}
+    C -- "yes" --> D["RefreshRaidDashboardCollectionStates()"]
+    C -- "no" --> E["InvalidateRaidDashboardCache()"]
+    D --> F{"dashboard shown?"}
+    E --> F
+    F -- "yes" --> G["RefreshDashboardPanel()"]
+    F -- "no" --> H["return"]
+
+    classDef eventNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef orchestrationNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef actionNode fill:#ece8ff,stroke:#6f5bb7,stroke-width:1.5px,color:#24184a;
+    classDef decisionNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef stateNode fill:#fdeaea,stroke:#c05050,stroke-width:1.5px,color:#4a1818;
+
+    class A eventNode;
+    class B orchestrationNode;
+    class D,E,G actionNode;
+    class C,F decisionNode;
+    class H stateNode;
+```
+
+- 优先路径不再把统计看板整张 cache 打掉，而是就地修正已缓存 row 里的 `collectibles`、`setPieces` 和派生计数。
+- 只有缺少行级刷新 helper 时，才退回到旧的整表失效逻辑。
+- 统计看板如果当前没开，数据仍然会先更新；只是不会立刻触发面板重绘。
+
+**掉落面板链路**
+
+```mermaid
+flowchart LR
+    A["TRANSMOG_COLLECTION_UPDATED"] --> B["event entry"]
+    B --> C{"loot panel shown?"}
+    C -- "yes" --> D{"debounce pending?"}
+    D -- "no" --> E["set pending flag"]
+    E --> F["C_Timer.After(0.1)"]
+    F --> G["RefreshLootPanel()"]
+    D -- "yes" --> H["skip duplicate refresh"]
+    C -- "no" --> I["return"]
+
+    classDef eventNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef orchestrationNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef actionNode fill:#ece8ff,stroke:#6f5bb7,stroke-width:1.5px,color:#24184a;
+    classDef decisionNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef stateNode fill:#fdeaea,stroke:#c05050,stroke-width:1.5px,color:#4a1818;
+
+    class A eventNode;
+    class B orchestrationNode;
+    class E,F,G actionNode;
+    class C,D decisionNode;
+    class H,I stateNode;
+```
+
+- 掉落面板这条链路只刷新“收藏态驱动的显示层”，不重扫 EJ 掉落表。
+- 这里保留 `0.1s` debounce，是为了等 Blizzard 的收藏 API 稳定后再重绘，避免一次收集触发多次连刷。
+
+### 斜杠命令
+
+> 这一段列出 slash 命令入口及其主要分支。
+
+- `/imt`
+- 普通命令默认打开配置中心。
+- `debug`
+  - 采集通用 debug dump 并切到 debug 页。
+- `debug setboard`
+  - 采集 set dashboard preview debug。
+- `debug sets`
+  - 采集 set category debug。
+- `debug dungeon=...` / `debug raid=...`
+  - 采集 dungeon/raid dashboard debug。
+- `debug pvpsets`
+  - 采集 PVP set debug。
+
+### 模块定位
+
+> 这一段说明为什么事件入口模块归在编排层而不是业务层。
+
+- `EventsCommandController` 只做“外部输入 -> 内部动作分发”，不承载业务计算。
+- 因为它主要连接 WoW 事件系统和 slash 命令系统，所以归到 `src/runtime/` 而不是 `src/core/`。
 
 ## UI 结构
 
+> 这一段按玩家可见入口说明插件的主要 UI 结构。
+
 - 小地图按钮
-  - 左键：打开主面板。
-  - 右键：打开当前副本掉落面板。
-  - `Ctrl + 左键`：打开独立统计看板。
-- 主面板
-  - `通用`：通用配置和插件说明。
-  - `职业过滤`：选择职业范围。
-  - `物品过滤`：选择掉落类型范围。
-  - `调试`：收集日志、查看原始 API 返回和本地归一化结果。
+  - 统一入口。
+  - 左键进入配置中心，右键进入掉落面板，`Ctrl + 左键` 进入统计看板。
 - 掉落面板
-  - `掉落`：当前副本 / 选定团队本的掉落列表。
-  - `套装`：当前副本相关套装、缺失件及其来源。
-- 独立统计看板
-  - 展示缓存化的资料片 / 团本 / 难度 / 职业统计矩阵。
-  - 只读取已缓存摘要，不在打开时触发全量采集。
+  - 面向当前副本或选定副本的即时查看界面。
+  - 包含 `掉落` 和 `套装` 两个 tab，用于看掉落列表、套装汇总和缺失件来源。
+- 统计看板
+  - 面向离线摘要的聚合查看界面。
+  - 展示缓存化的资料片 / 团本 / 难度 / 职业统计矩阵，不在打开时触发全量采集。
+- 配置中心
+  - 面向插件设置和诊断的控制界面。
+  - 包含 `通用`、`职业过滤`、`物品过滤`、`调试` 等分区。
 
 ## 数据流
+
+> 这一段按启动、采集、计算、渲染的顺序概括主要运行路径。
+
+```mermaid
+flowchart TD
+    A["ADDON_LOADED"] --> B["Storage.NormalizeSettings()"]
+    B --> C["MogTrackerDB ready"]
+
+    D["PLAYER_LOGIN"] --> E["CoreRuntime.InitializePanel() / InitializeLootPanel()"]
+    E --> F["UI surfaces ready"]
+    D --> G["RequestRaidInfo() / CaptureSavedInstances()"]
+
+    G --> H["API loot scan"]
+    H --> I["itemFacts"]
+    I --> J["lootDataCache"]
+    I --> K["dashboard snapshots"]
+    H --> L["Core / Metadata / Loot rules"]
+
+    J --> M["LootPanelRenderer.lua"]
+    K --> N["RaidDashboard / SetDashboard / PvpDashboard"]
+    L --> O["TooltipUI.lua"]
+    L --> P["ConfigPanelController / ConfigDebugData"]
+
+    M --> Q["掉落面板"]
+    N --> R["统计看板"]
+    O --> V["Tooltip"]
+    P --> U["配置中心"]
+
+    W["Runtime events\nUPDATE_INSTANCE_INFO /\nGET_ITEM_INFO_RECEIVED /\nENCOUNTER_END /\nTRANSMOG_COLLECTION_UPDATED"] --> T["invalidate cache + refresh"]
+    T --> G
+    T --> J
+    T --> K
+    T --> M
+    T --> N
+
+    classDef eventNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef processNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef stateNode fill:#f0f0f0,stroke:#7a7a7a,stroke-width:1.5px,color:#2f2f2f;
+    classDef factNode fill:#fdeaea,stroke:#c05050,stroke-width:1.5px,color:#4a1818;
+    classDef renderNode fill:#e9f7ef,stroke:#2e8b57,stroke-width:1.5px,color:#123524;
+
+    class A,D,W eventNode;
+    class B,E,G,H,L,T processNode;
+    class C,F stateNode;
+    class I,J,K factNode;
+    class M,N,O,P,Q,R,U,V renderNode;
+```
 
 1. `ADDON_LOADED`
    - `Storage.lua` 归一化 `MogTrackerDB`。
 2. `PLAYER_LOGIN`
    - `CoreRuntime.lua` 创建 UI。
-  - 注册小地图按钮、主面板、掉落面板和 tooltip。
+   - 注册小地图按钮、主面板、掉落面板和 tooltip。
 3. 副本数据采集
-   - `API.lua` 负责当前副本识别、EJ 难度切换、掉落扫描和调试抓取。
+   - `API.lua` 负责当前副本识别、EJ 难度切换和掉落扫描。
+   - 物品级解析结果先写入 `itemFacts`，再由上层缓存和看板复用。
 4. 业务计算
    - `Compute.lua` 负责角色筛选、锁定矩阵和 tooltip 结构。
    - `ClassLogic.lua`、`metadata/InstanceMetadata.lua`、`EncounterState.lua`、`CollectionState.lua`、`LootSelection.lua` 提供被 UI 和数据层复用的核心能力。
    - `LootSets.lua` 负责套装聚合与缺失件来源。
    - `DashboardBulkScan.lua` 负责主动全量扫描路径。
-   - `RaidDashboard.lua` 只消费已缓存摘要并构建看板行列数据。
+   - `RaidDashboard.lua` 依赖 `itemFacts` 和已缓存摘要构建看板行列数据。
 5. 渲染
- - `CoreRuntime.lua` 把结果渲染到 tooltip、主面板和掉落面板。
+   - `CoreRuntime.lua` 把结果渲染到 tooltip、主面板和掉落面板。
 
-## 真模块清单
+## 面板加载时序
 
-下列文件已经不是 “wrapper source chunk”，而是通过显式 `Configure(...)` 注入依赖、可独立承载职责的真模块：
+> 这一段单独说明这五个主要 UI 表面从用户入口、运行时接线、初始化到首屏渲染的时序：小地图 Tooltip、掉落面板、统计看板、配置面板、调试面板。
 
-- `src/core/ClassLogic.lua`
-- `src/metadata/InstanceMetadata.lua`
-- `src/core/EncounterState.lua`
-- `src/core/CollectionState.lua`
-- `src/loot/LootSelection.lua`
-- `src/dashboard/bulk/DashboardBulkScan.lua`
-- `src/dashboard/DashboardPanelController.lua`
-- `src/config/ConfigDebugData.lua`
-- `src/config/ConfigPanelController.lua`
-- `src/runtime/EventsCommandController.lua`
-- `src/core/UIChromeController.lua`
-- `src/loot/LootFilterController.lua`
-- `src/core/SetDashboardBridge.lua`
-- `src/loot/LootDataController.lua`
-- `src/loot/LootPanelController.lua`
-- `src/loot/LootPanelRows.lua`
-- `src/loot/LootPanelRenderer.lua`
+### 配置面板
 
-约定：
-- 每次从 `CoreRuntime.lua` 抽出新的真模块，都要同步更新本节和上面的“模块职责”。
-- 如果模块职责发生变化，也要一起改 README，而不是只改代码。
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Minimap as 小地图按钮
+    participant UI as UIChromeController
+    participant Runtime as CoreRuntime
+    participant Config as ConfigPanelController
+    participant Panel as MogTrackerPanel
 
-## 缓存与快照策略
+    User->>Minimap: Ctrl + 左键
+    Minimap->>UI: OnClick("left_control_config")
+    UI->>Runtime: InitializePanel()
+    Runtime->>Config: Initialize / Configure
+    Config->>Panel: 绑定 checkbox / dropdown / scroll child
+    UI->>Runtime: SetPanelView("config")
+    Runtime->>Panel: Show()
+```
+
+配置面板是最轻的入口之一。它不依赖 Encounter Journal 全量扫描，主要在首次打开时完成配置控件、scroll child 和样式绑定，然后直接显示 `config` 视图。
+
+### 独立调试面板
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Slash as /img debug
+    participant Events as EventsCommandController
+    participant Runtime as CoreRuntime
+    participant Debug as DebugTools
+    participant Panel as MogTrackerDebugPanel
+
+    User->>Slash: /img debug
+    Slash->>Events: 解析 debug 子命令
+    Events->>Runtime: 打开独立调试面板
+    Runtime->>Debug: 收集已启用调试段
+    Debug->>Panel: 写入文本与勾选状态
+    Runtime->>Panel: Show()
+```
+
+调试面板不挂在主面板 tab 里，而是独立 frame。命令入口先决定要收集哪些段，再由 `DebugTools` 生成可复制的 focused dump。
+
+### 掉落面板
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Minimap as 小地图按钮
+    participant UI as UIChromeController
+    participant Runtime as CoreRuntime
+    participant Controller as LootPanelController
+    participant Selection as LootSelection
+    participant Renderer as LootPanelRenderer
+    participant EJ as Encounter Journal
+    participant Panel as MogTrackerLootPanel
+
+    User->>Minimap: 右键
+    Minimap->>UI: OnClick("right_loot")
+    UI->>Runtime: ToggleLootPanel()
+    Runtime->>Controller: InitializeLootPanel() if needed
+    Controller->>Selection: PreferCurrentLootPanelSelectionOnOpen()
+    Controller->>Runtime: ResetLootPanelSessionState(true)
+    Controller->>Renderer: RefreshLootPanel()
+    Renderer->>Selection: CollectCurrentInstanceLootData()
+    Selection->>EJ: Select instance / difficulty / encounters / loot
+    Selection-->>Renderer: encounters + visible loot data
+    Renderer->>Panel: render rows / collapse state / empty rows
+    Panel-->>User: 首屏掉落或套装内容
+```
+
+掉落面板的重活都在 `RefreshLootPanel()` 后面：当前副本优先、会话基线重置、EJ encounter 级掉落枚举、再进入 renderer。首开路径现在只保留一次主刷新，不再叠加额外的零延迟二次刷新。
+
+会话层还有一条额外约束：面板打开时会记录 `itemCollectionBaseline`。这让“本来就已收集”的幻化在整个本次打开会话里持续隐藏，只把面板打开后新获得的外观标成 `newly_collected` 保留下来；如果 Blizzard 收集 API 在事件抖动里短暂回报 `unknown`，也不会把原本已隐藏的已收集物品重新刷出来。
+
+### 统计看板
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Minimap as 小地图按钮
+    participant UI as UIChromeController
+    participant Runtime as CoreRuntime
+    participant Dashboard as DashboardPanelController
+    participant Snapshot as RaidDashboardData
+    participant Panel as MogTrackerDashboardPanel
+
+    User->>Minimap: 左键 / Shift + 左键
+    Minimap->>UI: OnClick("left_dashboard")
+    UI->>Runtime: ToggleDashboardPanel(instanceType)
+    Runtime->>Dashboard: Initialize / SetView
+    Dashboard->>Snapshot: read cached snapshot only
+    Snapshot-->>Dashboard: grouped rows / summary cells
+    Dashboard->>Panel: render dashboard table
+    Panel-->>User: raid / party dashboard
+```
+
+统计看板读取的是已缓存摘要，不应该在打开时触发 EJ 全量采集。主动 bulk scan 属于另一路显式操作，不属于面板首开时序。
+
+### 小地图 Tooltip
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Minimap as 小地图按钮
+    participant UI as UIChromeController
+    participant Tooltip as TooltipUI
+    participant Runtime as CoreRuntime
+    participant Compute as Compute
+    participant QTip as LibQTip
+
+    User->>Minimap: 鼠标移入
+    Minimap->>UI: OnEnter
+    UI->>Tooltip: ShowMinimapTooltip(owner)
+    Tooltip->>Runtime: syncCurrentCharacter()
+    Tooltip->>Tooltip: build current-lockout snapshot
+    Tooltip->>Compute: BuildTooltipMatrix(snapshot)
+    Compute-->>Tooltip: visibleCharacters + tooltipRows
+    Tooltip->>QTip: Acquire / SetCell / ApplyHeaderStyles
+    QTip-->>User: 当前锁定摘要
+```
+
+Tooltip 现在展示“当期锁定 + 过期七天内的灰显锁定”：不混入 `previousCycleLockouts`，但会把 `lockouts` 里已经过期、仍在七天宽限窗口内的记录保留下来并灰显。它会先构建 tooltip 自己的快照，再复用共享 matrix builder。
+
+## 缓存
+
+> 这一段集中说明插件里的缓存、快照和版本化规则。
+
+### Storage 分层
+
+> 这一段定义 `MogTrackerDB`、快照、视图状态和运行时缓存各自应该落在哪一层。
+
+```mermaid
+flowchart TD
+    Facts["Fact Layer<br/>稳定事实数据<br/>settings / characters / itemFacts / lockouts / bossKillCounts / bossKillCache"]
+    Snapshots["Derived Snapshot Layer<br/>可重建的持久化摘要<br/>raidDashboardCache / dungeonDashboardCache"]
+    ViewState["View-State Layer<br/>UI 呈现状态<br/>collapsed / selected tab / scope mode / debug toggles"]
+    RuntimeCache["Runtime Cache Layer<br/>仅当前会话加速<br/>loot caches / metadata caches / RaidDashboard.cache / SetDashboard.cache"]
+
+    Facts -->|"derive"| Snapshots
+    Facts -->|"drive UI defaults"| ViewState
+    Facts -->|"seed / key"| RuntimeCache
+    Snapshots -->|"read for dashboard / set views"| ViewState
+    Snapshots -->|"warm render inputs"| RuntimeCache
+    ViewState -. "must not rewrite facts" .-> Facts
+    RuntimeCache -. "loss on reload is acceptable" .-> Facts
+
+    classDef factNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef snapshotNode fill:#e9f7ef,stroke:#2e8b57,stroke-width:1.5px,color:#123524;
+    classDef viewStateNode fill:#fce8f3,stroke:#c0508a,stroke-width:1.5px,color:#4a1832;
+    classDef runtimeCacheNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+
+    class Facts factNode;
+    class Snapshots snapshotNode;
+    class ViewState viewStateNode;
+    class RuntimeCache runtimeCacheNode;
+```
+
+当前存储结构按四层理解：
+
+1. Fact Layer
+   - 存放稳定、可直接解释的事实数据。
+   - 典型字段：`MogTrackerDB.settings`、`MogTrackerDB.characters[*].lockouts`、`MogTrackerDB.characters[*].bossKillCounts`、`MogTrackerDB.bossKillCache`
+   - 规则：不要把 tooltip 文案、dashboard 分组猜测或展示标签塞进这一层；如果规则变化后这份数据仍然有效，它通常就属于事实层。
+2. Derived Snapshot Layer
+   - 存放从扫描结果和事实数据派生出的持久化摘要。
+   - 典型字段：`MogTrackerDB.raidDashboardCache`、`MogTrackerDB.dungeonDashboardCache`
+   - 规则：这一层是可丢弃、可重建的；所有规则驱动的快照都必须带显式 `rulesVersion`，规则变化时要整体重建。
+3. View-State Layer
+   - 存放 UI 如何展示，而不是游戏事实本身。
+   - 典型内容：折叠状态、选中的 tab、scope mode、debug section 开关
+   - 规则：重置 view state 不应破坏事实层和摘要层；只影响布局、显隐、按钮行为的状态应归这里。
+4. Runtime Cache Layer
+   - 存放仅用于当前会话加速的内存缓存。
+   - 典型内容：loot panel in-memory caches、metadata lookup caches、`RaidDashboard.cache`、`SetDashboard.cache`
+   - 规则：默认不持久化；`/reload` 后丢失是可接受的，这一层只负责降低 open/refresh 成本，不应成为新的事实来源。
+
+边界规则：
+
+- Set classification
+  - 优先级应是 `PVP keyword` -> `raid cached setPieces` -> `dungeon cached setPieces` -> `other`
+  - 不要在已有真实来源证据时只靠显示名分类。
+- Dashboards
+  - 看板应该读 snapshot，不应该在打开时重新全量扫描世界。
+  - 采集路径负责写 snapshot，看板路径只负责读 snapshot。
+- Invalidation
+  - fact 层变化：做 migration/normalize
+  - snapshot 层变化：bump rules version 并重建
+  - 纯 UI/view 变化：不要碰 stored facts/snapshots
+  - 纯 session 优化：留在 runtime cache
+
+反模式：
+
+- 同一个语义事实同时存在于 facts、snapshots 和第三份自定义缓存里
+- 持久化 runtime-only panel caches
+- 把 UI 标签和事实 ID 混在一起存
+- 已有 source ID 时仍从不稳定显示文本推长期分类
+- 让 dashboard 变成隐式 bulk-scan 入口
+
+### Tooltip 当前锁定与过期灰显
+
+> 这一段说明小地图 tooltip 如何读取当期锁定，并在最多七天的窗口里保留已过期锁定用于灰显展示。
+
+```mermaid
+flowchart TD
+    A["TooltipUI.ShowMinimapTooltip"] --> B["BuildTooltipCharactersSnapshot()"]
+    B --> C{"lockout.extended?"}
+    C -- "yes" --> D["drop"]
+    C -- "no" --> E{"previousCycleSnapshot?"}
+    E -- "yes" --> D
+    E -- "no" --> F{"resetSeconds > 0?"}
+    F -- "yes" --> G["active tooltip lockouts"]
+    F -- "no" --> H{"expired <= 7 days?"}
+    H -- "no" --> D
+    H -- "yes" --> I["gray tooltip lockouts"]
+    G --> J["Compute.BuildTooltipMatrix"]
+    I --> J
+    J --> K["LibQTip render"]
+
+    classDef eventNode fill:#e8f1ff,stroke:#4f81bd,stroke-width:1.5px,color:#10233f;
+    classDef functionNode fill:#7db7ff,stroke:#2f6fb2,stroke-width:1.5px,color:#10233f;
+    classDef decisionNode fill:#fff4d6,stroke:#c58b00,stroke-width:1.5px,color:#3f2b00;
+    classDef stateNode fill:#fdeaea,stroke:#c05050,stroke-width:1.5px,color:#4a1818;
+    classDef renderNode fill:#e9f7ef,stroke:#2e8b57,stroke-width:1.5px,color:#123524;
+
+    class A,B,J functionNode;
+    class C,E,F,H decisionNode;
+    class D,G,I stateNode;
+    class K renderNode;
+```
+
+Tooltip 不直接把 `MogTrackerDB.characters[*]` 原样交给 matrix builder，而是先构建一份 tooltip 专用快照。只有满足“非 extended、非 previous-cycle，并且要么当前有效、要么刚过期不超过七天”的锁定才会进入摘要，所以这个表面表达的是“当前锁定 + 短期过期提示”，不是历史事实总表。
+
+### 缓存与快照策略
+
+> 这一段说明运行时缓存和统计快照的基本原则。
 
 - 掉落面板数据有规则版本化缓存，规则变更时应 bump 对应版本号。
 - 统计看板是离线摘要页：
@@ -322,175 +889,46 @@ flowchart TD
   - 归一化后的内部状态
   - 关键计算链的中间结果
 
-## Key Files
+### 缓存版本号总览
 
-- [MogTracker.toc](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\MogTracker.toc)
-- [src/runtime/CoreRuntime.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\runtime\CoreRuntime.lua)
-- [src/core/API.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\API.lua)
-- [src/core/Compute.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\Compute.lua)
-- [src/metadata/CoreMetadata.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\metadata\CoreMetadata.lua)
-- [src/metadata/DifficultyRules.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\metadata\DifficultyRules.lua)
-- [src/core/ClassLogic.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\ClassLogic.lua)
-- [src/metadata/InstanceMetadata.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\metadata\InstanceMetadata.lua)
-- [src/core/EncounterState.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\EncounterState.lua)
-- [src/core/CollectionState.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\CollectionState.lua)
-- [src/loot/LootSelection.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootSelection.lua)
-- [src/dashboard/bulk/DashboardBulkScan.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\dashboard\bulk\DashboardBulkScan.lua)
-- [src/dashboard/DashboardPanelController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\dashboard\DashboardPanelController.lua)
-- [src/config/ConfigDebugData.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\config\ConfigDebugData.lua)
-- [src/config/ConfigPanelController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\config\ConfigPanelController.lua)
-- [src/runtime/EventsCommandController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\runtime\EventsCommandController.lua)
-- [src/core/UIChromeController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\UIChromeController.lua)
-- [src/loot/LootFilterController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootFilterController.lua)
-- [src/runtime/CoreFeatureWiring.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\runtime\CoreFeatureWiring.lua)
-- [src/core/SetDashboardBridge.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\SetDashboardBridge.lua)
-- [src/loot/LootDataController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootDataController.lua)
-- [src/loot/LootPanelController.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootPanelController.lua)
-- [src/loot/LootPanelRows.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootPanelRows.lua)
-- [src/loot/LootPanelRenderer.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\LootPanelRenderer.lua)
-- [src/data/sets/SetCategoryConfig.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\data\sets\SetCategoryConfig.lua)
-- [src/data/sets/SetCategories.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\data\sets\SetCategories.lua)
-- [src/loot/sets/LootSets.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\loot\sets\LootSets.lua)
-- [src/dashboard/raid/RaidDashboard.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\dashboard\raid\RaidDashboard.lua)
-- [src/dashboard/set/SetDashboard.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\dashboard\set\SetDashboard.lua)
-- [src/dashboard/pvp/PvpDashboard.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\dashboard\pvp\PvpDashboard.lua)
-- [src/core/Storage.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\core\Storage.lua)
-- [src/ui/UI.xml](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\src\ui\UI.xml)
+> 这一段集中列出当前各类缓存规则版本号和它们的管理位置。
+
+当前运行时有 `6` 个缓存规则版本号，另外有 `1` 个 `DB_VERSION` 用于 `SavedVariables` schema，不属于缓存版本。
+
+| 名称 | 当前值 | 管理位置 | 作用缓存 |
+| --- | --- | --- | --- |
+| `JOURNAL_INSTANCE_LOOKUP_RULES_VERSION` | `2` | `src/runtime/CoreRuntime.lua` | `InstanceMetadata.metadataCaches.journalLookup` |
+| `LOOT_PANEL_SELECTION_RULES_VERSION` | `3` | `src/runtime/CoreRuntime.lua` | `InstanceMetadata.metadataCaches.selectionTree` |
+| `LOOT_DATA_RULES_VERSION` | `2` | `src/runtime/CoreRuntime.lua` | `lootDataCache` |
+| `DASHBOARD_RULES_VERSION` | `19` | `src/dashboard/raid/RaidDashboardData.lua` | `RaidDashboard.cache` 和存储条目 `entry.rulesVersion` |
+| `SET_DASHBOARD_RULES_VERSION` | `1` | `src/dashboard/set/SetDashboard.lua` | `SetDashboard.cache` |
+| `PVP_DASHBOARD_RULES_VERSION` | `1` | `src/dashboard/pvp/PvpDashboard.lua` | `PvpDashboard.cache` |
+| `DB_VERSION` | `2` | `src/runtime/CoreRuntime.lua` | `MogTrackerDB` schema 版本；同时约束 `itemFacts` 等事实层结构，不是缓存版本 |
+
+- `JOURNAL_INSTANCE_LOOKUP_RULES_VERSION` 和 `LOOT_PANEL_SELECTION_RULES_VERSION` 由 `CoreRuntime` 定义，经 `CoreFeatureWiring.Configure(...)` 注入 `InstanceMetadata`。
+- `LOOT_DATA_RULES_VERSION` 由 `CoreRuntime` 定义，经 `CoreFeatureWiring.Configure(...)` 注入 `LootSelection` / `LootDataController`。
+- `DASHBOARD_RULES_VERSION` 由 `RaidDashboardData.lua` 自管，同时约束运行时汇总缓存和持久化摘要条目的兼容性。
+- `SET_DASHBOARD_RULES_VERSION` 和 `PVP_DASHBOARD_RULES_VERSION` 都是各自 dashboard 模块内自管的本地缓存版本。
+- `itemFacts` 属于事实层存储，不走独立 rules version；它跟随 `DB_VERSION` 做 schema 归一化，供 `lootDataCache` 和各类 dashboard 摘要重建时复用。
 
 ## 发布说明
 
+> 这一段记录插件发布名和对外命名约定。
+
 - 正式发布名为 `MogTracker`。
-- 为了兼容旧版本用户数据，内部仍保留 `TransmogTrackerDB` 与 `CodexExampleAddonDB` 作为 `MogTrackerDB` 的兼容别名。
 
-## LuaCheck
+## 开发文档
 
-- 项目已接入根目录配置文件：[.luacheckrc](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\.luacheckrc)
-- 运行脚本：[tools/run_luacheck.ps1](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\tools\run_luacheck.ps1)
-- 默认检查范围：
-  - `src/`
-  - `tests/`
-  - `tools/`
-- WoW AddOn 常用全局已在 `.luacheckrc` 里做了白名单，避免把 Blizzard API 误报成未定义全局。
+> 这一段提供开发者检查流程和工具说明的入口。
 
-本机如果还没有 `luacheck`，先安装：
-
-```powershell
-luarocks install luacheck
-```
-
-然后运行：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_luacheck.ps1
-```
-
-如果要把 warning 也视为失败：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_luacheck.ps1 -FailOnWarnings
-```
-
-说明：
-- `luacheck` 依赖 `luafilesystem`
-- 在 Windows 上如果 LuaRocks 只能拿到源码包，还需要本地 C 编译器才能完成安装
-
-## StyLua
-
-- 项目已接入格式配置：[.stylua.toml](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\.stylua.toml)
-- 运行脚本：[tools/run_stylua.ps1](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\tools\run_stylua.ps1)
-- 当前仓库已接入格式入口，但本机还没有 `stylua` 二进制；脚本会在缺失时直接报错提醒安装
-
-检查格式：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_stylua.ps1 -Check
-```
-
-写回格式：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_stylua.ps1
-```
-
-## LuaLS
-
-- 项目已接入工作区配置：[.luarc.json](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\.luarc.json)
-- LuaLS 本地 stub 库：[types/wow-globals.lua](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\types\wow-globals.lua)
-- 命令行检查脚本：[tools/run_luals_check.ps1](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\tools\run_luals_check.ps1)
-- 目标运行时固定为 `Lua 5.1`
-- 常用 Blizzard / SavedVariables 全局和动态 WoW table 字段已预先声明，减少编辑器误报
-- 本机已安装 `LuaLS.lua-language-server 3.17.1`
-- `winget` 安装后如果当前终端还认不到 `lua-language-server`，重开一个 shell 即可
-
-默认运行：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_luals_check.ps1
-```
-
-如果要把 LuaLS warning 也视为失败：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_luals_check.ps1 -FailOnWarnings
-```
-
-说明：
-- 默认模式下，LuaLS 只把真实 `Error` 级诊断当作失败
-- WoW AddOn 项目里低信号的动态环境诊断已在 `.luarc.json` 里降噪
-- `types/` 目录被加入了 LuaLS workspace library，编辑器跳转和补全会直接读取这些 stub
-
-## JSCPD
-
-- 项目已接入重复代码检查配置：[.jscpd.json](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\.jscpd.json)
-- 命令行检查脚本：[tools/run_jscpd.ps1](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\tools\run_jscpd.ps1)
-- Node 依赖由 [package.json](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\package.json) 和 [package-lock.json](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\package-lock.json) 管理
-- 默认检查范围：
-  - `src/`
-  - `Locale/`
-  - `tests/`
-  - `tools/`
-
-运行：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_jscpd.ps1
-```
-
-如果要把重复块也视为失败：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_jscpd.ps1 -FailOnClones
-```
-
-说明：
-- 本机 `jscpd` 已通过本地 `node_modules` 接入
-- `dist/`、`node_modules/`、`.npm-cache/` 已排除，不参与重复代码统计
-- 默认模式用于看基线；只有传 `-FailOnClones` 才会把重复块升级为失败
-
-## VS Code Tasks
-
-- 已接入任务入口：[.vscode/tasks.json](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\.vscode\tasks.json)
-- 可直接运行：
-  - `MogTracker: check`
-  - `MogTracker: check (skip format)`
-  - `MogTracker: check (skip format + duplication)`
-  - `MogTracker: luacheck`
-  - `MogTracker: LuaLS`
-  - `MogTracker: jscpd`
-  - `MogTracker: tests`
-
-## Unified Check
-
-- 统一检查入口：[tools/check.ps1](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\tools\check.ps1)
-- Lua 测试与 mock 校验入口：[tools/run_lua_tests.ps1](C:\World of Warcraft\_retail_\Interface\AddOns\MogTracker\tools\run_lua_tests.ps1)
-
-默认顺序：
-- `luac -p`
-- `luacheck`
-- `LuaLS`
-- `jscpd`
-- `stylua --check`
-- Lua tests / validators
+- 面板文档索引见 [docs/Panels.md](./docs/Panels.md)。
+- 各面板独立文档：
+  - [docs/ConfigPanel.md](./docs/ConfigPanel.md)
+  - [docs/LootPanel.md](./docs/LootPanel.md)
+  - [docs/DashboardPanel.md](./docs/DashboardPanel.md)
+  - [docs/DebugPanel.md](./docs/DebugPanel.md)
+- 开发相关内容已移到 [DEVELOP.md](./DEVELOP.md)。
+- 包括 `LuaCheck`、`StyLua`、`LuaLS`、`JSCPD`、`VS Code Tasks` 和统一检查入口。
 
 运行：
 

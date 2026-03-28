@@ -99,12 +99,6 @@ local function InvalidateLootDataCache()
 	end
 end
 
-local function InvalidateLootPanelSelectionCache()
-	if type(dependencies.InvalidateLootPanelSelectionCache) == "function" then
-		dependencies.InvalidateLootPanelSelectionCache()
-	end
-end
-
 local function ResetLootPanelSessionState(active)
 	if type(dependencies.ResetLootPanelSessionState) == "function" then
 		dependencies.ResetLootPanelSessionState(active)
@@ -208,6 +202,14 @@ function LootSelection.BuildLootPanelSelectionSignature(selection)
 	return string.format("%s::%s::%s", tostring(selection.journalInstanceID or 0), tostring(selection.instanceName or "Unknown"), tostring(selection.difficultyID or 0))
 end
 
+function LootSelection.BuildLootPanelSelectionDeduplicationKey(selection)
+	local signature = LootSelection.BuildLootPanelSelectionSignature(selection)
+	if selection and selection.isCurrent then
+		return "current::" .. signature
+	end
+	return "selection::" .. signature
+end
+
 function LootSelection.GetLootPanelInstanceExpansionInfo(selection)
 	if not selection then
 		local fallbackExpansion = "Other"
@@ -247,7 +249,7 @@ function LootSelection.BuildLootPanelInstanceSelections()
 		local currentInstanceName = (EJ_GetInstanceInfo and EJ_GetInstanceInfo(currentJournalInstanceID)) or (currentDebugInfo and currentDebugInfo.instanceName) or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")
 		local currentSelection = { key = "current", label = currentInstanceName, instanceName = currentInstanceName, journalInstanceID = currentJournalInstanceID, instanceType = currentInstanceType, difficultyID = currentDebugInfo and tonumber(currentDebugInfo.difficultyID) or 0, difficultyName = currentDebugInfo and currentDebugInfo.difficultyName or nil, isCurrent = true }
 		selections[#selections + 1] = currentSelection
-		seenSignatures[LootSelection.BuildLootPanelSelectionSignature(currentSelection)] = true
+		seenSignatures[LootSelection.BuildLootPanelSelectionDeduplicationKey(currentSelection)] = true
 	end
 	local selectionCache = GetLootPanelSelectionCacheEntries()
 	if not selectionCache.entries then
@@ -283,7 +285,7 @@ function LootSelection.BuildLootPanelInstanceSelections()
 		selectionCache.entries = cachedSelections
 	end
 	for _, selection in ipairs(selectionCache.entries or {}) do
-		local signature = LootSelection.BuildLootPanelSelectionSignature(selection)
+		local signature = LootSelection.BuildLootPanelSelectionDeduplicationKey(selection)
 		if not seenSignatures[signature] then
 			seenSignatures[signature] = true
 			selections[#selections + 1] = selection
@@ -489,7 +491,6 @@ function LootSelection.OpenLootPanelForDashboardSelection(selection)
 
 	local lootPanelState = GetLootPanelState()
 	InitializeLootPanel()
-	InvalidateLootPanelSelectionCache()
 
 	local targetJournalInstanceID = tonumber(selection.journalInstanceID) or 0
 	local targetDifficultyID = tonumber(selection.difficultyID) or 0
@@ -527,18 +528,59 @@ function LootSelection.FindCharacterLockoutForSelection(info, selection)
 
 	local targetName = tostring(selection.instanceName or "")
 	local targetDifficultyID = tonumber(selection.difficultyID) or 0
+	local bestExactMatch = nil
+	local bestNameMatch = nil
+
+	local function IsCurrentLockout(lockout)
+		return (tonumber(lockout and lockout.resetSeconds) or 0) > 0
+	end
+
+	local function PreferLockout(candidate, currentBest)
+		if not candidate then
+			return currentBest
+		end
+		if not currentBest then
+			return candidate
+		end
+
+		local candidateIsCurrent = IsCurrentLockout(candidate)
+		local currentBestIsCurrent = IsCurrentLockout(currentBest)
+		if candidateIsCurrent ~= currentBestIsCurrent then
+			return candidateIsCurrent and candidate or currentBest
+		end
+
+		local candidateReset = tonumber(candidate.resetSeconds) or 0
+		local currentBestReset = tonumber(currentBest.resetSeconds) or 0
+		if candidateReset ~= currentBestReset then
+			return candidateReset > currentBestReset and candidate or currentBest
+		end
+
+		local candidateProgress = tonumber(candidate.progress) or 0
+		local currentBestProgress = tonumber(currentBest.progress) or 0
+		if candidateProgress ~= currentBestProgress then
+			return candidateProgress > currentBestProgress and candidate or currentBest
+		end
+
+		return currentBest
+	end
+
 	for _, lockout in ipairs(info.lockouts or {}) do
-		if tostring(lockout.name or "") == targetName and (tonumber(lockout.difficultyID) or 0) == targetDifficultyID then
-			return lockout
+		if tostring(lockout.name or "") == targetName then
+			if (tonumber(lockout.difficultyID) or 0) == targetDifficultyID then
+				bestExactMatch = PreferLockout(lockout, bestExactMatch)
+			end
+			if selection.isCurrent then
+				bestNameMatch = PreferLockout(lockout, bestNameMatch)
+			end
 		end
 	end
 
-	if selection.isCurrent then
-		for _, lockout in ipairs(info.lockouts or {}) do
-			if tostring(lockout.name or "") == targetName then
-				return lockout
-			end
-		end
+	if bestExactMatch and IsCurrentLockout(bestExactMatch) then
+		return bestExactMatch
+	end
+
+	if selection.isCurrent and bestNameMatch and IsCurrentLockout(bestNameMatch) then
+		return bestNameMatch
 	end
 
 	return nil

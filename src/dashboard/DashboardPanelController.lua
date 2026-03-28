@@ -68,9 +68,9 @@ local function ApplyElvUISkin()
 	end
 end
 
-local function StartDashboardBulkScan()
+local function StartDashboardBulkScan(instanceType)
 	if type(dependencies.StartDashboardBulkScan) == "function" then
-		dependencies.StartDashboardBulkScan()
+		dependencies.StartDashboardBulkScan(false, instanceType)
 	end
 end
 
@@ -108,6 +108,27 @@ local function GetDashboardViewDefinition(viewKey)
 	return DASHBOARD_VIEW_DEFINITIONS[tostring(viewKey or "")] or DASHBOARD_VIEW_DEFINITIONS.raid_sets
 end
 
+local function GetUnifiedDashboardViewButtonWidth(dashboardPanel)
+	if not dashboardPanel or not dashboardPanel.viewButtons then
+		return 84
+	end
+
+	local maxWidth = 0
+	for _, viewKey in ipairs(DASHBOARD_VIEW_ORDER) do
+		local button = dashboardPanel.viewButtons[viewKey]
+		local textWidth = 0
+		if button and button.GetFontString then
+			local fontString = button:GetFontString()
+			if fontString and fontString.GetStringWidth then
+				textWidth = fontString:GetStringWidth() or 0
+			end
+		end
+		maxWidth = math.max(maxWidth, textWidth)
+	end
+
+	return math.max(84, math.ceil(maxWidth + 24))
+end
+
 local function EnsureDashboardViewState(dashboardPanel, fallbackInstanceType)
 	if not dashboardPanel then
 		return GetDashboardViewDefinition("raid_sets"), "raid_sets"
@@ -140,38 +161,122 @@ function DashboardPanelController.UpdateDashboardPanelLayout()
 		dashboardPanel.content:SetWidth(contentWidth)
 	end
 	if dashboardPanel.viewButtons then
-		local previousButton = nil
-		for _, viewKey in ipairs(DASHBOARD_VIEW_ORDER) do
-			local button = dashboardPanel.viewButtons[viewKey]
-			if button then
-				button:ClearAllPoints()
-				if previousButton then
-					button:SetPoint("LEFT", previousButton, "RIGHT", 6, 0)
-				else
-					button:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 12)
-				end
-				previousButton = button
+		local unifiedButtonWidth = GetUnifiedDashboardViewButtonWidth(dashboardPanel)
+		local raidSetsButton = dashboardPanel.viewButtons.raid_sets
+		local raidCollectiblesButton = dashboardPanel.viewButtons.raid_collectibles
+		local dungeonSetsButton = dashboardPanel.viewButtons.dungeon_sets
+		local dungeonCollectiblesButton = dashboardPanel.viewButtons.dungeon_collectibles
+
+		if raidSetsButton then
+			raidSetsButton:SetWidth(unifiedButtonWidth)
+			raidSetsButton:ClearAllPoints()
+		end
+		if raidCollectiblesButton then
+			raidCollectiblesButton:SetWidth(unifiedButtonWidth)
+			raidCollectiblesButton:ClearAllPoints()
+		end
+		if dungeonSetsButton then
+			dungeonSetsButton:SetWidth(unifiedButtonWidth)
+			dungeonSetsButton:ClearAllPoints()
+		end
+		if dungeonCollectiblesButton then
+			dungeonCollectiblesButton:SetWidth(unifiedButtonWidth)
+			dungeonCollectiblesButton:ClearAllPoints()
+		end
+
+		if dashboardPanel.scanRaidButton then
+			dashboardPanel.scanRaidButton:ClearAllPoints()
+			dashboardPanel.scanRaidButton:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 38)
+		end
+		if dashboardPanel.raidRowDivider then
+			dashboardPanel.raidRowDivider:ClearAllPoints()
+			if dashboardPanel.scanRaidButton then
+				dashboardPanel.raidRowDivider:SetPoint("LEFT", dashboardPanel.scanRaidButton, "RIGHT", 8, 0)
+			else
+				dashboardPanel.raidRowDivider:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 48)
 			end
 		end
-	end
-	if dashboardPanel.bulkScanButton then
-		local anchorButton = nil
-		if dashboardPanel.viewButtons then
-			anchorButton = dashboardPanel.viewButtons.dungeon_collectibles
+		if raidSetsButton then
+			if dashboardPanel.raidRowDivider then
+				raidSetsButton:SetPoint("LEFT", dashboardPanel.raidRowDivider, "RIGHT", 8, 0)
+			elseif dashboardPanel.scanRaidButton then
+				raidSetsButton:SetPoint("LEFT", dashboardPanel.scanRaidButton, "RIGHT", 16, 0)
+			else
+				raidSetsButton:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 38)
+			end
 		end
-		if anchorButton then
-			dashboardPanel.bulkScanButton:ClearAllPoints()
-			dashboardPanel.bulkScanButton:SetPoint("LEFT", anchorButton, "RIGHT", 8, 0)
-		else
-			dashboardPanel.bulkScanButton:ClearAllPoints()
-			dashboardPanel.bulkScanButton:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 12)
+		if raidCollectiblesButton then
+			if raidSetsButton then
+				raidCollectiblesButton:SetPoint("LEFT", raidSetsButton, "RIGHT", 6, 0)
+			else
+				raidCollectiblesButton:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 38)
+			end
+		end
+
+		if dashboardPanel.scanDungeonButton then
+			dashboardPanel.scanDungeonButton:ClearAllPoints()
+			dashboardPanel.scanDungeonButton:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 12)
+		end
+		if dashboardPanel.dungeonRowDivider then
+			dashboardPanel.dungeonRowDivider:ClearAllPoints()
+			if dashboardPanel.scanDungeonButton then
+				dashboardPanel.dungeonRowDivider:SetPoint("LEFT", dashboardPanel.scanDungeonButton, "RIGHT", 8, 0)
+			else
+				dashboardPanel.dungeonRowDivider:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 22)
+			end
+		end
+		if dungeonSetsButton then
+			if dashboardPanel.dungeonRowDivider then
+				dungeonSetsButton:SetPoint("LEFT", dashboardPanel.dungeonRowDivider, "RIGHT", 8, 0)
+			elseif dashboardPanel.scanDungeonButton then
+				dungeonSetsButton:SetPoint("LEFT", dashboardPanel.scanDungeonButton, "RIGHT", 16, 0)
+			else
+				dungeonSetsButton:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 12)
+			end
+		end
+		if dungeonCollectiblesButton then
+			if dungeonSetsButton then
+				dungeonCollectiblesButton:SetPoint("LEFT", dungeonSetsButton, "RIGHT", 6, 0)
+			else
+				dungeonCollectiblesButton:SetPoint("BOTTOMLEFT", dashboardPanel, "BOTTOMLEFT", 12, 12)
+			end
 		end
 	end
 	if dashboardPanel.scrollFrame then
 		dashboardPanel.scrollFrame:ClearAllPoints()
 		dashboardPanel.scrollFrame:SetPoint("TOPLEFT", 12, -40)
-		dashboardPanel.scrollFrame:SetPoint("BOTTOMRIGHT", -16, 40)
+		dashboardPanel.scrollFrame:SetPoint("BOTTOMRIGHT", -16, 94)
 		addon.ApplyCompactScrollBarLayout(dashboardPanel.scrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
+	end
+end
+
+local function RefreshBulkScanButtons(dashboardPanel)
+	if not dashboardPanel then
+		return
+	end
+
+	local scanState = addon.dashboardBulkScanState
+	local isActive = scanState and scanState.active
+	local activeType = tostring(scanState and scanState.instanceType or "")
+
+	if dashboardPanel.scanRaidButton then
+		dashboardPanel.scanRaidButton:SetEnabled(not isActive)
+		dashboardPanel.scanRaidButton:SetText(
+			isActive and activeType == "raid"
+				and T("DASHBOARD_SCAN_RAID_RUNNING", "扫描团队副本中...")
+				or T("DASHBOARD_SCAN_RAID", "扫描团队副本")
+		)
+		dashboardPanel.scanRaidButton:SetShown(true)
+	end
+
+	if dashboardPanel.scanDungeonButton then
+		dashboardPanel.scanDungeonButton:SetEnabled(not isActive)
+		dashboardPanel.scanDungeonButton:SetText(
+			isActive and activeType == "party"
+				and T("DASHBOARD_SCAN_DUNGEON_RUNNING", "扫描地下城中...")
+				or T("DASHBOARD_SCAN_DUNGEON", "扫描地下城")
+		)
+		dashboardPanel.scanDungeonButton:SetShown(true)
 	end
 end
 
@@ -193,10 +298,7 @@ function DashboardPanelController.RefreshDashboardPanel()
 			button:SetShown(true)
 		end
 	end
-	if dashboardPanel.bulkScanButton then
-		dashboardPanel.bulkScanButton:SetEnabled(not (addon.dashboardBulkScanState and addon.dashboardBulkScanState.active))
-		dashboardPanel.bulkScanButton:SetShown(false)
-	end
+	RefreshBulkScanButtons(dashboardPanel)
 	if addon.RaidDashboard and addon.RaidDashboard.RenderContent then
 		if addon.SetDashboard and addon.SetDashboard.HideWidgets then
 			addon.SetDashboard.HideWidgets(dashboardPanel)
@@ -253,8 +355,21 @@ function DashboardPanelController.InitializeDashboardPanel()
 	dashboardPanel:SetSize(math.max(620, tonumber(size.width) or 760), math.max(420, tonumber(size.height) or 520))
 	dashboardPanel:SetPoint(point.point or "CENTER", UIParent, point.relativePoint or "CENTER", tonumber(point.x) or 60, tonumber(point.y) or 0)
 	dashboardPanel:SetFrameStrata("DIALOG")
+	if dashboardPanel.SetToplevel then
+		dashboardPanel:SetToplevel(true)
+	end
 	dashboardPanel:SetClampedToScreen(true)
 	dashboardPanel:EnableMouse(true)
+	dashboardPanel:HookScript("OnShow", function(self)
+		if self.Raise then
+			self:Raise()
+		end
+	end)
+	dashboardPanel:HookScript("OnMouseDown", function(self)
+		if self.Raise then
+			self:Raise()
+		end
+	end)
 	dashboardPanel:SetMovable(true)
 	dashboardPanel:SetResizable(true)
 	if dashboardPanel.SetResizeBounds then
@@ -362,7 +477,6 @@ function DashboardPanelController.InitializeDashboardPanel()
 		local viewDefinition = GetDashboardViewDefinition(viewKey)
 		local button = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
 		button:SetHeight(20)
-		button:SetWidth(viewKey == "dungeon_collectibles" and 84 or (viewKey == "raid_collectibles" and 72 or 66))
 		button:SetText(T(viewDefinition.label, viewDefinition.label))
 		button:SetScript("OnClick", function()
 			dashboardPanel.dashboardViewKey = viewKey
@@ -371,18 +485,35 @@ function DashboardPanelController.InitializeDashboardPanel()
 		end)
 		dashboardPanel.viewButtons[viewKey] = button
 	end
-	dashboardPanel.bulkScanButton = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
-	dashboardPanel.bulkScanButton:SetSize(84, 20)
-	dashboardPanel.bulkScanButton:SetText(T("DASHBOARD_BUTTON_BULK_SCAN", "全量扫描"))
-	dashboardPanel.bulkScanButton:SetScript("OnEnter", function(self)
+	dashboardPanel.scanRaidButton = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
+	dashboardPanel.scanRaidButton:SetSize(120, 20)
+	dashboardPanel.scanRaidButton:SetText(T("DASHBOARD_SCAN_RAID", "扫描团队副本"))
+	dashboardPanel.scanRaidButton:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:ClearLines()
-		GameTooltip:AddLine(T("DASHBOARD_BUTTON_BULK_SCAN", "全量扫描"), 1, 0.82, 0)
-		GameTooltip:AddLine(addon.GetDashboardBulkScanHintText(dashboardPanel and dashboardPanel.dashboardInstanceType or "raid"), 1, 1, 1, true)
+		GameTooltip:AddLine(T("DASHBOARD_SCAN_RAID", "扫描团队副本"), 1, 0.82, 0)
+		GameTooltip:AddLine(addon.GetDashboardBulkScanHintText("raid"), 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
-	dashboardPanel.bulkScanButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	dashboardPanel.bulkScanButton:SetScript("OnClick", function() StartDashboardBulkScan() end)
+	dashboardPanel.scanRaidButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	dashboardPanel.scanRaidButton:SetScript("OnClick", function() StartDashboardBulkScan("raid") end)
+	dashboardPanel.raidRowDivider = dashboardPanel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	dashboardPanel.raidRowDivider:SetText("|")
+
+	dashboardPanel.scanDungeonButton = CreateFrame("Button", nil, dashboardPanel, "UIPanelButtonTemplate")
+	dashboardPanel.scanDungeonButton:SetSize(120, 20)
+	dashboardPanel.scanDungeonButton:SetText(T("DASHBOARD_SCAN_DUNGEON", "扫描地下城"))
+	dashboardPanel.scanDungeonButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:ClearLines()
+		GameTooltip:AddLine(T("DASHBOARD_SCAN_DUNGEON", "扫描地下城"), 1, 0.82, 0)
+		GameTooltip:AddLine(addon.GetDashboardBulkScanHintText("party"), 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	dashboardPanel.scanDungeonButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	dashboardPanel.scanDungeonButton:SetScript("OnClick", function() StartDashboardBulkScan("party") end)
+	dashboardPanel.dungeonRowDivider = dashboardPanel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	dashboardPanel.dungeonRowDivider:SetText("|")
 
 	dashboardPanel.scrollFrame = CreateFrame("ScrollFrame", nil, dashboardPanel, "UIPanelScrollFrameTemplate")
 	dashboardPanel.content = CreateFrame("Frame", nil, dashboardPanel.scrollFrame)

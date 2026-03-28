@@ -85,6 +85,31 @@ function SetDashboardBridge.ClassMatchesSetInfo(classFile, setInfo)
 	return bit.band(classMask, classBit) ~= 0
 end
 
+local function IsSetAppearanceCollected(appearance)
+	if not appearance then
+		return false
+	end
+
+	local getLootItemCollectionState = dependencies.GetLootItemCollectionState
+	if type(getLootItemCollectionState) == "function" then
+		local collectionState = getLootItemCollectionState({
+			sourceID = tonumber(appearance.sourceID) or nil,
+			appearanceID = tonumber(appearance.appearanceID) or nil,
+			link = appearance.link,
+			itemID = tonumber(appearance.itemID) or nil,
+			name = appearance.name,
+		})
+		if collectionState == "collected" then
+			return true
+		end
+		if collectionState == "not_collected" then
+			return false
+		end
+	end
+
+	return appearance.collected or appearance.appearanceIsCollected or false
+end
+
 function SetDashboardBridge.GetSetProgress(setID)
 	if not (C_TransmogSets and C_TransmogSets.GetSetPrimaryAppearances) then
 		return 0, 0
@@ -99,7 +124,7 @@ function SetDashboardBridge.GetSetProgress(setID)
 	local collected = 0
 	for _, appearance in ipairs(appearances) do
 		total = total + 1
-		if appearance and (appearance.collected or appearance.appearanceIsCollected) then
+		if IsSetAppearanceCollected(appearance) then
 			collected = collected + 1
 		end
 	end
@@ -116,12 +141,29 @@ function SetDashboardBridge.GetLootItemSourceID(item)
 		return sourceID
 	end
 
+	if type(dependencies.GetItemFact) == "function" then
+		local itemID = tonumber(item.itemID) or 0
+		if itemID > 0 then
+			local fact = dependencies.GetItemFact(itemID)
+			local factSourceID = tonumber(fact and fact.sourceID) or 0
+			if factSourceID > 0 then
+				item.sourceID = factSourceID
+				item.appearanceID = item.appearanceID or fact.appearanceID
+				return factSourceID
+			end
+		end
+	end
+
 	if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
 		local itemInfo = item.link or item.itemID
 		if itemInfo then
-			local _, refreshedSourceID = C_TransmogCollection.GetItemInfo(itemInfo)
+			local refreshedAppearanceID, refreshedSourceID = C_TransmogCollection.GetItemInfo(itemInfo)
+			refreshedAppearanceID = tonumber(refreshedAppearanceID)
 			refreshedSourceID = tonumber(refreshedSourceID)
 			if refreshedSourceID and refreshedSourceID > 0 then
+				if refreshedAppearanceID and refreshedAppearanceID > 0 then
+					item.appearanceID = item.appearanceID or refreshedAppearanceID
+				end
 				item.sourceID = refreshedSourceID
 				return refreshedSourceID
 			end
@@ -132,6 +174,49 @@ function SetDashboardBridge.GetLootItemSourceID(item)
 end
 
 function SetDashboardBridge.GetLootItemSetIDs(item)
+	local function NormalizeSetIDs(rawSetIDs)
+		if type(rawSetIDs) ~= "table" then
+			return {}
+		end
+
+		local seenSetIDs = {}
+		local setIDs = {}
+		for _, entry in ipairs(rawSetIDs) do
+			local setID
+			if type(entry) == "table" then
+				setID = tonumber(entry.setID or entry.transmogSetID or entry.id)
+			else
+				setID = tonumber(entry)
+			end
+			if setID and setID > 0 and not seenSetIDs[setID] then
+				seenSetIDs[setID] = true
+				setIDs[#setIDs + 1] = setID
+			end
+		end
+
+		return setIDs
+	end
+
+	local existingSetIDs = NormalizeSetIDs(item and item.setIDs or nil)
+	if #existingSetIDs > 0 then
+		item.setIDs = existingSetIDs
+		return existingSetIDs
+	end
+
+	if type(dependencies.GetItemFact) == "function" then
+		local itemID = tonumber(item and item.itemID) or 0
+		if itemID > 0 then
+			local fact = dependencies.GetItemFact(itemID)
+			local factSetIDs = NormalizeSetIDs(fact and fact.setIDs or nil)
+			if #factSetIDs > 0 then
+				item.setIDs = factSetIDs
+				item.sourceID = item.sourceID or fact.sourceID
+				item.appearanceID = item.appearanceID or fact.appearanceID
+				return factSetIDs
+			end
+		end
+	end
+
 	if not C_TransmogSets or not C_TransmogSets.GetSetsContainingSourceID then
 		return {}
 	end
@@ -141,25 +226,17 @@ function SetDashboardBridge.GetLootItemSetIDs(item)
 		return {}
 	end
 
-	local rawSetIDs = C_TransmogSets.GetSetsContainingSourceID(sourceID)
-	if type(rawSetIDs) ~= "table" then
-		return {}
+	if type(dependencies.GetSetIDsBySourceID) == "function" then
+		local indexedSetIDs = NormalizeSetIDs(dependencies.GetSetIDsBySourceID(sourceID))
+		if #indexedSetIDs > 0 then
+			item.setIDs = indexedSetIDs
+			return indexedSetIDs
+		end
 	end
 
-	local seenSetIDs = {}
-	local setIDs = {}
-	for _, entry in ipairs(rawSetIDs) do
-		local setID
-		if type(entry) == "table" then
-			setID = tonumber(entry.setID or entry.transmogSetID or entry.id)
-		else
-			setID = tonumber(entry)
-		end
-		if setID and setID > 0 and not seenSetIDs[setID] then
-			seenSetIDs[setID] = true
-			setIDs[#setIDs + 1] = setID
-		end
-	end
+	local rawSetIDs = C_TransmogSets.GetSetsContainingSourceID(sourceID)
+	local setIDs = NormalizeSetIDs(rawSetIDs)
+	item.setIDs = setIDs
 
 	return setIDs
 end
@@ -181,6 +258,9 @@ function SetDashboardBridge.ConfigureLootSetsModule()
 		GetSelectedLootClassFiles = dependencies.GetSelectedLootClassFiles,
 		GetLootItemSetIDs = SetDashboardBridge.GetLootItemSetIDs,
 		GetLootItemSourceID = SetDashboardBridge.GetLootItemSourceID,
+		GetItemFactBySourceID = dependencies.GetItemFactBySourceID,
+		GetItemFactsBySetID = dependencies.GetItemFactsBySetID,
+		GetSourceIDsBySetID = dependencies.GetSourceIDsBySetID,
 		ClassMatchesSetInfo = SetDashboardBridge.ClassMatchesSetInfo,
 		GetSetProgress = SetDashboardBridge.GetSetProgress,
 		GetLootItemCollectionState = dependencies.GetLootItemCollectionState,
@@ -233,14 +313,8 @@ function SetDashboardBridge.ConfigureRaidDashboardModule()
 					return ToggleExpansionCollapsed(expansionName, "set")
 				end,
 				getStoredDashboardCache = function(instanceType)
-					local db = GetDB()
-					if not db then
-						return nil
-					end
-					if tostring(instanceType or "") == "party" then
-						return db.dungeonDashboardCache or nil
-					end
-					return db.raidDashboardCache or nil
+					local fn = dependencies.GetDashboardLegacyCache
+					return type(fn) == "function" and fn(instanceType) or nil
 				end,
 			})
 		end
@@ -254,14 +328,19 @@ function SetDashboardBridge.ConfigureRaidDashboardModule()
 			return GetDashboardType("raid")
 		end,
 		getStoredCache = function(instanceType)
-			local db = GetDB()
-			if not db then
+			local fn = dependencies.GetDashboardSummaryStore
+			return type(fn) == "function" and fn(instanceType) or nil
+		end,
+		ensureStoredCache = function(instanceType)
+			local fn = dependencies.EnsureDashboardSummaryStore
+			if type(fn) ~= "function" then
 				return nil
 			end
-			if instanceType == "party" then
-				return db.dungeonDashboardCache or nil
+			local store = fn(instanceType)
+			if type(store) == "table" then
+				return store
 			end
-			return db.raidDashboardCache or nil
+			return nil
 		end,
 		isExpansionCollapsed = function(expansionName)
 			return IsExpansionCollapsed(expansionName, "raid")
@@ -287,7 +366,7 @@ function SetDashboardBridge.ConfigureRaidDashboardModule()
 		getSetProgress = SetDashboardBridge.GetSetProgress,
 		deriveLootTypeKey = dependencies.DeriveLootTypeKey,
 		getClassDisplayName = dependencies.GetClassDisplayName,
-		getDifficultyName = dependencies.GetDifficultyNameCompat,
+		getDifficultyName = dependencies.GetDifficultyName,
 		getDifficultyDisplayOrder = dependencies.GetRaidDifficultyDisplayOrder,
 		getSelectionLockoutProgress = function(selection)
 			local lockout = dependencies.GetCurrentCharacterLockoutForSelection(selection)
@@ -301,6 +380,20 @@ function SetDashboardBridge.ConfigureRaidDashboardModule()
 			}
 		end,
 		openLootPanelForSelection = dependencies.OpenLootPanelForDashboardSelection,
+		applyLootHeaderIconToolButtonStyle = dependencies.ApplyLootHeaderIconToolButtonStyle,
+		setLootHeaderButtonVisualState = dependencies.SetLootHeaderButtonVisualState,
+		startDashboardBulkScan = function(_, instanceType, expansionName)
+			if type(dependencies.StartDashboardBulkScan) == "function" then
+				return dependencies.StartDashboardBulkScan(false, instanceType, expansionName)
+			end
+		end,
+		getDashboardBulkScanExpansionRows = function(instanceType)
+			if type(dependencies.GetDashboardBulkScanExpansionRows) == "function" then
+				return dependencies.GetDashboardBulkScanExpansionRows(instanceType)
+			end
+			return {}
+		end,
+		refreshDashboardPanel = dependencies.RefreshDashboardPanel,
 		colorizeExpansionLabel = dependencies.ColorizeExpansionLabel,
 		getDisplaySetName = function(setEntry)
 			return addon.LootSets and addon.LootSets.GetDisplaySetName and addon.LootSets.GetDisplaySetName(setEntry)
@@ -358,14 +451,8 @@ function SetDashboardBridge.ConfigureRaidDashboardModule()
 				return ToggleExpansionCollapsed(expansionName, "set")
 			end,
 			getStoredDashboardCache = function(instanceType)
-				local db = GetDB()
-				if not db then
-					return nil
-				end
-				if tostring(instanceType or "") == "party" then
-					return db.dungeonDashboardCache or nil
-				end
-				return db.raidDashboardCache or nil
+				local fn = dependencies.GetDashboardLegacyCache
+				return type(fn) == "function" and fn(instanceType) or nil
 			end,
 		})
 	end

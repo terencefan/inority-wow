@@ -5,6 +5,12 @@ addon.CoreFeatureWiring = CoreFeatureWiring
 
 function CoreFeatureWiring.Wire(config)
 	local outputs = {}
+	local function CollectLootDataWithItemFacts(context)
+		local request = type(context) == "table" and context or {}
+		request.getItemFact = config.GetItemFact
+		request.upsertItemFact = config.UpsertItemFact
+		return config.APICollectCurrentInstanceLootData(request)
+	end
 
 	local function GetExpansionOrderValue(expansionName)
 		if outputs.GetExpansionOrder then
@@ -35,6 +41,7 @@ function CoreFeatureWiring.Wire(config)
 	outputs.GetCurrentJournalInstanceID = InstanceMetadata.GetCurrentJournalInstanceID
 	outputs.GetJournalInstanceLookupCacheEntries = InstanceMetadata.GetJournalInstanceLookupCacheEntries
 	outputs.GetLootPanelSelectionCacheEntries = InstanceMetadata.GetLootPanelSelectionCacheEntries
+	outputs.InvalidateLootPanelSelectionCacheEntries = InstanceMetadata.InvalidateLootPanelSelectionCacheEntries
 
 	local EncounterState = addon.EncounterState
 	EncounterState.Configure({
@@ -54,11 +61,6 @@ function CoreFeatureWiring.Wire(config)
 				config.RefreshLootPanel()
 			end
 		end,
-		QueueLootPanelCacheWarmup = function()
-			if outputs.QueueLootPanelCacheWarmup then
-				outputs.QueueLootPanelCacheWarmup()
-			end
-		end,
 		InvalidateRaidDashboard = config.InvalidateRaidDashboard,
 		isLootPanelShown = config.isLootPanelShown,
 	})
@@ -74,14 +76,14 @@ function CoreFeatureWiring.Wire(config)
 		T = config.T,
 		getDB = config.getDB,
 		getLootPanelState = config.getLootPanelState,
-		GetClassInfoCompat = function(classID)
-			return config.GetClassInfoCompat(classID)
+		GetClassInfo = function(classID)
+			return config.GetClassInfo(classID)
 		end,
-		GetNumSpecializationsForClassIDCompat = function(classID)
-			return config.GetNumSpecializationsForClassIDCompat(classID)
+		GetNumSpecializationsForClassID = function(classID)
+			return config.GetNumSpecializationsForClassID(classID)
 		end,
-		GetSpecInfoForClassIDCompat = function(classID, specIndex)
-			return config.GetSpecInfoForClassIDCompat(classID, specIndex)
+		GetSpecInfoForClassID = function(classID, specIndex)
+			return config.GetSpecInfoForClassID(classID, specIndex)
 		end,
 		GetSelectedLootClassFiles = function()
 			return config.GetSelectedLootClassFiles()
@@ -154,7 +156,6 @@ function CoreFeatureWiring.Wire(config)
 			end
 		end,
 		InvalidateLootDataCache = config.InvalidateLootDataCache,
-		InvalidateLootPanelSelectionCache = config.InvalidateLootPanelSelectionCache,
 		ResetLootPanelSessionState = config.ResetLootPanelSessionState,
 		InitializeLootPanel = function()
 			if config.InitializeLootPanel then
@@ -190,64 +191,10 @@ function CoreFeatureWiring.Wire(config)
 	outputs.RenderLockoutProgress = LootSelection.RenderLockoutProgress
 	outputs.ShowLootPanelInstanceProgressTooltip = LootSelection.ShowLootPanelInstanceProgressTooltip
 
-	local LootDataController = addon.LootDataController
-	LootDataController.Configure({
-		T = config.T,
-		GetSelectedLootPanelInstance = function()
-			if outputs.GetSelectedLootPanelInstance then
-				return outputs.GetSelectedLootPanelInstance()
-			end
-			return nil
-		end,
-		BuildLootDataCacheKey = outputs.BuildLootDataCacheKey,
-		GetSelectedLootClassIDs = function()
-			if outputs.GetSelectedLootClassIDs then
-				return outputs.GetSelectedLootClassIDs()
-			end
-			return {}
-		end,
-		GetDashboardClassIDs = config.GetDashboardClassIDs,
-		getLootDataCache = config.getLootDataCache,
-		setLootDataCache = config.setLootDataCache,
-		APICollectCurrentInstanceLootData = config.APICollectCurrentInstanceLootData,
-		FindJournalInstanceByInstanceInfo = function(instanceName, instanceID, instanceType)
-			if outputs.FindJournalInstanceByInstanceInfo then
-				return outputs.FindJournalInstanceByInstanceInfo(instanceName, instanceID, instanceType)
-			end
-			return nil
-		end,
-		DeriveLootTypeKey = function(item)
-			return config.DeriveLootTypeKey(item)
-		end,
-		AreNumericListsEquivalent = outputs.AreNumericListsEquivalent,
-		GetDashboardClassFiles = config.GetDashboardClassFiles,
-		lootDataRulesVersion = config.lootDataRulesVersion,
-		getLootCacheWarmupPending = config.getLootCacheWarmupPending,
-		setLootCacheWarmupPending = config.setLootCacheWarmupPending,
-		getLootPanel = config.getLootPanel,
-		BuildLootPanelInstanceSelections = function()
-			if outputs.BuildLootPanelInstanceSelections then
-				return outputs.BuildLootPanelInstanceSelections()
-			end
-			return {}
-		end,
-		NormalizeLockoutDisplayName = config.NormalizeLockoutDisplayName,
-		GetExpansionDisplayName = function(index)
-			return GetExpansionDisplayNameValue(index)
-		end,
-		getLootPanelState = config.getLootPanelState,
-		SetEncounterCollapseCacheEntry = config.SetEncounterCollapseCacheEntry,
-	})
-
-	outputs.CollectCurrentInstanceLootData = LootDataController.CollectCurrentInstanceLootData
-	outputs.QueueLootPanelCacheWarmup = LootDataController.QueueLootPanelCacheWarmup
-	outputs.ToggleLootEncounterCollapsed = LootDataController.ToggleLootEncounterCollapsed
-	outputs.GetExpansionForLockout = LootDataController.GetExpansionForLockout
-	outputs.GetExpansionOrder = LootDataController.GetExpansionOrder
-
 	local DashboardBulkScan = addon.DashboardBulkScan
 	DashboardBulkScan.Configure({
 		T = config.T,
+		getDB = config.getDB,
 		Print = config.Print,
 		getConfigPanel = config.getPanel,
 		getDashboardPanel = config.getDashboardPanel,
@@ -257,13 +204,18 @@ function CoreFeatureWiring.Wire(config)
 			end
 			return {}
 		end,
+		InvalidateLootPanelSelectionCacheEntries = function()
+			if outputs.InvalidateLootPanelSelectionCacheEntries then
+				return outputs.InvalidateLootPanelSelectionCacheEntries()
+			end
+			return nil
+		end,
 		GetExpansionOrder = function(expansionName)
 			return GetExpansionOrderValue(expansionName)
 		end,
 		GetRaidDifficultyDisplayOrder = config.GetRaidDifficultyDisplayOrder,
-		BuildLootPanelSelectionKey = outputs.BuildLootPanelSelectionKey,
 		CollectDashboardInstanceData = function(selection)
-			return config.APICollectCurrentInstanceLootData({
+			return CollectLootDataWithItemFacts({
 				T = config.T,
 				findJournalInstanceByInstanceInfo = outputs.FindJournalInstanceByInstanceInfo,
 				getSelectedLootClassIDs = outputs.GetSelectedLootClassIDs,
@@ -280,11 +232,15 @@ function CoreFeatureWiring.Wire(config)
 		end,
 		InvalidateSetDashboard = config.InvalidateSetDashboard,
 		UpdateRaidDashboardSnapshot = config.UpdateRaidDashboardSnapshot,
-		ClearRaidDashboardStoredData = config.ClearRaidDashboardStoredData,
+		ClearRaidDashboardStoredData = function(instanceType, expansionName)
+			return config.ClearRaidDashboardStoredData(instanceType, expansionName)
+		end,
 	})
 
 	outputs.UpdateConfigBulkUpdateButtons = DashboardBulkScan.UpdateConfigBulkUpdateButtons
 	outputs.StartDashboardBulkScan = DashboardBulkScan.StartDashboardBulkScan
+	outputs.GetDashboardBulkScanSelections = DashboardBulkScan.GetDashboardBulkScanSelections
+	outputs.GetDashboardBulkScanExpansionRows = DashboardBulkScan.GetDashboardBulkScanExpansionRows
 
 	local DashboardPanelController = addon.DashboardPanelController
 	DashboardPanelController.Configure({
@@ -309,15 +265,17 @@ function CoreFeatureWiring.Wire(config)
 	local ConfigDebugData = addon.ConfigDebugData
 	ConfigDebugData.Configure({
 		T = config.T,
-		getPanel = config.getPanel,
+		addonName = config.addonName,
+		getDebugPanel = config.getDebugPanel,
+		setDebugPanel = config.setDebugPanel,
 		getDB = config.getDB,
-		getCurrentPanelView = config.getCurrentPanelView,
-		setCurrentPanelView = config.setCurrentPanelView,
 		getLastDebugDump = config.getLastDebugDump,
 		setLastDebugDump = config.setLastDebugDump,
 		Print = config.Print,
 		InvalidateLootDataCache = config.InvalidateLootDataCache,
-		InvalidateLootPanelSelectionCache = config.InvalidateLootPanelSelectionCache,
+		GetAddonMetadata = config.GetAddonMetadata,
+		ApplyDefaultFrameStyle = config.ApplyDefaultFrameStyle,
+		ApplyElvUISkin = config.ApplyElvUISkin,
 		GetExpansionForLockout = function(lockout)
 			if outputs.GetExpansionForLockout then
 				return outputs.GetExpansionForLockout(lockout)
@@ -331,6 +289,7 @@ function CoreFeatureWiring.Wire(config)
 		ExtractSavedInstanceProgress = config.ExtractSavedInstanceProgress,
 	})
 
+	outputs.InitializeDebugPanel = ConfigDebugData.InitializeDebugPanel
 	outputs.CaptureAndShowDebugDump = ConfigDebugData.CaptureAndShowDebugDump
 	outputs.CaptureSavedInstances = ConfigDebugData.CaptureSavedInstances
 	outputs.RefreshPanelText = ConfigDebugData.RefreshPanelText
@@ -348,7 +307,7 @@ function CoreFeatureWiring.Wire(config)
 		getSettings = config.getSettings,
 		setSettings = config.setSettings,
 		NormalizeSettings = config.NormalizeSettings,
-		GetAddonMetadataCompat = config.GetAddonMetadataCompat,
+		GetAddonMetadata = config.GetAddonMetadata,
 		ApplyDefaultPanelStyle = config.ApplyDefaultPanelStyle,
 		GetPanelStyleLabel = config.GetPanelStyleLabel,
 		BuildStyleMenu = config.BuildStyleMenu,
@@ -362,7 +321,6 @@ function CoreFeatureWiring.Wire(config)
 		end,
 		RefreshPanelText = outputs.RefreshPanelText,
 		InvalidateLootDataCache = config.InvalidateLootDataCache,
-		InvalidateLootPanelSelectionCache = config.InvalidateLootPanelSelectionCache,
 		CaptureAndShowDebugDump = outputs.CaptureAndShowDebugDump,
 		CaptureSavedInstances = outputs.CaptureSavedInstances,
 		Print = config.Print,
@@ -384,47 +342,39 @@ function CoreFeatureWiring.Wire(config)
 	outputs.InitializePanel = ConfigPanelController.InitializePanel
 
 	local LootPanelController = addon.LootPanelController
-	LootPanelController.Configure({
-		T = config.T,
-		getDB = config.getDB,
-		getLootPanel = config.getLootPanel,
-		setLootPanel = config.setLootPanel,
-		getPanel = config.getPanel,
-		getCurrentPanelView = config.getCurrentPanelView,
-		getLootPanelState = config.getLootPanelState,
-		InitializePanel = outputs.InitializePanel,
-		SetPanelView = outputs.SetPanelView,
-		RefreshLootPanel = function()
-			if outputs.RefreshLootPanel then
-				outputs.RefreshLootPanel()
-			end
-		end,
-		ResetLootPanelSessionState = config.ResetLootPanelSessionState,
-		ResetLootPanelScrollPosition = config.ResetLootPanelScrollPosition,
-		InvalidateLootDataCache = config.InvalidateLootDataCache,
-		Print = config.Print,
-		ApplyDefaultFrameStyle = config.ApplyDefaultFrameStyle,
-		ApplyLootHeaderIconToolButtonStyle = config.ApplyLootHeaderIconToolButtonStyle,
-		ApplyLootHeaderButtonStyle = config.ApplyLootHeaderButtonStyle,
-		SetLootHeaderButtonVisualState = config.SetLootHeaderButtonVisualState,
-		UpdateResizeButtonTexture = config.UpdateResizeButtonTexture,
-		ApplyElvUISkin = config.ApplyElvUISkin,
-		BuildLootPanelInstanceMenu = function(button)
-			if outputs.BuildLootPanelInstanceMenu then
-				return outputs.BuildLootPanelInstanceMenu(button)
-			end
-		end,
-		ShowLootPanelInstanceProgressTooltip = function(...)
-			if outputs.ShowLootPanelInstanceProgressTooltip then
-				return outputs.ShowLootPanelInstanceProgressTooltip(...)
-			end
-		end,
-		GetLootClassScopeButtonLabel = config.GetLootClassScopeButtonLabel,
-		GetLootClassScopeTooltipLines = config.GetLootClassScopeTooltipLines,
-		PreferCurrentLootPanelSelectionOnOpen = outputs.PreferCurrentLootPanelSelectionOnOpen,
-		getLootDropdownMenu = config.getLootDropdownMenu,
-		setLootDropdownMenu = config.setLootDropdownMenu,
-	})
+	local function ConfigureLootPanelController(refreshLootPanelFn)
+		LootPanelController.Configure({
+			T = config.T,
+			getDB = config.getDB,
+			getLootPanel = config.getLootPanel,
+			setLootPanel = config.setLootPanel,
+			getPanel = config.getPanel,
+			getCurrentPanelView = config.getCurrentPanelView,
+			getLootPanelState = config.getLootPanelState,
+			InitializePanel = outputs.InitializePanel,
+			SetPanelView = outputs.SetPanelView,
+			RefreshLootPanel = refreshLootPanelFn,
+			ResetLootPanelSessionState = config.ResetLootPanelSessionState,
+			ResetLootPanelScrollPosition = config.ResetLootPanelScrollPosition,
+			InvalidateLootDataCache = config.InvalidateLootDataCache,
+			Print = config.Print,
+			ApplyDefaultFrameStyle = config.ApplyDefaultFrameStyle,
+			ApplyLootHeaderIconToolButtonStyle = config.ApplyLootHeaderIconToolButtonStyle,
+			ApplyLootHeaderButtonStyle = config.ApplyLootHeaderButtonStyle,
+			SetLootHeaderButtonVisualState = config.SetLootHeaderButtonVisualState,
+			UpdateResizeButtonTexture = config.UpdateResizeButtonTexture,
+			ApplyElvUISkin = config.ApplyElvUISkin,
+			BuildLootPanelInstanceMenu = outputs.BuildLootPanelInstanceMenu,
+			ShowLootPanelInstanceProgressTooltip = outputs.ShowLootPanelInstanceProgressTooltip,
+			GetLootClassScopeButtonLabel = config.GetLootClassScopeButtonLabel,
+			GetLootClassScopeTooltipLines = config.GetLootClassScopeTooltipLines,
+			PreferCurrentLootPanelSelectionOnOpen = outputs.PreferCurrentLootPanelSelectionOnOpen,
+			RecordLootPanelOpenDebug = config.RecordLootPanelOpenDebug,
+			getLootDropdownMenu = config.getLootDropdownMenu,
+			setLootDropdownMenu = config.setLootDropdownMenu,
+		})
+	end
+	ConfigureLootPanelController(nil)
 
 	outputs.BuildLootFilterMenu = LootPanelController.BuildLootFilterMenu
 	outputs.InitializeLootPanel = LootPanelController.InitializeLootPanel
@@ -439,6 +389,8 @@ function CoreFeatureWiring.Wire(config)
 		API = config.API,
 		getDB = config.getDB,
 		getLootPanelSessionState = config.getLootPanelSessionState,
+		GetItemFact = config.GetItemFact,
+		GetItemFactBySourceID = config.GetItemFactBySourceID,
 		GetSelectedLootPanelInstance = function()
 			if outputs.GetSelectedLootPanelInstance then
 				return outputs.GetSelectedLootPanelInstance()
@@ -463,6 +415,21 @@ function CoreFeatureWiring.Wire(config)
 	SetDashboardBridge.Configure({
 		T = config.T,
 		getDB = config.getDB,
+		GetItemFact = config.GetItemFact,
+		GetItemFactBySourceID = config.GetItemFactBySourceID,
+		GetItemFactsBySetID = config.GetItemFactsBySetID,
+		GetSourceIDsBySetID = config.GetSourceIDsBySetID,
+		GetSetIDsBySourceID = config.GetSetIDsBySourceID,
+		GetDashboardSummaryStore = config.GetDashboardSummaryStore,
+		EnsureDashboardSummaryStore = config.EnsureDashboardSummaryStore,
+		GetDashboardLegacyCache = config.GetDashboardLegacyCache,
+		StartDashboardBulkScan = outputs.StartDashboardBulkScan,
+		GetDashboardBulkScanExpansionRows = outputs.GetDashboardBulkScanExpansionRows,
+		RefreshDashboardPanel = function()
+			if outputs.RefreshDashboardPanel then
+				outputs.RefreshDashboardPanel()
+			end
+		end,
 		getDashboardPanel = config.getDashboardPanel,
 		getSelectableClasses = config.getSelectableClasses,
 		classMaskByFile = config.classMaskByFile,
@@ -487,7 +454,7 @@ function CoreFeatureWiring.Wire(config)
 		DeriveLootTypeKey = function(item)
 			return config.DeriveLootTypeKey(item)
 		end,
-		GetDifficultyNameCompat = config.GetDifficultyNameCompat,
+		GetDifficultyName = config.GetDifficultyName,
 		GetRaidDifficultyDisplayOrder = config.GetRaidDifficultyDisplayOrder,
 		GetCurrentCharacterLockoutForSelection = function(selection)
 			if outputs.GetCurrentCharacterLockoutForSelection then
@@ -500,6 +467,8 @@ function CoreFeatureWiring.Wire(config)
 				return outputs.OpenLootPanelForDashboardSelection(selection)
 			end
 		end,
+		ApplyLootHeaderIconToolButtonStyle = config.ApplyLootHeaderIconToolButtonStyle,
+		SetLootHeaderButtonVisualState = config.SetLootHeaderButtonVisualState,
 		ColorizeExpansionLabel = config.ColorizeExpansionLabel,
 		FindJournalInstanceByInstanceInfo = outputs.FindJournalInstanceByInstanceInfo,
 		GetRaidTierTag = outputs.GetRaidTierTag,
@@ -513,18 +482,47 @@ function CoreFeatureWiring.Wire(config)
 	outputs.ConfigureRaidDashboardModule = SetDashboardBridge.ConfigureRaidDashboardModule
 	outputs.OpenWardrobeCollection = SetDashboardBridge.OpenWardrobeCollection
 
+	local LootDataController = addon.LootDataController
+	LootDataController.Configure({
+		T = config.T,
+		GetSelectedLootPanelInstance = outputs.GetSelectedLootPanelInstance,
+		BuildLootDataCacheKey = outputs.BuildLootDataCacheKey,
+		GetSelectedLootClassIDs = outputs.GetSelectedLootClassIDs,
+		GetDashboardClassIDs = config.GetDashboardClassIDs,
+		getLootDataCache = config.getLootDataCache,
+		setLootDataCache = config.setLootDataCache,
+		APICollectCurrentInstanceLootData = CollectLootDataWithItemFacts,
+		FindJournalInstanceByInstanceInfo = outputs.FindJournalInstanceByInstanceInfo,
+		DeriveLootTypeKey = config.DeriveLootTypeKey,
+		AreNumericListsEquivalent = outputs.AreNumericListsEquivalent,
+		GetDashboardClassFiles = config.GetDashboardClassFiles,
+		GetLootItemSourceID = outputs.GetLootItemSourceID,
+		GetLootItemSetIDs = outputs.GetLootItemSetIDs,
+		lootDataRulesVersion = config.lootDataRulesVersion,
+		BuildLootPanelInstanceSelections = outputs.BuildLootPanelInstanceSelections,
+		NormalizeLockoutDisplayName = config.NormalizeLockoutDisplayName,
+		GetExpansionDisplayName = function(index)
+			return GetExpansionDisplayNameValue(index)
+		end,
+		getLootPanelState = config.getLootPanelState,
+		SetEncounterCollapseCacheEntry = config.SetEncounterCollapseCacheEntry,
+	})
+
+	outputs.CollectCurrentInstanceLootData = LootDataController.CollectCurrentInstanceLootData
+	outputs.BuildCurrentInstanceLootSummary = LootDataController.BuildCurrentInstanceLootSummary
+	outputs.ToggleLootEncounterCollapsed = LootDataController.ToggleLootEncounterCollapsed
+	outputs.GetExpansionForLockout = LootDataController.GetExpansionForLockout
+	outputs.GetExpansionOrder = LootDataController.GetExpansionOrder
+
 	if addon.LootPanelRows and addon.LootPanelRows.Configure then
 		addon.LootPanelRows.Configure({
 			getLootPanelSessionState = config.getLootPanelSessionState,
+			IsLootEncounterAutoCollapseDelayed = config.IsLootEncounterAutoCollapseDelayed,
 			GetLootItemDisplayCollectionState = outputs.GetLootItemDisplayCollectionState,
 			GetLootItemSessionKey = outputs.GetLootItemSessionKey,
 			GetVisibleEligibleClassesForLootItem = config.GetVisibleEligibleClassesForLootItem,
 			IsLootItemIncompleteSetPiece = config.IsLootItemIncompleteSetPiece,
-			OpenWardrobeCollection = function(mode, searchText)
-				if outputs.OpenWardrobeCollection then
-					outputs.OpenWardrobeCollection(mode, searchText)
-				end
-			end,
+			OpenWardrobeCollection = outputs.OpenWardrobeCollection,
 			IsEncounterKilledByName = outputs.IsEncounterKilledByName,
 		})
 	end
@@ -534,23 +532,13 @@ function CoreFeatureWiring.Wire(config)
 			T = config.T,
 			getLootPanel = config.getLootPanel,
 			getLootPanelState = config.getLootPanelState,
-			GetLootPanelContentWidth = function()
-				if outputs.GetLootPanelContentWidth then
-					return outputs.GetLootPanelContentWidth()
-				end
-				return 0
-			end,
+			GetLootPanelContentWidth = outputs.GetLootPanelContentWidth,
 			GetLootClassScopeButtonLabel = config.GetLootClassScopeButtonLabel,
-			GetSelectedLootPanelInstance = function()
-				if outputs.GetSelectedLootPanelInstance then
-					return outputs.GetSelectedLootPanelInstance()
-				end
-				return nil
-			end,
-			GetSelectedLootClassFiles = function()
-				return config.GetSelectedLootClassFiles() or {}
-			end,
+			GetSelectedLootPanelInstance = outputs.GetSelectedLootPanelInstance,
+			GetCurrentJournalInstanceID = outputs.GetCurrentJournalInstanceID,
+			GetSelectedLootClassFiles = config.GetSelectedLootClassFiles,
 			CollectCurrentInstanceLootData = outputs.CollectCurrentInstanceLootData,
+			BuildCurrentInstanceLootSummary = outputs.BuildCurrentInstanceLootSummary,
 			BuildCurrentEncounterKillMap = outputs.BuildCurrentEncounterKillMap,
 			IsEncounterKilledByName = outputs.IsEncounterKilledByName,
 			GetEncounterTotalKillCount = outputs.GetEncounterTotalKillCount,
@@ -573,6 +561,7 @@ function CoreFeatureWiring.Wire(config)
 			ClassMatchesSetInfo = outputs.ClassMatchesSetInfo,
 			GetSetProgress = outputs.GetSetProgress,
 			getDebugFormatter = config.getDebugFormatter,
+			RecordLootPanelOpenDebug = config.RecordLootPanelOpenDebug,
 			HideLootDashboardWidgets = config.HideLootDashboardWidgets,
 			UpdateSetCompletionRowVisual = config.UpdateSetCompletionRowVisual,
 		})
@@ -580,6 +569,7 @@ function CoreFeatureWiring.Wire(config)
 
 	outputs.RefreshLootPanel = addon.LootPanelRenderer.RefreshLootPanel
 	outputs.BuildCurrentInstanceSetSummary = addon.LootPanelRenderer.BuildCurrentInstanceSetSummary
+	ConfigureLootPanelController(outputs.RefreshLootPanel)
 
 	if addon.DebugTools and addon.DebugTools.Configure then
 		addon.DebugTools.Configure({
@@ -602,12 +592,23 @@ function CoreFeatureWiring.Wire(config)
 				return nil
 			end,
 			getLootPanelRenderDebugHistory = config.getLootPanelRenderDebugHistory,
+			getLootPanelOpenDebugHistory = config.getLootPanelOpenDebugHistory,
+			getMinimapClickDebugHistory = config.getMinimapClickDebugHistory,
+			getMinimapHoverDebugHistory = config.getMinimapHoverDebugHistory,
+			getMinimapButtonDebugState = config.getMinimapButtonDebugState,
 			buildLootPanelInstanceSelections = function()
 				if outputs.BuildLootPanelInstanceSelections then
 					return outputs.BuildLootPanelInstanceSelections()
 				end
 				return {}
 			end,
+			getDashboardBulkScanSelections = function(instanceType)
+				if outputs.GetDashboardBulkScanSelections then
+					return outputs.GetDashboardBulkScanSelections(instanceType)
+				end
+				return {}
+			end,
+			getJournalInstanceDifficultyOptions = config.GetJournalInstanceDifficultyOptions,
 			getLootPanelSelectedInstanceKey = config.getLootPanelSelectedInstanceKey,
 			getSelectedLootClassFiles = config.GetSelectedLootClassFiles,
 			getSelectedLootClassIDs = outputs.GetSelectedLootClassIDs,
@@ -675,6 +676,7 @@ function CoreFeatureWiring.Wire(config)
 	local EventsCommandController = addon.EventsCommandController
 	EventsCommandController.Configure({
 		getPanel = config.getPanel,
+		getDebugPanel = config.getDebugPanel,
 		getLootPanel = config.getLootPanel,
 		getLootDataCache = config.getLootDataCache,
 		getDB = config.getDB,
@@ -686,17 +688,14 @@ function CoreFeatureWiring.Wire(config)
 		HandleManualInstanceReset = config.HandleManualInstanceReset,
 		CaptureSavedInstances = outputs.CaptureSavedInstances,
 		InitializePanel = outputs.InitializePanel,
+		InitializeDebugPanel = outputs.InitializeDebugPanel,
 		InitializeLootPanel = function()
 			if outputs.InitializeLootPanel then
 				outputs.InitializeLootPanel()
 			end
 		end,
+		getDashboardPanel = config.getDashboardPanel,
 		CreateMinimapButton = config.CreateMinimapButton,
-		QueueLootPanelCacheWarmup = function()
-			if outputs.QueueLootPanelCacheWarmup then
-				outputs.QueueLootPanelCacheWarmup()
-			end
-		end,
 		InvalidateLootDataCache = config.InvalidateLootDataCache,
 		InvalidateRaidDashboardCache = config.InvalidateRaidDashboard,
 		RefreshPanelText = outputs.RefreshPanelText,
@@ -705,6 +704,13 @@ function CoreFeatureWiring.Wire(config)
 				outputs.RefreshLootPanel()
 			end
 		end,
+		RefreshDashboardPanel = function()
+			if outputs.RefreshDashboardPanel then
+				outputs.RefreshDashboardPanel()
+			end
+		end,
+		RefreshRaidDashboardCollectionStates = config.RefreshRaidDashboardCollectionStates,
+		MarkLootEncounterPendingAutoCollapse = config.MarkLootEncounterPendingAutoCollapse,
 		RecordEncounterKill = outputs.RecordEncounterKill,
 		CaptureAndShowDebugDump = outputs.CaptureAndShowDebugDump,
 		CaptureSetDashboardPreviewDump = config.CaptureSetDashboardPreviewDump,

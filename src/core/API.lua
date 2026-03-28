@@ -29,24 +29,21 @@ function API.IsUsingMock()
 	return runtimeOverrides ~= nil
 end
 
-function API.GetClassInfoCompat(classID)
-	local C_CreatureInfo = _G.C_CreatureInfo
-	if C_CreatureInfo and C_CreatureInfo.GetClassInfo then
-		local info = C_CreatureInfo.GetClassInfo(classID)
-		if info then
-			classSortOrderByFile[info.classFile] = classSortOrderByFile[info.classFile] or tonumber(classID) or 999
-			return info.className, info.classFile
-		end
-	end
-	local GetClassInfo = GetRuntimeFunction("GetClassInfo")
-	if GetClassInfo then
-		local className, classFile = GetClassInfo(classID)
-		if className and classFile then
+function API.GetClassInfo(classID)
+	local override = GetRuntimeFunction("GetClassInfo")
+	if override then
+		local className, classFile = override(classID)
+		if classFile then
 			classSortOrderByFile[classFile] = classSortOrderByFile[classFile] or tonumber(classID) or 999
-			return className, classFile
 		end
+		return className, classFile
 	end
-	return nil, nil
+	local info = C_CreatureInfo and C_CreatureInfo.GetClassInfo and C_CreatureInfo.GetClassInfo(classID)
+	if not info then
+		return nil, nil
+	end
+	classSortOrderByFile[info.classFile] = classSortOrderByFile[info.classFile] or tonumber(classID) or 999
+	return info.className, info.classFile
 end
 
 function API.GetClassSortRank(classFile)
@@ -58,7 +55,7 @@ function API.GetClassSortRank(classFile)
 		return classSortOrderByFile[classFile]
 	end
 	for classID = 1, 20 do
-		local _, currentClassFile = API.GetClassInfoCompat(classID)
+		local _, currentClassFile = API.GetClassInfo(classID)
 		if currentClassFile == classFile then
 			return classSortOrderByFile[classFile] or classID
 		end
@@ -78,8 +75,8 @@ function API.CompareClassFiles(a, b)
 end
 
 function API.CompareClassIDs(a, b)
-	local _, aClassFile = API.GetClassInfoCompat(tonumber(a) or 0)
-	local _, bClassFile = API.GetClassInfoCompat(tonumber(b) or 0)
+	local _, aClassFile = API.GetClassInfo(tonumber(a) or 0)
+	local _, bClassFile = API.GetClassInfo(tonumber(b) or 0)
 	local aRank = API.GetClassSortRank(aClassFile)
 	local bRank = API.GetClassSortRank(bClassFile)
 	if aRank ~= bRank then
@@ -88,7 +85,7 @@ function API.CompareClassIDs(a, b)
 	return (tonumber(a) or 0) < (tonumber(b) or 0)
 end
 
-function API.GetSpecInfoForClassIDCompat(classID, specIndex)
+function API.GetSpecInfoForClassID(classID, specIndex)
 	local GetSpecializationInfoForClassID = GetRuntimeFunction("GetSpecializationInfoForClassID")
 	if GetSpecializationInfoForClassID then
 		return GetSpecializationInfoForClassID(classID, specIndex)
@@ -96,7 +93,7 @@ function API.GetSpecInfoForClassIDCompat(classID, specIndex)
 	return nil
 end
 
-function API.GetNumSpecializationsForClassIDCompat(classID)
+function API.GetNumSpecializationsForClassID(classID)
 	local GetNumSpecializationsForClassID = GetRuntimeFunction("GetNumSpecializationsForClassID")
 	if GetNumSpecializationsForClassID then
 		return GetNumSpecializationsForClassID(classID)
@@ -104,41 +101,66 @@ function API.GetNumSpecializationsForClassIDCompat(classID)
 	return 0
 end
 
-function API.GetJournalInstanceForMapCompat(mapID)
-	local C_EncounterJournal = _G.C_EncounterJournal
-	if C_EncounterJournal and C_EncounterJournal.GetInstanceForGameMap then
-		return C_EncounterJournal.GetInstanceForGameMap(mapID)
-	end
-	local EJ_GetInstanceForMap = GetRuntimeFunction("EJ_GetInstanceForMap")
-	if EJ_GetInstanceForMap then
-		return EJ_GetInstanceForMap(mapID)
-	end
-	return nil
+function API.GetJournalInstanceForMap(mapID)
+	return C_EncounterJournal and C_EncounterJournal.GetInstanceForGameMap and C_EncounterJournal.GetInstanceForGameMap(mapID) or nil
 end
 
-function API.GetJournalNumLootCompat()
-	local C_EncounterJournal = _G.C_EncounterJournal
+function API.GetJournalNumLoot()
+	return C_EncounterJournal and C_EncounterJournal.GetNumLoot and C_EncounterJournal.GetNumLoot() or 0
+end
+
+function API.GetJournalNumLootForEncounter(encounterIndex)
 	if C_EncounterJournal and C_EncounterJournal.GetNumLoot then
-		return C_EncounterJournal.GetNumLoot()
+		local explicitCount = C_EncounterJournal.GetNumLoot(encounterIndex)
+		if explicitCount ~= nil and explicitCount ~= 0 then
+			return explicitCount
+		end
+		local selectedCount = C_EncounterJournal.GetNumLoot()
+		if selectedCount ~= nil then
+			return selectedCount
+		end
 	end
 	local EJ_GetNumLoot = GetRuntimeFunction("EJ_GetNumLoot")
 	if EJ_GetNumLoot then
-		return EJ_GetNumLoot()
+		local explicitCount = EJ_GetNumLoot(encounterIndex)
+		if explicitCount ~= nil and explicitCount ~= 0 then
+			return explicitCount
+		end
+		local selectedCount = EJ_GetNumLoot()
+		if selectedCount ~= nil then
+			return selectedCount
+		end
 	end
 	return 0
 end
 
-function API.GetJournalLootInfoByIndexCompat(index)
-	local C_EncounterJournal = _G.C_EncounterJournal
-	if C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex then
-		local info = C_EncounterJournal.GetLootInfoByIndex(index)
-		if info then
-			return info.itemID, info.encounterID, info.name, info.icon, info.slot, info.armorType, info.link
-		end
+function API.GetJournalLootInfoByIndex(index)
+	local info = C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex and C_EncounterJournal.GetLootInfoByIndex(index)
+	if info then
+		return info.itemID, info.encounterID, info.name, info.icon, info.slot, info.armorType, info.link
+	end
+	return nil
+end
+
+function API.GetJournalLootInfoByIndexForEncounter(index, encounterIndex)
+	local info = C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex and C_EncounterJournal.GetLootInfoByIndex(index, encounterIndex)
+	if info then
+		return info.itemID, info.encounterID, info.name, info.icon, info.slot, info.armorType, info.link
+	end
+	info = C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex and C_EncounterJournal.GetLootInfoByIndex(index)
+	if info then
+		return info.itemID, info.encounterID, info.name, info.icon, info.slot, info.armorType, info.link
 	end
 	local EJ_GetLootInfoByIndex = GetRuntimeFunction("EJ_GetLootInfoByIndex")
 	if EJ_GetLootInfoByIndex then
-		return EJ_GetLootInfoByIndex(index)
+		local itemID, encounterID, name, icon, slot, armorType, itemLink = EJ_GetLootInfoByIndex(index, encounterIndex)
+		if itemID or name then
+			return itemID, encounterID, name, icon, slot, armorType, itemLink
+		end
+		itemID, encounterID, name, icon, slot, armorType, itemLink = EJ_GetLootInfoByIndex(index)
+		if itemID or name then
+			return itemID, encounterID, name, icon, slot, armorType, itemLink
+		end
 	end
 	return nil
 end
@@ -179,7 +201,7 @@ function API.GetCurrentJournalInstanceID(findJournalInstanceByInstanceInfo)
 	end
 
 	if debugInfo.mapID then
-		local mapJournalInstanceID = API.GetJournalInstanceForMapCompat(debugInfo.mapID)
+		local mapJournalInstanceID = API.GetJournalInstanceForMap(debugInfo.mapID)
 		debugInfo.journalInstanceID = mapJournalInstanceID
 		if debugInfo.journalInstanceID then
 			debugInfo.resolution = "mapID"
@@ -275,13 +297,17 @@ function API.CollectCurrentInstanceLootData(context)
 	local EJ_SetDifficulty = GetRuntimeFunction("EJ_SetDifficulty")
 	local EJ_GetEncounterInfoByIndex = GetRuntimeFunction("EJ_GetEncounterInfoByIndex")
 	local EJ_SetLootFilter = GetRuntimeFunction("EJ_SetLootFilter")
+	local EJ_SelectEncounter = GetRuntimeFunction("EJ_SelectEncounter")
 	local EJ_GetInstanceInfo = GetRuntimeFunction("EJ_GetInstanceInfo")
 	local GetItemInfo = GetRuntimeFunction("GetItemInfo")
 	local C_Item = _G.C_Item
 	local C_TransmogCollection = _G.C_TransmogCollection
 	local T = context.T
+	local getItemFact = context.getItemFact
+	local upsertItemFact = context.upsertItemFact
 
 	if not EJ_SelectInstance then missingAPIs[#missingAPIs + 1] = "EJ_SelectInstance" end
+	if not EJ_SelectEncounter then missingAPIs[#missingAPIs + 1] = "EJ_SelectEncounter" end
 	if not EJ_GetEncounterInfoByIndex then missingAPIs[#missingAPIs + 1] = "EJ_GetEncounterInfoByIndex" end
 	if not EJ_SetLootFilter then missingAPIs[#missingAPIs + 1] = "EJ_SetLootFilter" end
 	if not (_G.C_EncounterJournal and _G.C_EncounterJournal.GetNumLoot) and not GetRuntimeFunction("EJ_GetNumLoot") then missingAPIs[#missingAPIs + 1] = "GetNumLoot" end
@@ -357,7 +383,30 @@ function API.CollectCurrentInstanceLootData(context)
 		lootFilterClassIDs = {},
 		filterRuns = {},
 		missingItemData = false,
+		missingItems = {},
 	} or nil
+	local missingItemKeys = {}
+	local function AppendMissingItemDebug(itemID, name, encounterID, reason)
+		if not rawApiDebug then
+			return
+		end
+		local key = string.format(
+			"%s::%s::%s",
+			tostring(tonumber(itemID) or 0),
+			tostring(tonumber(encounterID) or 0),
+			tostring(reason or "unknown")
+		)
+		if missingItemKeys[key] then
+			return
+		end
+		missingItemKeys[key] = true
+		rawApiDebug.missingItems[#rawApiDebug.missingItems + 1] = {
+			itemID = tonumber(itemID) or 0,
+			name = tostring(name or ""),
+			encounterID = tonumber(encounterID) or 0,
+			reason = tostring(reason or "unknown"),
+		}
+	end
 	for _, classID in ipairs(selectedClassIDs or {}) do
 		if rawApiDebug then
 			rawApiDebug.selectedClassIDs[#rawApiDebug.selectedClassIDs + 1] = tonumber(classID) or 0
@@ -376,20 +425,113 @@ function API.CollectCurrentInstanceLootData(context)
 		MOUNT = true,
 		PET = true,
 	}
+	local function ResolveLootItemFact(itemID, name, itemLink, icon, slot, armorType, encounterID)
+		local numericItemID = tonumber(itemID) or 0
+		local cachedFact = numericItemID > 0 and getItemFact and getItemFact(numericItemID) or nil
+		local fact = {
+			itemID = numericItemID > 0 and numericItemID or nil,
+			name = (cachedFact and cachedFact.name) or name,
+			link = (cachedFact and cachedFact.link) or itemLink,
+			icon = (cachedFact and cachedFact.icon) or icon,
+			equipLoc = cachedFact and cachedFact.equipLoc or nil,
+			itemType = cachedFact and cachedFact.itemType or nil,
+			itemSubType = cachedFact and cachedFact.itemSubType or nil,
+			itemClassID = cachedFact and cachedFact.itemClassID or nil,
+			itemSubClassID = cachedFact and cachedFact.itemSubClassID or nil,
+			appearanceID = cachedFact and cachedFact.appearanceID or nil,
+			sourceID = cachedFact and cachedFact.sourceID or nil,
+			basicResolved = cachedFact and cachedFact.basicResolved and true or false,
+			appearanceResolved = cachedFact and cachedFact.appearanceResolved and true or false,
+			lastCheckedAt = time(),
+			lastResolvedAt = cachedFact and tonumber(cachedFact.lastResolvedAt) or 0,
+		}
+
+		if numericItemID > 0 and (not fact.basicResolved or not fact.name or not fact.link) then
+			local cachedName, cachedLink, _, _, _, cachedItemType, cachedItemSubType, _, _, cachedIcon, _, cachedClassID, cachedSubClassID = GetItemInfo(numericItemID)
+			fact.name = fact.name or cachedName
+			fact.link = fact.link or cachedLink
+			fact.icon = fact.icon or cachedIcon
+			fact.itemType = fact.itemType or cachedItemType
+			fact.itemSubType = fact.itemSubType or cachedItemSubType
+			fact.itemClassID = fact.itemClassID or cachedClassID
+			fact.itemSubClassID = fact.itemSubClassID or cachedSubClassID
+			fact.basicResolved = fact.name and fact.name ~= "" and fact.link and true or false
+			if not fact.basicResolved and C_Item and C_Item.RequestLoadItemDataByID then
+				C_Item.RequestLoadItemDataByID(numericItemID)
+				missingItemData = true
+				AppendMissingItemDebug(numericItemID, fact.name or name, encounterID, "basic")
+			end
+		end
+
+		if not fact.equipLoc and (fact.link or numericItemID > 0) then
+			local itemInfoInstant = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
+			if itemInfoInstant then
+				local _, _, _, resolvedEquipLoc, resolvedIcon = itemInfoInstant(fact.link or numericItemID)
+				fact.equipLoc = resolvedEquipLoc or fact.equipLoc
+				fact.icon = fact.icon or resolvedIcon
+			end
+		end
+
+		local derivedTypeKey = context.deriveLootTypeKey({
+			slot = slot,
+			armorType = armorType,
+			itemType = fact.itemType,
+			itemSubType = fact.itemSubType,
+			itemClassID = fact.itemClassID,
+			itemSubClassID = fact.itemSubClassID,
+			itemID = numericItemID > 0 and numericItemID or nil,
+			link = fact.link,
+		})
+		local requiresAppearanceFact = not nonAppearanceTypeKeys[tostring(derivedTypeKey or "MISC")]
+
+		if numericItemID > 0 and requiresAppearanceFact and (not fact.appearanceResolved or not fact.appearanceID or not fact.sourceID) then
+			if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
+				fact.appearanceID, fact.sourceID = C_TransmogCollection.GetItemInfo(fact.link or numericItemID)
+			end
+			fact.appearanceResolved = fact.appearanceID and fact.sourceID and true or false
+			if not fact.appearanceResolved then
+				if C_Item and C_Item.RequestLoadItemDataByID then
+					C_Item.RequestLoadItemDataByID(numericItemID)
+				end
+				missingItemData = true
+				AppendMissingItemDebug(numericItemID, fact.name or name, encounterID, "appearance")
+			end
+		end
+
+		if fact.basicResolved or fact.appearanceResolved then
+			fact.lastResolvedAt = fact.lastCheckedAt
+		end
+
+		if numericItemID > 0 and upsertItemFact then
+			fact = upsertItemFact(numericItemID, fact) or fact
+		end
+
+		return fact, derivedTypeKey
+	end
 
 	for _, classID in ipairs(lootFilterRuns) do
 		EJ_SetLootFilter(classID, 0)
-		local totalLoot = tonumber(API.GetJournalNumLootCompat()) or 0
+		local totalLoot = 0
 		local rawFilterRun = rawApiDebug and {
 			classID = tonumber(classID) or 0,
 			totalLoot = totalLoot,
+			encounters = {},
 			items = {},
 		} or nil
-		for lootIndex = 1, totalLoot do
-			local itemID, encounterID, name, icon, slot, armorType, itemLink = API.GetJournalLootInfoByIndexCompat(lootIndex)
-			local encounter = encounterByID[encounterID]
-			if encounter then
-				local lootKey = string.format("%s::%s", tostring(encounterID or 0), tostring(itemID or name or lootIndex))
+		for _, encounter in ipairs(encounters) do
+			EJ_SelectEncounter(encounter.encounterID)
+			local encounterLootCount = tonumber(API.GetJournalNumLootForEncounter(encounter.index)) or 0
+			totalLoot = totalLoot + encounterLootCount
+			local rawEncounterRun = rawFilterRun and {
+				encounterID = encounter.encounterID,
+				encounterName = encounter.name,
+				totalLoot = encounterLootCount,
+			} or nil
+			for lootIndex = 1, encounterLootCount do
+				local itemID, encounterID, name, icon, slot, armorType, itemLink =
+					API.GetJournalLootInfoByIndexForEncounter(lootIndex, encounter.index)
+				local targetEncounter = encounterByID[encounterID] or encounter
+				local lootKey = string.format("%s::%s", tostring(targetEncounter.encounterID or 0), tostring(itemID or name or lootIndex))
 				local rawItem = rawFilterRun and {
 					lootIndex = lootIndex,
 					itemID = itemID,
@@ -404,81 +546,34 @@ function API.CollectCurrentInstanceLootData(context)
 				} or nil
 				if not seenLootKeys[lootKey] then
 					seenLootKeys[lootKey] = true
-
-					local itemName = name
-					local itemLinkText = itemLink
-					local itemType
-					local itemSubType
-					local itemClassID
-					local itemSubClassID
-					local derivedTypeKey
-					local appearanceID
-					local sourceID
-					if itemID and (not itemName or itemName == "" or not itemLinkText) then
-						local cachedName, cachedLink, _, _, _, cachedItemType, cachedItemSubType, _, _, cachedIcon, _, cachedClassID, cachedSubClassID = GetItemInfo(itemID)
-						itemName = itemName or cachedName
-						itemLinkText = itemLinkText or cachedLink
-						icon = icon or cachedIcon
-						itemType = cachedItemType
-						itemSubType = cachedItemSubType
-						itemClassID = cachedClassID
-						itemSubClassID = cachedSubClassID
-						if C_Item and C_Item.RequestLoadItemDataByID and (not itemName or itemName == "" or not itemLinkText) then
-							C_Item.RequestLoadItemDataByID(itemID)
-							missingItemData = true
-						end
-					elseif itemID then
-						local _, _, _, _, _, cachedItemType, cachedItemSubType, _, _, _, _, cachedClassID, cachedSubClassID = GetItemInfo(itemID)
-						itemType = cachedItemType
-						itemSubType = cachedItemSubType
-						itemClassID = cachedClassID
-						itemSubClassID = cachedSubClassID
-					end
-					derivedTypeKey = context.deriveLootTypeKey({
-						slot = slot,
-						armorType = armorType,
-						itemType = itemType,
-						itemSubType = itemSubType,
-						itemClassID = itemClassID,
-						itemSubClassID = itemSubClassID,
+					local itemFact, derivedTypeKey = ResolveLootItemFact(itemID, name, itemLink, icon, slot, armorType, targetEncounter.encounterID)
+					targetEncounter.loot[#targetEncounter.loot + 1] = {
 						itemID = itemID,
-						link = itemLinkText,
-					})
-					if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
-						appearanceID, sourceID = C_TransmogCollection.GetItemInfo(itemLinkText or itemID)
-					end
-					if itemID and not nonAppearanceTypeKeys[tostring(derivedTypeKey or "MISC")] and (not appearanceID or not sourceID) then
-						if C_Item and C_Item.RequestLoadItemDataByID then
-							C_Item.RequestLoadItemDataByID(itemID)
-						end
-						missingItemData = true
-					end
-					encounter.loot[#encounter.loot + 1] = {
-						itemID = itemID,
-						name = itemName,
-						icon = icon,
+						name = itemFact.name,
+						icon = itemFact.icon or icon,
 						slot = slot,
+						equipLoc = itemFact.equipLoc,
 						armorType = armorType,
-						itemType = itemType,
-						itemSubType = itemSubType,
-						itemClassID = itemClassID,
-						itemSubClassID = itemSubClassID,
-						link = itemLinkText,
-						appearanceID = appearanceID,
-						sourceID = sourceID,
+						itemType = itemFact.itemType,
+						itemSubType = itemFact.itemSubType,
+						itemClassID = itemFact.itemClassID,
+						itemSubClassID = itemFact.itemSubClassID,
+						link = itemFact.link,
+						appearanceID = itemFact.appearanceID,
+						sourceID = itemFact.sourceID,
 						typeKey = derivedTypeKey,
 					}
 					if rawItem then
 						rawItem.accepted = true
-						rawItem.resolvedName = itemName
-						rawItem.resolvedLink = itemLinkText
-						rawItem.itemType = itemType
-						rawItem.itemSubType = itemSubType
-						rawItem.itemClassID = itemClassID
-						rawItem.itemSubClassID = itemSubClassID
+						rawItem.resolvedName = itemFact.name
+						rawItem.resolvedLink = itemFact.link
+						rawItem.itemType = itemFact.itemType
+						rawItem.itemSubType = itemFact.itemSubType
+						rawItem.itemClassID = itemFact.itemClassID
+						rawItem.itemSubClassID = itemFact.itemSubClassID
 						rawItem.typeKey = derivedTypeKey
-						rawItem.appearanceID = appearanceID
-						rawItem.sourceID = sourceID
+						rawItem.appearanceID = itemFact.appearanceID
+						rawItem.sourceID = itemFact.sourceID
 					end
 				elseif rawItem then
 					rawItem.duplicate = true
@@ -487,6 +582,12 @@ function API.CollectCurrentInstanceLootData(context)
 					rawFilterRun.items[#rawFilterRun.items + 1] = rawItem
 				end
 			end
+			if rawFilterRun and rawEncounterRun then
+				rawFilterRun.encounters[#rawFilterRun.encounters + 1] = rawEncounterRun
+			end
+		end
+		if rawFilterRun then
+			rawFilterRun.totalLoot = totalLoot
 		end
 		if rawApiDebug and rawFilterRun then
 			rawApiDebug.filterRuns[#rawApiDebug.filterRuns + 1] = rawFilterRun

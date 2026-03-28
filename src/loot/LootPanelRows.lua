@@ -244,14 +244,21 @@ function LootPanelRows.UpdateEncounterHeaderVisuals(header, fullyCollected, coll
 	end
 end
 
-function LootPanelRows.GetEncounterAutoCollapsed(encounter, encounterName, lootState, encounterKillState, progressCount)
+function LootPanelRows.GetEncounterAutoCollapsed(encounter, encounterName, lootState, encounterKillState, progressCount, encounterKilled)
 	local isEncounterKilledByName = dependencies.IsEncounterKilledByName
+	local isLootEncounterAutoCollapseDelayed = dependencies.IsLootEncounterAutoCollapseDelayed
 	local lootPanelSessionState = GetLootPanelSessionState()
-	local autoCollapsed = lootState.fullyCollected
-		or (type(isEncounterKilledByName) == "function" and isEncounterKilledByName(encounterKillState, encounterName))
-		or ((tonumber(encounter.index) or 0) > 0 and (tonumber(encounter.index) or 0) <= progressCount)
+	local isKilled = encounterKilled and true or false
+	if not isKilled then
+		isKilled = (type(isEncounterKilledByName) == "function" and isEncounterKilledByName(encounterKillState, encounterName))
+			or ((tonumber(encounter.index) or 0) > 0 and (tonumber(encounter.index) or 0) <= progressCount)
+	end
+	local autoCollapsed = lootState.fullyCollected or isKilled
 	if not lootPanelSessionState.active then
 		return autoCollapsed
+	end
+	if type(isLootEncounterAutoCollapseDelayed) == "function" and isLootEncounterAutoCollapseDelayed(encounterName) then
+		return false
 	end
 	lootPanelSessionState.encounterBaseline = lootPanelSessionState.encounterBaseline or {}
 	local encounterKey = tostring(encounter and encounter.encounterID or "") .. "::" .. tostring(encounterName or "")

@@ -21,6 +21,7 @@ end
 local FormatBoolean = DebugTools.FormatBoolean
 local IsSectionEnabled = DebugTools.IsSectionEnabled
 local HasAnySectionEnabled = DebugTools.HasAnySectionEnabled
+local EncodeJsonValue = DebugTools.EncodeJsonValue
 
 function DebugTools.FormatLootDebugInfo(debugInfo)
 	if not debugInfo then
@@ -46,7 +47,7 @@ end
 
 function DebugTools.FormatDebugDump(dump)
 	if not dump then
-		return Translate("DEBUG_EMPTY", "No debug logs yet.\nSwitch to the Debug page and click \"Collect Logs\".")
+		return Translate("DEBUG_EMPTY", "No debug logs yet.\nOpen /img debug and click \"Collect Logs\".")
 	end
 	if not HasAnySectionEnabled() then
 		return Translate("DEBUG_EMPTY_SELECTION", "请先至少选择一个日志分段。")
@@ -54,12 +55,18 @@ function DebugTools.FormatDebugDump(dump)
 
 	local renderLockoutProgress = dependencies.renderLockoutProgress
 	local lines = {}
+	local startupLifecycleDebug = dump.startupLifecycleDebug or {}
+	local runtimeErrorDebug = dump.runtimeErrorDebug or {}
 	local rawInstances = dump.rawSavedInstanceInfo and dump.rawSavedInstanceInfo.instances or {}
 	local normalizedLockouts = dump.normalizedLockouts and dump.normalizedLockouts.lockouts or {}
 	local currentLootDebug = dump.currentLootDebug or {}
 	local minimapTooltipDebug = dump.minimapTooltipDebug or {}
 	local lootPanelSelectionDebug = dump.lootPanelSelectionDebug or {}
+	local bulkScanQueueDebug = dump.bulkScanQueueDebug or {}
+	local bulkScanProfileDebug = dump.bulkScanProfileDebug or {}
 	local lootPanelRenderTimingDebug = dump.lootPanelRenderTimingDebug or {}
+	local lootPanelOpenDebug = dump.lootPanelOpenDebug or {}
+	local minimapClickDebug = dump.minimapClickDebug or {}
 	local setSummaryDebug = dump.setSummaryDebug or {}
 	local dashboardSetPieceDebug = dump.dashboardSetPieceDebug or {}
 	local lootApiRawDebug = dump.lootApiRawDebug or {}
@@ -70,6 +77,36 @@ function DebugTools.FormatDebugDump(dump)
 
 	lines[#lines + 1] = Translate("DEBUG_COPY_HINT", "Tip: click \"Collect Logs\" to auto-select the text, then press Ctrl+C to copy.")
 	lines[#lines + 1] = ""
+	if IsSectionEnabled("startupLifecycleDebug") then
+		local startupEntries = startupLifecycleDebug.entries or {}
+		lines[#lines + 1] = "== Startup Lifecycle Debug =="
+		lines[#lines + 1] = string.format("entryCount = %d", #startupEntries)
+		lines[#lines + 1] = string.format("lastResetReason = %s", tostring(startupLifecycleDebug.lastResetReason))
+		lines[#lines + 1] = ""
+		for _, entry in ipairs(startupEntries) do
+			lines[#lines + 1] = string.format(
+				"[%s] %s | event=%s | detail=%s",
+				tostring(entry.at or "?"),
+				tostring(entry.step or "unknown"),
+				tostring(entry.event or "-"),
+				tostring(entry.detail or "-")
+			)
+		end
+		lines[#lines + 1] = ""
+	end
+	if IsSectionEnabled("runtimeErrorDebug") then
+		local errorEntries = runtimeErrorDebug.entries or {}
+		lines[#lines + 1] = "== Runtime Error Debug =="
+		lines[#lines + 1] = string.format("entryCount = %d", #errorEntries)
+		lines[#lines + 1] = string.format("truncated = %s", tostring(runtimeErrorDebug.truncated and true or false))
+		lines[#lines + 1] = ""
+		for index, entry in ipairs(errorEntries) do
+			lines[#lines + 1] = string.format("[%d] at=%s | repeats=%s", index, tostring(entry.at or "?"), tostring(entry.repeatCount or 1))
+			lines[#lines + 1] = string.format("  message = %s", tostring(entry.message or ""))
+			lines[#lines + 1] = string.format("  stack = %s", tostring(entry.stack or ""))
+			lines[#lines + 1] = ""
+		end
+	end
 	if IsSectionEnabled("rawSavedInstanceInfo") then
 		lines[#lines + 1] = "== Raw GetSavedInstanceInfo =="
 		lines[#lines + 1] = string.format("count = %d", #rawInstances)
@@ -201,60 +238,144 @@ function DebugTools.FormatDebugDump(dump)
 	if IsSectionEnabled("lootPanelSelectionDebug") and (lootPanelSelectionDebug.currentDebugInfo or lootPanelSelectionDebug.selectedInstanceKey or #(lootPanelSelectionDebug.selections or {}) > 0) then
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Loot Panel Selection Debug =="
-		lines[#lines + 1] = string.format("selectedInstanceKey = %s", tostring(lootPanelSelectionDebug.selectedInstanceKey))
-		lines[#lines + 1] = string.format("selectedInstanceFound = %s", FormatBoolean(lootPanelSelectionDebug.selectedInstanceFound))
-		lines[#lines + 1] = string.format("selectedInstanceLabel = %s", tostring(lootPanelSelectionDebug.selectedInstanceLabel))
+		lines[#lines + 1] = EncodeJsonValue(lootPanelSelectionDebug)
+	end
+
+	if IsSectionEnabled("bulkScanQueueDebug") and (
+		bulkScanQueueDebug.targetInstanceName
+		or #(bulkScanQueueDebug.matchingSelections or {}) > 0
+		or #(bulkScanQueueDebug.matchingRaidQueueSelections or {}) > 0
+	) then
 		lines[#lines + 1] = ""
-		lines[#lines + 1] = "-- Current Debug Info --"
-		lines[#lines + 1] = string.format("instanceName = %s", tostring(lootPanelSelectionDebug.currentDebugInfo and lootPanelSelectionDebug.currentDebugInfo.instanceName))
-		lines[#lines + 1] = string.format("instanceType = %s", tostring(lootPanelSelectionDebug.currentDebugInfo and lootPanelSelectionDebug.currentDebugInfo.instanceType))
-		lines[#lines + 1] = string.format("difficultyID = %s", tostring(lootPanelSelectionDebug.currentDebugInfo and lootPanelSelectionDebug.currentDebugInfo.difficultyID))
-		lines[#lines + 1] = string.format("difficultyName = %s", tostring(lootPanelSelectionDebug.currentDebugInfo and lootPanelSelectionDebug.currentDebugInfo.difficultyName))
-		lines[#lines + 1] = string.format("instanceID = %s", tostring(lootPanelSelectionDebug.currentDebugInfo and lootPanelSelectionDebug.currentDebugInfo.instanceID))
-		lines[#lines + 1] = string.format("journalInstanceID = %s", tostring(lootPanelSelectionDebug.currentDebugInfo and lootPanelSelectionDebug.currentDebugInfo.journalInstanceID))
-		lines[#lines + 1] = string.format("resolution = %s", tostring(lootPanelSelectionDebug.currentDebugInfo and lootPanelSelectionDebug.currentDebugInfo.resolution))
+		lines[#lines + 1] = "== Bulk Scan Queue Debug =="
+		lines[#lines + 1] = string.format("targetInstanceName = %s", tostring(bulkScanQueueDebug.targetInstanceName))
+		lines[#lines + 1] = string.format("targetJournalInstanceID = %s", tostring(bulkScanQueueDebug.targetJournalInstanceID))
+		lines[#lines + 1] = string.format("targetDifficultyID = %s", tostring(bulkScanQueueDebug.targetDifficultyID))
+		lines[#lines + 1] = string.format("targetDifficultyName = %s", tostring(bulkScanQueueDebug.targetDifficultyName))
+		lines[#lines + 1] = string.format("selectionTreeCount = %s", tostring(bulkScanQueueDebug.selectionTreeCount))
+		lines[#lines + 1] = string.format("raidQueueCount = %s", tostring(bulkScanQueueDebug.raidQueueCount))
 		lines[#lines + 1] = ""
-		lines[#lines + 1] = "-- Candidate Selections --"
-		for _, selection in ipairs(lootPanelSelectionDebug.selections or {}) do
+		lines[#lines + 1] = "-- Raw Difficulty Candidates --"
+		for _, candidate in ipairs(bulkScanQueueDebug.rawDifficultyCandidates or {}) do
 			lines[#lines + 1] = string.format(
-				"key=%s | isCurrent=%s | instanceName=%s | instanceType=%s | difficultyID=%s | difficultyName=%s | journalInstanceID=%s",
+				"  difficultyID=%s | difficultyName=%s | ejValid=%s",
+				tostring(candidate.difficultyID),
+				tostring(candidate.difficultyName),
+				tostring(candidate.ejValid)
+			)
+		end
+		if #(bulkScanQueueDebug.rawDifficultyCandidates or {}) == 0 then
+			lines[#lines + 1] = "  (none)"
+		end
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "-- GetJournalInstanceDifficultyOptions Output --"
+		for _, option in ipairs(bulkScanQueueDebug.difficultyOptions or {}) do
+			lines[#lines + 1] = string.format(
+				"  difficultyID=%s | difficultyName=%s | observed=%s",
+				tostring(option.difficultyID),
+				tostring(option.difficultyName),
+				FormatBoolean(option.observed)
+			)
+		end
+		if #(bulkScanQueueDebug.difficultyOptions or {}) == 0 then
+			lines[#lines + 1] = "  (none)"
+		end
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "-- Matching Selection Tree Entries --"
+		for _, selection in ipairs(bulkScanQueueDebug.matchingSelections or {}) do
+			lines[#lines + 1] = string.format(
+				"  key=%s | instanceName=%s | journalInstanceID=%s | difficultyID=%s | difficultyName=%s | current=%s",
 				tostring(selection.key),
-				FormatBoolean(selection.isCurrent),
 				tostring(selection.instanceName),
-				tostring(selection.instanceType),
+				tostring(selection.journalInstanceID),
 				tostring(selection.difficultyID),
 				tostring(selection.difficultyName),
-				tostring(selection.journalInstanceID)
+				FormatBoolean(selection.isCurrent)
+			)
+		end
+		if #(bulkScanQueueDebug.matchingSelections or {}) == 0 then
+			lines[#lines + 1] = "  (none)"
+		end
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "-- Matching Raid Bulk Scan Queue Entries --"
+		for _, selection in ipairs(bulkScanQueueDebug.matchingRaidQueueSelections or {}) do
+			lines[#lines + 1] = string.format(
+				"  key=%s | instanceName=%s | journalInstanceID=%s | difficultyID=%s | difficultyName=%s | current=%s",
+				tostring(selection.key),
+				tostring(selection.instanceName),
+				tostring(selection.journalInstanceID),
+				tostring(selection.difficultyID),
+				tostring(selection.difficultyName),
+				FormatBoolean(selection.isCurrent)
+			)
+		end
+		if #(bulkScanQueueDebug.matchingRaidQueueSelections or {}) == 0 then
+			lines[#lines + 1] = "  (none)"
+		end
+	end
+
+	if IsSectionEnabled("bulkScanProfileDebug") and #(bulkScanProfileDebug.entries or {}) > 0 then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "== Bulk Scan Profile Debug =="
+		lines[#lines + 1] = string.format("entryCount = %d", #(bulkScanProfileDebug.entries or {}))
+		lines[#lines + 1] = string.format("lastStage = %s", tostring(bulkScanProfileDebug.lastStage))
+		lines[#lines + 1] = string.format("lastExpansionName = %s", tostring(bulkScanProfileDebug.lastExpansionName))
+		lines[#lines + 1] = ""
+		for _, entry in ipairs(bulkScanProfileDebug.entries or {}) do
+			lines[#lines + 1] = string.format(
+				"[%s] stage=%s | expansion=%s | main=%d | reconcile=%d | collect=%.1f | snapshot=%.1f | store=%.1f | remove=%.1f | buildStats=%.1f | progress=%.1f | bucketBuild=%.1f | finalize=%.1f | recCollect=%.1f | recSnapshot=%.1f | ui=%.1f | refresh=%d | pending=%d",
+				tostring(entry.at or "?"),
+				tostring(entry.stage or "unknown"),
+				tostring(entry.expansionName or "-"),
+				tonumber(entry.mainSelections) or 0,
+				tonumber(entry.reconcileSelections) or 0,
+				tonumber(entry.collectMs) or 0,
+				tonumber(entry.snapshotMs) or 0,
+				tonumber(entry.snapshotStoreMs) or 0,
+				tonumber(entry.snapshotRemoveMs) or 0,
+				tonumber(entry.snapshotBuildStatsMs) or 0,
+				tonumber(entry.snapshotProgressMs) or 0,
+				tonumber(entry.snapshotBucketBuildMs) or 0,
+				tonumber(entry.snapshotFinalizeMs) or 0,
+				tonumber(entry.reconcileCollectMs) or 0,
+				tonumber(entry.reconcileSnapshotMs) or 0,
+				tonumber(entry.uiRefreshMs) or 0,
+				tonumber(entry.refreshCount) or 0,
+				tonumber(entry.pendingCount) or 0
+			)
+			lines[#lines + 1] = string.format(
+				"  maxCollect=%.1f | maxSnapshot=%.1f | maxStore=%.1f | maxRemove=%.1f | maxBuildStats=%.1f | maxProgress=%.1f | maxBucketBuild=%.1f | maxFinalize=%.1f | maxRecCollect=%.1f | maxRecSnapshot=%.1f | maxUI=%.1f",
+				tonumber(entry.maxCollectMs) or 0,
+				tonumber(entry.maxSnapshotMs) or 0,
+				tonumber(entry.maxSnapshotStoreMs) or 0,
+				tonumber(entry.maxSnapshotRemoveMs) or 0,
+				tonumber(entry.maxSnapshotBuildStatsMs) or 0,
+				tonumber(entry.maxSnapshotProgressMs) or 0,
+				tonumber(entry.maxSnapshotBucketBuildMs) or 0,
+				tonumber(entry.maxSnapshotFinalizeMs) or 0,
+				tonumber(entry.maxReconcileCollectMs) or 0,
+				tonumber(entry.maxReconcileSnapshotMs) or 0,
+				tonumber(entry.maxRefreshMs) or 0
 			)
 		end
 	end
 
-	if IsSectionEnabled("lootPanelRenderTimingDebug") and #((lootPanelRenderTimingDebug.entries) or {}) > 0 then
+	if IsSectionEnabled("lootPanelRenderTimingDebug") then
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Loot Panel Render Timing Debug =="
-		lines[#lines + 1] = string.format("entryCount = %s", tostring(#(lootPanelRenderTimingDebug.entries or {})))
-		for _, entry in ipairs(lootPanelRenderTimingDebug.entries or {}) do
-			lines[#lines + 1] = ""
-			lines[#lines + 1] = string.format(
-				"startedAtMS=%s | totalElapsedMS=%s | status=%s | tab=%s | selectedInstanceKey=%s | caller=%s | extra=%s",
-				tostring(entry.startedAtMS),
-				tostring(entry.totalElapsedMS),
-				tostring(entry.status),
-				tostring(entry.tab),
-				tostring(entry.selectedInstanceKey),
-				tostring(entry.caller),
-				tostring(entry.extra)
-			)
-			for _, phase in ipairs(entry.phases or {}) do
-				lines[#lines + 1] = string.format(
-					"  phase=%s | elapsedMS=%s | totalMS=%s | extra=%s",
-					tostring(phase.name),
-					tostring(phase.elapsedMS),
-					tostring(phase.totalMS),
-					tostring(phase.extra)
-				)
-			end
-		end
+		lines[#lines + 1] = EncodeJsonValue(lootPanelRenderTimingDebug)
+	end
+
+	if IsSectionEnabled("lootPanelOpenDebug") then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "== Loot Panel Open Debug =="
+		lines[#lines + 1] = EncodeJsonValue(lootPanelOpenDebug)
+	end
+
+	if IsSectionEnabled("minimapClickDebug") then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "== Minimap Click Debug =="
+		lines[#lines + 1] = EncodeJsonValue(minimapClickDebug)
 	end
 
 	local probe = currentLootDebug.selectedInstanceDifficultyProbe
@@ -414,6 +535,15 @@ function DebugTools.FormatDebugDump(dump)
 		lines[#lines + 1] = string.format("selectedClassIDs = %s", table.concat(lootApiRawDebug.selectedClassIDs or {}, ","))
 		lines[#lines + 1] = string.format("lootFilterClassIDs = %s", table.concat(lootApiRawDebug.lootFilterClassIDs or {}, ","))
 		lines[#lines + 1] = string.format("missingItemData = %s", FormatBoolean(lootApiRawDebug.missingItemData))
+		for _, missingItem in ipairs(lootApiRawDebug.missingItems or {}) do
+			lines[#lines + 1] = string.format(
+				"missingItem itemID=%s | encounterID=%s | reason=%s | name=%s",
+				tostring(missingItem.itemID),
+				tostring(missingItem.encounterID),
+				tostring(missingItem.reason),
+				tostring(missingItem.name)
+			)
+		end
 		for _, run in ipairs(lootApiRawDebug.filterRuns or {}) do
 			lines[#lines + 1] = ""
 			lines[#lines + 1] = string.format("-- Filter Run classID=%s | totalLoot=%s --", tostring(run.classID), tostring(run.totalLoot))
