@@ -270,6 +270,13 @@
 - Repair pattern: for hide-collected filters, treat all collected-like display states that represent owned content, including `newly_collected`, as hidden unless the feature explicitly wants to celebrate them.
 - Preventative check: whenever a filter consumes a display-state enum rather than raw ownership state, verify which transitional states still semantically mean "owned" before comparing against a single literal.
 
+### Module-table code should not silently read missing globals
+
+- Symptom: a UI summary or counter always stays at its fallback value even though the underlying module logic is correct and the app otherwise loads without syntax errors.
+- Root cause: code inside a modular Lua file referenced a bare name like `CollectionState` instead of the actual module table (`addon.CollectionState` or an injected dependency), so runtime lookups resolved to `nil` globals.
+- Repair pattern: bind cross-module tables explicitly near the top of the file or fetch them through dependencies before first use; do not rely on implicit globals for addon modules.
+- Preventative check: when adding cross-module calls in a Lua addon file, search that file for a matching local/module binding first; if none exists, wire one explicitly before using the symbol.
+
 ### Fallback labels must not leak internal IDs
 
 - Symptom: user-facing UI shows placeholders like `未知物品 1840` even though the feature is describing a set piece, not the set itself.
@@ -1270,3 +1277,10 @@
 - Root cause: startup both requested fresh instance info and synchronously consumed the current snapshot immediately, then consumed the refreshed snapshot again on `UPDATE_INSTANCE_INFO`.
 - Repair pattern: when a startup path calls `RequestRaidInfo()`, treat the following `UPDATE_INSTANCE_INFO` as the canonical consume point and avoid an extra same-turn capture/signature pass unless the request API is unavailable.
 - Preventative check: for every startup `request -> event` pair, count how many full-state traversals happen before the user can interact; if both the requesting event and the follow-up event scan the same source, collapse them to one consumer.
+
+### Early-loaded files should not hard-bind later modules
+
+- Symptom: UI-derived values such as collected counters stay at fallback values even though debug output shows the underlying module returns correct results.
+- Root cause: a file loaded earlier in the `.toc` captured another addon module before that later file assigned `addon.SomeModule`, so the caller kept using a stale `nil` reference.
+- Repair pattern: for cross-file module calls, prefer injected dependencies from wiring; if that is not available, resolve `addon.SomeModule` at call time instead of binding it once at file scope.
+- Preventative check: whenever a Lua file calls another addon module directly, compare their `.toc` order and treat earlier-to-later calls as dependency-injection or late-binding cases.

@@ -28,10 +28,6 @@ local function GetLootPanel()
 	return type(dependencies.getLootPanel) == "function" and dependencies.getLootPanel() or nil
 end
 
-local function GetLootPanelState()
-	return type(dependencies.getLootPanelState) == "function" and dependencies.getLootPanelState() or {}
-end
-
 local function GetDashboardPanel()
 	return type(dependencies.getDashboardPanel) == "function" and dependencies.getDashboardPanel() or nil
 end
@@ -231,16 +227,6 @@ local function FormatEventChatMessage(event, arg1, arg2, arg3, arg4, arg5, addon
 	end
 	if normalizedEvent == "ENCOUNTER_LOOT_RECEIVED" then
 		return string.format("event: %s encounterID=%s itemID=%s item=%s", normalizedEvent, tostring(arg1), tostring(arg2), tostring(arg3 or ""))
-	end
-	if normalizedEvent == "TRANSMOG_COLLECTION_UPDATED" then
-		return string.format(
-			"event: %s collectionIndex=%s modID=%s itemAppearanceID=%s reason=%s",
-			normalizedEvent,
-			tostring(arg1),
-			tostring(arg2),
-			tostring(arg3),
-			tostring(arg4)
-		)
 	end
 	if normalizedEvent == "ENCOUNTER_END" then
 		return string.format("event: %s boss=%s success=%s", normalizedEvent, tostring(arg2 or ""), tostring(arg5))
@@ -446,7 +432,6 @@ function EventsCommandController.RegisterCoreEvents(frame, addonName)
 	frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 	frame:RegisterEvent("ENCOUNTER_LOOT_RECEIVED")
 	frame:RegisterEvent("ENCOUNTER_END")
-	frame:RegisterEvent("TRANSMOG_COLLECTION_UPDATED")
 	frame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
 		if event == "GET_ITEM_INFO_RECEIVED" or event == "UPDATE_INSTANCE_INFO" then
 			ScheduleAggregatedEventCountPrint(event)
@@ -562,24 +547,6 @@ function EventsCommandController.RegisterCoreEvents(frame, addonName)
 					if type(dependencies.MarkLootEncounterPendingAutoCollapse) == "function" then
 						dependencies.MarkLootEncounterPendingAutoCollapse(arg2, 10)
 					end
-					dependencies.RefreshLootPanel()
-				end
-			end
-		elseif event == "TRANSMOG_COLLECTION_UPDATED" then
-			AppendStartupLifecycleDebug("transmog_collection_updated", event)
-			InvalidateRaidDashboardCache()
-			local lootPanel = GetLootPanel()
-			if lootPanel and lootPanel:IsShown() then
-				if not addon.transmogCollectionRefreshPending and C_Timer and C_Timer.After then
-					addon.transmogCollectionRefreshPending = true
-					C_Timer.After(0.1, function()
-						addon.transmogCollectionRefreshPending = nil
-						local currentLootPanel = GetLootPanel()
-						if currentLootPanel and currentLootPanel:IsShown() then
-							dependencies.RefreshLootPanel()
-						end
-					end)
-				elseif not addon.transmogCollectionRefreshPending then
 					dependencies.RefreshLootPanel()
 				end
 			end
