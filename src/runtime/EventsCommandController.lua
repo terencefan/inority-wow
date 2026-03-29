@@ -9,6 +9,7 @@ local installedErrorHandler
 local previousErrorHandler
 local isHandlingRuntimeError
 local waitingForInitialInstanceInfo
+local delayedEventPrintState = {}
 
 function EventsCommandController.Configure(config)
 	dependencies = config or {}
@@ -182,6 +183,41 @@ end
 local function PrintMessage(message)
 	if type(dependencies.Print) == "function" then
 		dependencies.Print(message)
+	end
+end
+
+local function ScheduleAggregatedEventCountPrint(eventName)
+	local normalizedEvent = tostring(eventName or "UNKNOWN_EVENT")
+	local state = delayedEventPrintState[normalizedEvent]
+	if type(state) ~= "table" then
+		state = {
+			count = 0,
+			pending = false,
+		}
+		delayedEventPrintState[normalizedEvent] = state
+	end
+
+	state.count = (tonumber(state.count) or 0) + 1
+	if state.pending then
+		return
+	end
+
+	state.pending = true
+	local function flush()
+		local currentState = delayedEventPrintState[normalizedEvent]
+		if type(currentState) ~= "table" then
+			return
+		end
+		local count = tonumber(currentState.count) or 0
+		currentState.count = 0
+		currentState.pending = false
+		PrintMessage(string.format("event: %s count=%d window=1s", normalizedEvent, count))
+	end
+
+	if C_Timer and C_Timer.After then
+		C_Timer.After(1, flush)
+	else
+		flush()
 	end
 end
 
@@ -412,7 +448,9 @@ function EventsCommandController.RegisterCoreEvents(frame, addonName)
 	frame:RegisterEvent("ENCOUNTER_END")
 	frame:RegisterEvent("TRANSMOG_COLLECTION_UPDATED")
 	frame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
-		if event ~= "CHAT_MSG_LOOT" and (event ~= "ADDON_LOADED" or arg1 == addonName) then
+		if event == "GET_ITEM_INFO_RECEIVED" or event == "UPDATE_INSTANCE_INFO" then
+			ScheduleAggregatedEventCountPrint(event)
+		elseif event ~= "CHAT_MSG_LOOT" and (event ~= "ADDON_LOADED" or arg1 == addonName) then
 			PrintMessage(FormatEventChatMessage(event, arg1, arg2, arg3, arg4, arg5, addonName))
 		end
 
