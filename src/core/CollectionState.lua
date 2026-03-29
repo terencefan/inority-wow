@@ -292,8 +292,9 @@ function CollectionState.GetLootItemDisplayCollectionState(item)
 end
 
 function CollectionState.LootItemMatchesTypeFilter(item)
-	local db = GetDB()
-	local selected = db and db.settings and db.settings.selectedLootTypes or nil
+	local gateway = addon.StorageGateway
+	local settings = gateway and gateway.GetSettings and gateway.GetSettings() or {}
+	local selected = settings.selectedLootTypes
 	if type(selected) ~= "table" or next(selected) == nil then
 		selected = nil
 	end
@@ -301,13 +302,13 @@ function CollectionState.LootItemMatchesTypeFilter(item)
 		return false
 	end
 
-	local settings = db and db.settings or {}
 	local displayState = CollectionState.GetLootItemDisplayCollectionState(item)
+	local isCollectedLike = displayState == "collected" or displayState == "newly_collected"
 	local hideCollectedTransmog = true
-	if item.typeKey == "MOUNT" and settings.hideCollectedMounts and displayState == "collected" then
+	if item.typeKey == "MOUNT" and settings.hideCollectedMounts and isCollectedLike then
 		return false
 	end
-	if item.typeKey == "PET" and settings.hideCollectedPets and displayState == "collected" then
+	if item.typeKey == "PET" and settings.hideCollectedPets and isCollectedLike then
 		return false
 	end
 	if hideCollectedTransmog and item.typeKey ~= "MOUNT" and item.typeKey ~= "PET" and displayState == "collected" then
@@ -317,7 +318,9 @@ function CollectionState.LootItemMatchesTypeFilter(item)
 end
 
 function CollectionState.GetEncounterLootDisplayState(encounter)
-	local db = GetDB()
+	local gateway = addon.StorageGateway
+	local settings = gateway and gateway.GetSettings and gateway.GetSettings() or {}
+	local selected = settings.selectedLootTypes
 	local state = {
 		filteredLoot = {},
 		visibleLoot = {},
@@ -325,7 +328,6 @@ function CollectionState.GetEncounterLootDisplayState(encounter)
 	}
 
 	for _, item in ipairs((encounter and encounter.loot) or {}) do
-		local selected = db and db.settings and db.settings.selectedLootTypes or nil
 		if type(selected) ~= "table" or next(selected) == nil or selected[item.typeKey or "MISC"] then
 			state.filteredLoot[#state.filteredLoot + 1] = item
 			if CollectionState.LootItemMatchesTypeFilter(item) then
@@ -348,8 +350,9 @@ function CollectionState.GetEncounterLootDisplayState(encounter)
 end
 
 function CollectionState.CountSelectedLootTypes()
-	local db = GetDB()
-	local selected = db and db.settings and db.settings.selectedLootTypes or nil
+	local gateway = addon.StorageGateway
+	local settings = gateway and gateway.GetSettings and gateway.GetSettings() or {}
+	local selected = settings.selectedLootTypes
 	local count = 0
 	if type(selected) ~= "table" then
 		return 0

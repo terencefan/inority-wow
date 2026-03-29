@@ -927,6 +927,7 @@ Tooltip 不直接把 `MogTrackerDB.characters[*]` 原样交给 matrix builder，
   - [docs/LootPanel.md](./docs/LootPanel.md)
   - [docs/DashboardPanel.md](./docs/DashboardPanel.md)
   - [docs/DebugPanel.md](./docs/DebugPanel.md)
+  - [docs/StorageArchitecture.md](./docs/StorageArchitecture.md)
 - 开发相关内容已移到 [DEVELOP.md](./DEVELOP.md)。
 - 包括 `LuaCheck`、`StyLua`、`LuaLS`、`JSCPD`、`VS Code Tasks` 和统一检查入口。
 

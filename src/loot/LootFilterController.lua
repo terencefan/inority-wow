@@ -14,6 +14,15 @@ local function GetDB()
 	return type(dependencies.getDB) == "function" and dependencies.getDB() or nil
 end
 
+local function GetSettings()
+	local gateway = addon.StorageGateway
+	if gateway and gateway.GetSettings then
+		return gateway.GetSettings()
+	end
+	local db = GetDB()
+	return db and db.settings or {}
+end
+
 local function GetLootPanelState()
 	return type(dependencies.getLootPanelState) == "function" and dependencies.getLootPanelState() or {}
 end
@@ -31,8 +40,7 @@ local function UpdateLootTypeFilterButtons()
 end
 
 function LootFilterController.IsLootTypeFilterActive()
-	local db = GetDB()
-	local selected = db and db.settings and db.settings.selectedLootTypes
+	local selected = GetSettings().selectedLootTypes
 	return type(selected) == "table" and next(selected) ~= nil
 end
 
@@ -183,8 +191,7 @@ function LootFilterController.BuildSpecFilterMenu(button)
 end
 
 function LootFilterController.BuildLootTypeFilterMenu(button)
-	local db = GetDB()
-	local settings = db and db.settings or {}
+	local settings = GetSettings()
 	settings.selectedLootTypes = settings.selectedLootTypes or {}
 
 	local items = {

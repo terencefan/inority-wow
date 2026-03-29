@@ -11,6 +11,11 @@ local missingItemRefreshState = LootPanelRenderer._missingItemRefreshState or {
 	attempts = 0,
 }
 LootPanelRenderer._missingItemRefreshState = missingItemRefreshState
+local zeroLootRefreshState = LootPanelRenderer._zeroLootRefreshState or {
+	selectionKey = nil,
+	attempts = 0,
+}
+LootPanelRenderer._zeroLootRefreshState = zeroLootRefreshState
 
 function LootPanelRenderer.Configure(config)
 	dependencies = config or {}
@@ -89,6 +94,11 @@ function LootPanelRenderer.ResetMissingItemRefreshState()
 	missingItemRefreshState.attempts = 0
 end
 
+function LootPanelRenderer.ResetZeroLootRefreshState()
+	zeroLootRefreshState.selectionKey = nil
+	zeroLootRefreshState.attempts = 0
+end
+
 function LootPanelRenderer.GetMissingItemRefreshAttempts()
 	return tonumber(missingItemRefreshState.attempts) or 0
 end
@@ -116,6 +126,32 @@ function LootPanelRenderer.EvaluateMissingItemRefresh(data)
 
 	attempts = attempts + 1
 	missingItemRefreshState.attempts = attempts
+	return true, attempts
+end
+
+function LootPanelRenderer.EvaluateZeroLootRefresh(data)
+	if not (type(data) == "table" and data.zeroLootRetrySuggested) then
+		LootPanelRenderer.ResetZeroLootRefreshState()
+		return false, 0
+	end
+
+	local selectionKey = tostring(data.selectionKey or "")
+	if zeroLootRefreshState.selectionKey ~= selectionKey then
+		zeroLootRefreshState.selectionKey = selectionKey
+		zeroLootRefreshState.attempts = 0
+	end
+
+	if GetLootRefreshPending() then
+		return false, tonumber(zeroLootRefreshState.attempts) or 0
+	end
+
+	local attempts = tonumber(zeroLootRefreshState.attempts) or 0
+	if attempts >= MISSING_ITEM_REFRESH_MAX_ATTEMPTS then
+		return false, attempts
+	end
+
+	attempts = attempts + 1
+	zeroLootRefreshState.attempts = attempts
 	return true, attempts
 end
 
@@ -239,10 +275,37 @@ local function PreparePanelChrome(lootPanel, currentTab)
 	end
 end
 
+local function ApplyUnknownInstanceChrome(lootPanel)
+	if not lootPanel then
+		return
+	end
+	if lootPanel.instanceSelectorButton then
+		lootPanel.instanceSelectorButton:Show()
+		lootPanel.instanceSelectorButton:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."))
+		if lootPanel.instanceSelectorButton.customText then
+			lootPanel.instanceSelectorButton.customText:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."))
+		end
+	end
+	if lootPanel.classScopeButton then
+		lootPanel.classScopeButton:Hide()
+	end
+end
+
 local function SetDebugVisibility(lootPanel, hasError)
 	lootPanel.debugButton:SetShown(hasError and true or false)
 	lootPanel.debugScrollFrame:SetShown(hasError and true or false)
 	lootPanel.debugEditBox:SetShown(hasError and true or false)
+end
+
+local function IsUnknownInstanceError(data)
+	if type(data) ~= "table" then
+		return false
+	end
+	local errorText = tostring(data.error or "")
+	if errorText == "" then
+		return false
+	end
+	return errorText:find(T("LOOT_ERROR_NO_INSTANCE", "当前不在可识别的副本或地下城中。"), 1, true) ~= nil
 end
 
 local function LayoutScrollFrame(lootPanel, hasError)
@@ -286,6 +349,19 @@ local function RenderNoSelectedClassesState(lootPanel, rows, contentWidth, heade
 end
 
 local function RenderErrorBranch(lootPanel, rows, contentWidth, headerRowStep, data)
+	if IsUnknownInstanceError(data) then
+		SetDebugVisibility(lootPanel, false)
+		if lootPanel.debugEditBox then
+			lootPanel.debugEditBox:SetText("")
+		end
+		HideTrailingRows(rows, 0)
+		lootPanel.content:SetHeight(1)
+		if lootPanel.scrollFrame and lootPanel.scrollFrame.SetVerticalScroll then
+			lootPanel.scrollFrame:SetVerticalScroll(0)
+		end
+		return 0, -4
+	end
+
 	local row = EnsurePanelRow(lootPanel, rows, 1, contentWidth, true)
 	local yOffset = -4
 	row.header:ClearAllPoints()
@@ -299,7 +375,10 @@ local function RenderErrorBranch(lootPanel, rows, contentWidth, headerRowStep, d
 	row.body:ClearAllPoints()
 	row.body:SetPoint("TOPLEFT", row.header, "BOTTOMLEFT", 0, -2)
 	local debugFormatter = GetDebugFormatter()
-	local debugText = data.error .. ((debugFormatter and debugFormatter(data.debugInfo)) or "")
+	local debugText = tostring(data.error or "")
+	if not IsUnknownInstanceError(data) and debugFormatter then
+		debugText = debugText .. debugFormatter(data.debugInfo)
+	end
 	row.body:SetText(debugText)
 	row.body:Show()
 	lootPanel.debugEditBox:SetText(debugText)
@@ -622,6 +701,36 @@ local function ScheduleMissingItemRefresh(data)
 	end
 end
 
+local function ScheduleZeroLootRefresh(data)
+	local shouldSchedule, attempts = LootPanelRenderer.EvaluateZeroLootRefresh(data)
+	if shouldSchedule and C_Timer and C_Timer.After then
+		RecordLootPanelOpenDebug("zero_loot_refresh_scheduled", {
+			source = "loot_panel_renderer",
+			note = string.format(
+				"selectionKey=%s attempts=%d/%d totalLootAcrossFilterRuns=%s journalReportsLoot=%s",
+				tostring(data and data.selectionKey or ""),
+				attempts,
+				MISSING_ITEM_REFRESH_MAX_ATTEMPTS,
+				tostring(data and data.rawApiDebug and data.rawApiDebug.totalLootAcrossFilterRuns or 0),
+				tostring(data and data.rawApiDebug and data.rawApiDebug.journalReportsLoot)
+			),
+		})
+		SetLootRefreshPending(true)
+		C_Timer.After(MISSING_ITEM_REFRESH_DELAY_SECONDS, function()
+			SetLootRefreshPending(false)
+			local activeLootPanel = GetLootPanel()
+			if activeLootPanel and activeLootPanel:IsShown() then
+				LootPanelRenderer.RefreshLootPanel()
+			end
+		end)
+	elseif type(data) == "table" and data.zeroLootRetrySuggested and attempts >= MISSING_ITEM_REFRESH_MAX_ATTEMPTS then
+		RecordLootPanelOpenDebug("zero_loot_refresh_budget_exhausted", {
+			source = "loot_panel_renderer",
+			note = string.format("selectionKey=%s attempts=%d", tostring(data.selectionKey or ""), attempts),
+		})
+	end
+end
+
 function LootPanelRenderer.BuildCurrentInstanceSetSummary(data)
 	local selectedInstance = GetSelectedLootPanelInstance()
 	if not (addon.LootSets and addon.LootSets.BuildCurrentInstanceSetSummary) then
@@ -751,8 +860,11 @@ function LootPanelRenderer.RefreshLootPanel()
 	renderDebug.dataDebugInstanceName = data and data.debugInfo and data.debugInfo.instanceName or nil
 	renderDebug.dataDebugInstanceType = data and data.debugInfo and data.debugInfo.instanceType or nil
 	renderDebug.titleAfterData = titleAfterData
-	SetDebugVisibility(lootPanel, data.error)
+	SetDebugVisibility(lootPanel, data.error and not IsUnknownInstanceError(data))
 	LayoutScrollFrame(lootPanel, data.error)
+	if IsUnknownInstanceError(data) then
+		ApplyUnknownInstanceChrome(lootPanel)
+	end
 
 	local rowIndex, yOffset = 0, -4
 	if data.error then
@@ -789,6 +901,7 @@ function LootPanelRenderer.RefreshLootPanel()
 	lootPanel.content:SetHeight(math.max(1, -yOffset + 4))
 	markPhase("finalize_layout")
 	ScheduleMissingItemRefresh(data)
+	ScheduleZeroLootRefresh(data)
 	finishRender("ok", string.format("tab=%s rows=%s missingItemData=%s", tostring(currentTab), tostring(rowIndex), tostring(data and data.missingItemData and true or false)))
 	RecordLootPanelOpenDebug("refresh_finish", {
 		source = "loot_panel_renderer",

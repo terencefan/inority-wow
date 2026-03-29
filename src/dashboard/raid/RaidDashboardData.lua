@@ -10,6 +10,7 @@ local DASHBOARD_STORE_RULES_VERSION = SummaryStore and SummaryStore.GetRulesVers
 local DASHBOARD_VIEW_RULES_VERSION = SummaryStore and SummaryStore.GetRulesVersion and SummaryStore.GetRulesVersion("raidDashboardViewCache") or DASHBOARD_RULES_VERSION
 local DASHBOARD_RECONCILE_MEMBER_BUDGET = 80
 local DASHBOARD_RECONCILE_BUCKET_BUDGET = 4
+local unpackResults = table.unpack or unpack
 
 local Translate = Shared.Translate
 local GetSelectableClasses = Shared.GetSelectableClasses
@@ -49,7 +50,7 @@ local function MeasureMilliseconds(fn)
 	local startedAt = GetDebugTimeMilliseconds()
 	local results = { fn() }
 	local elapsedMs = math.max(0, GetDebugTimeMilliseconds() - startedAt)
-	return elapsedMs, unpack(results)
+	return elapsedMs, unpackResults(results)
 end
 
 local function GetActiveBulkScanProfile(selectionInstanceType)

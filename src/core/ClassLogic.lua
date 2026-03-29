@@ -132,8 +132,8 @@ function ClassLogic.GetClassDisplayName(classFile)
 end
 
 function ClassLogic.GetDashboardClassFiles()
-	local db = GetDB()
-	local settings = db and db.settings or {}
+	local gateway = addon.StorageGateway
+	local settings = gateway and gateway.GetSettings and gateway.GetSettings() or {}
 	local selectedClasses = settings.selectedClasses or {}
 	local selectedClassFiles = {}
 	local unselectedClassFiles = {}

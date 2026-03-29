@@ -25,17 +25,51 @@
 
 ## 2. 打开面板时发生什么
 
-掉落面板入口是 `ToggleLootPanel()`。首次打开会先 `InitializeLootPanel()` 创建 frame，之后每次真正显示前会做三件事：
+掉落面板常规入口是小地图按钮右键，最终会走到 `LootPanelController.ToggleLootPanel()`。
 
-1. `PreferCurrentLootPanelSelectionOnOpen()`
-2. `ResetLootPanelSessionState(true)`
-3. `RefreshLootPanel()`
+首次打开会先 `InitializeLootPanel()` 创建 frame、标题按钮、tab、scroll frame 和 resize handle。之后每次真正“打开”时的顺序是：
 
-这三步分别解决：
+1. `InitializeLootPanel()`
+2. `lootPanel:Show()`
+3. `PreferCurrentLootPanelSelectionOnOpen()`
+4. `ResetLootPanelSessionState(true)`
+5. `RefreshLootPanel()`
 
-- 默认优先回到当前所在副本。
-- 为本次打开建立稳定会话基线。
-- 根据当前选中副本和 tab 重画内容。
+这个顺序有两个维护点：
+
+- `Show()` 发生在主刷新之前，所以首开时 `OnShow` 只负责 frame 生命周期和调试打点，不负责真正的数据准备。
+- 真正决定“这次打开看哪个副本”的逻辑在 `PreferCurrentLootPanelSelectionOnOpen()`，不是 `InitializeLootPanel()`。
+
+更细一层的开启链路如下：
+
+```mermaid
+flowchart TD
+    A["UIChromeController.ToggleLootPanel()"] --> B["LootPanelController.ToggleLootPanel()"]
+    B --> C{"lootPanel exists?"}
+    C -- "no" --> D["InitializeLootPanel()"]
+    C -- "yes" --> E{"lootPanel:IsShown()?"}
+    D --> E
+    E -- "yes" --> F["lootPanel:Hide()"]
+    E -- "no" --> G["lootPanel:Show()"]
+    G --> H["PreferCurrentLootPanelSelectionOnOpen()"]
+    H --> I["ResetLootPanelSessionState(true)"]
+    I --> J["LootPanelRenderer.RefreshLootPanel()"]
+    J --> K["LootSelection.GetSelectedLootPanelInstance()"]
+    K --> L["LootDataController.CollectCurrentInstanceLootData()"]
+    L --> M{"lootDataCache hit?"}
+    M -- "yes" --> N["cached data"]
+    M -- "no" --> O["APICollectCurrentInstanceLootData()"]
+    N --> P["render loot/sets tab"]
+    O --> P
+    P --> Q{"missingItemData?"}
+    Q -- "yes" --> R["ScheduleMissingItemRefresh()"]
+```
+
+这几步分别解决：
+
+- `PreferCurrentLootPanelSelectionOnOpen()`：默认优先回到当前所在副本。
+- `ResetLootPanelSessionState(true)`：为本次打开建立稳定会话基线。
+- `RefreshLootPanel()`：根据当前选中副本和 tab 重画内容。
 
 ## 3. 面板核心状态
 
@@ -77,6 +111,11 @@
 - `instanceOrder`
 - `key`
 
+这里有两个容易混淆的点：
+
+- `PreferCurrentLootPanelSelectionOnOpen()` 只是在“打开面板时”尝试把 `selectedInstanceKey` 切到当前副本。
+- `GetSelectedLootPanelInstance()` 才是渲染期的最终兜底解析；如果当前 key 无效，它会重新从当前副本或空选择中收敛。
+
 实例菜单由 `BuildLootPanelInstanceMenu()` 组织。用户改选择后会：
 
 - 更新 `selectedInstanceKey`
@@ -84,6 +123,8 @@
 - 重置滚动
 - `InvalidateLootDataCache()`
 - `RefreshLootPanel()`
+
+统计看板跳转则走 `OpenLootPanelForDashboardSelection()`，这条路径不会“优先当前副本”，而是直接写入目标 selection，再 `Show()` + `RefreshLootPanel()`。
 
 ## 5. 数据采集
 
@@ -102,6 +143,14 @@ flowchart TD
     E --> H["scan encounter loot"]
     H --> I["encounters + loot rows"]
 ```
+
+这里再往下拆一层：
+
+- `RefreshLootPanel()` 先做 UI 级准备：重置旧 rows、同步 tab 按钮、解析当前 selection、更新标题。
+- 如果当前职业范围为空，会直接渲染空状态，不会进入 EJ 扫描。
+- 只有在需要真实数据时，才会进入 `CollectCurrentInstanceLootData()`。
+- `CollectCurrentInstanceLootData()` 的 cache key 同时编码了实例选择、难度、职业范围和 `classScopeMode`。
+- 如果返回数据里仍有 `missingItemData`，renderer 会通过 `ScheduleMissingItemRefresh()` 做限次延迟补刷新，而不是在同一次打开里同步重扫到底。
 
 采集输入包括：
 

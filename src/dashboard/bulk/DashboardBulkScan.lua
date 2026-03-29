@@ -6,6 +6,7 @@ addon.DashboardBulkScan = DashboardBulkScan
 local dependencies = DashboardBulkScan._dependencies or {}
 local NormalizeExpansionName
 local EnsurePendingMissingSelections
+local unpackResults = table.unpack or unpack
 
 function DashboardBulkScan.Configure(config)
 	dependencies = config or {}
@@ -198,7 +199,7 @@ local function MeasureMilliseconds(fn)
 	local startedAt = GetDebugTimeMilliseconds()
 	local results = { fn() }
 	local elapsedMs = math.max(0, GetDebugTimeMilliseconds() - startedAt)
-	return elapsedMs, unpack(results)
+	return elapsedMs, unpackResults(results)
 end
 
 local function RefreshDashboardPanelMeasured(scanState)

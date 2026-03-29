@@ -144,6 +144,41 @@
 - Repair pattern: add a cheap schema-shape fast path for normalized containers/stores, and reserve full normalization for startup cutover, legacy data repair, or first-touch of an unnormalized entry.
 - Preventative check: when profiling points at a `store` or `get cache` phase, inspect whether the path mutates or walks the entire persisted container on every access; if yes, gate it behind an explicit `IsNormalized...` check.
 
+### Repo-local tool runners should not trust global package-manager config
+
+- Symptom: pre-commit or check scripts fail with module-load errors even though the tool is installed, for example `module 'luacheck.main' not found`.
+- Root cause: the runner shells out through a globally configured package manager path such as `luarocks path`, and that global config points at stale interpreter directories or incomplete search paths.
+- Repair pattern: in repo-local tool wrappers, prepend the tool's known install roots directly (for example `%APPDATA%\\luarocks\\share\\lua\\5.4` and `lib\\lua\\5.4`) and treat package-manager-reported paths only as optional extras.
+- Preventative check: when a local automation wraps Lua/Python/Ruby tools, verify the wrapper can resolve the installed module from a clean shell without relying on user-specific global config correctness.
+
+### Cross-runtime Lua helpers should not assume global `unpack`
+
+- Symptom: mocked tests or local automation fail under Lua 5.4 with errors like `attempt to call a nil value (global 'unpack')`, while the addon still works in-game.
+- Root cause: helper code relied on Lua 5.1-era global `unpack`, but offline tooling ran on a newer Lua where only `table.unpack` exists.
+- Repair pattern: define a local compatibility alias such as `local unpackResults = table.unpack or unpack` in shared helpers and use that alias instead of calling `unpack` directly.
+- Preventative check: when a repo runs WoW addon code both in-game and under standalone Lua, audit shared helper utilities for 5.1-only globals like `unpack` before adding new offline validation or profiling helpers.
+
+### Selection-dependent panels should normalize saved settings before first read
+
+- Symptom: a panel that defaults to a saved selection set, such as watched classes, opens as if nothing were selected until the user toggles some other scope and back.
+- Root cause: the render path read raw SavedVariables before the relevant settings table had been normalized, so fields like `selectedClasses` looked empty even though the intended defaults lived in the normalization layer.
+- Repair pattern: keep the intended scope mode, but normalize the settings object immediately before any first-read selection lookup that drives panel rendering or cache keys.
+- Preventative check: when a panel depends on saved filters at first open, verify the read path goes through the same normalization contract as startup initialization instead of assuming raw `db.settings` is already complete.
+
+### Parallel filter representations must share one normalized source
+
+- Symptom: a panel shows the correct selected labels or files, but the data query behind it still returns empty results until the user toggles the scope once.
+- Root cause: related filter representations such as `classFiles` and `classIDs` were derived through different paths, so one path read normalized settings while the other used a stale or differently wired source.
+- Repair pattern: derive all equivalent filter forms from the same normalized settings snapshot in one owner module, then wire downstream consumers to that shared source instead of recomputing through multiple controller layers.
+- Preventative check: whenever both UI state and data queries depend on the same saved filter, compare the exact values used by each branch on first open; if they can diverge, collapse them to a single authoritative helper.
+
+### Settings gateways should return normalized settings, not raw SavedVariables
+
+- Symptom: different features disagree about defaults or selected filters on first use, even though they all read `settings`.
+- Root cause: some callers normalize `db.settings` before use while others consume the raw SavedVariables table directly, creating branch-dependent behavior.
+- Repair pattern: make the shared settings gateway normalize and persist `db.settings` on read, so downstream callers all see the same completed settings shape.
+- Preventative check: if a module exposes `GetSettings()`, verify it returns the normalized contract rather than expecting every caller to remember to normalize independently.
+
 ### Raid difficulty menus across old and new expansions
 
 - Symptom: raid dropdowns show the wrong difficulty options for older raids, for example offering modern `随机/普通/英雄/史诗` on classic or Wrath-era raids.
@@ -220,6 +255,20 @@
 - Root cause: the code used `condition and nil or fallback`, but in Lua the middle value `nil` is falsey, so the expression always falls through to `fallback`.
 - Repair pattern: when the true branch can be `nil` or `false`, use an explicit `if` block instead of `and/or` ternary style.
 - Preventative check: never use `and/or` as a ternary when either branch may legitimately be `nil` or `false`.
+
+### EJ loot cold-start zeros need bounded retry
+
+- Symptom: the loot panel opens with boss headers but no loot rows, then starts working after the user toggles filters or scope a couple of times.
+- Root cause: Encounter Journal loot APIs can transiently report zero loot during an early scan even though the selected instance really has loot, and the panel only retried unresolved item-data cases.
+- Repair pattern: detect suspicious all-zero loot scans separately from missing-item resolution and schedule a small bounded delayed refresh budget for that cold-start state.
+- Preventative check: when a WoW EJ panel can render encounters before loot data is stable, log both `totalLoot` and whether the journal reports the instance has loot; if encounters exist but every filter run reports zero, treat it as a retryable warmup condition instead of a final empty result.
+
+### Collected-like states should satisfy hide-collected filters
+
+- Symptom: a collectible row such as a pet or mount remains visible even though the user already owns it and the corresponding "hide collected" option is enabled.
+- Root cause: the filter only hid the stable `collected` state, while session-baseline logic could temporarily relabel an already-owned item as `newly_collected` after late API resolution.
+- Repair pattern: for hide-collected filters, treat all collected-like display states that represent owned content, including `newly_collected`, as hidden unless the feature explicitly wants to celebrate them.
+- Preventative check: whenever a filter consumes a display-state enum rather than raw ownership state, verify which transitional states still semantically mean "owned" before comparing against a single literal.
 
 ### Fallback labels must not leak internal IDs
 

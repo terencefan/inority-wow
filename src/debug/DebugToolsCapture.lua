@@ -535,6 +535,9 @@ function DebugTools.FormatDebugDump(dump)
 		lines[#lines + 1] = string.format("selectedClassIDs = %s", table.concat(lootApiRawDebug.selectedClassIDs or {}, ","))
 		lines[#lines + 1] = string.format("lootFilterClassIDs = %s", table.concat(lootApiRawDebug.lootFilterClassIDs or {}, ","))
 		lines[#lines + 1] = string.format("missingItemData = %s", FormatBoolean(lootApiRawDebug.missingItemData))
+		lines[#lines + 1] = string.format("totalLootAcrossFilterRuns = %s", tostring(lootApiRawDebug.totalLootAcrossFilterRuns))
+		lines[#lines + 1] = string.format("journalReportsLoot = %s", FormatBoolean(lootApiRawDebug.journalReportsLoot))
+		lines[#lines + 1] = string.format("zeroLootRetrySuggested = %s", FormatBoolean(lootApiRawDebug.zeroLootRetrySuggested))
 		for _, missingItem in ipairs(lootApiRawDebug.missingItems or {}) do
 			lines[#lines + 1] = string.format(
 				"missingItem itemID=%s | encounterID=%s | reason=%s | name=%s",

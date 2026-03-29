@@ -87,7 +87,12 @@ end
 
 function StorageGateway.GetSettings()
 	local db = GetDB()
-	return db and db.settings or {}
+	if not db then
+		return {}
+	end
+
+	db.settings = StorageGateway.NormalizeSettings(db.settings)
+	return db.settings
 end
 
 function StorageGateway.SetSettings(settings)

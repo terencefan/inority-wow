@@ -12,6 +12,8 @@
   说明统一看板四个视图的来源、批量扫描计划、离线摘要读取，以及“团本套装”格子的计算方式。
 - [调试面板](./DebugPanel.md)
   说明 `/img debug ...` 入口、调试段开关、dump 收集和复制输出路径。
+- [存储分层](./StorageArchitecture.md)
+  说明 `MogTrackerDB` 的分层结构、`itemFacts` 字段，以及 item 如何流入统计 bucket 和看板单元格。
 
 ## 读文建议
 

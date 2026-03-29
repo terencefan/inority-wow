@@ -27,6 +27,10 @@ local function GetLootPanel()
 	return type(dependencies.getLootPanel) == "function" and dependencies.getLootPanel() or nil
 end
 
+local function GetLootPanelState()
+	return type(dependencies.getLootPanelState) == "function" and dependencies.getLootPanelState() or {}
+end
+
 local function GetDashboardPanel()
 	return type(dependencies.getDashboardPanel) == "function" and dependencies.getDashboardPanel() or nil
 end
@@ -181,7 +185,7 @@ local function PrintMessage(message)
 	end
 end
 
-local function FormatEventChatMessage(event, arg1, arg2, arg3, arg5, addonName)
+local function FormatEventChatMessage(event, arg1, arg2, arg3, arg4, arg5, addonName)
 	local normalizedEvent = tostring(event or "UNKNOWN_EVENT")
 	if normalizedEvent == "ADDON_LOADED" then
 		return string.format("event: %s addon=%s", normalizedEvent, tostring(arg1 or addonName or ""))
@@ -191,6 +195,16 @@ local function FormatEventChatMessage(event, arg1, arg2, arg3, arg5, addonName)
 	end
 	if normalizedEvent == "ENCOUNTER_LOOT_RECEIVED" then
 		return string.format("event: %s encounterID=%s itemID=%s item=%s", normalizedEvent, tostring(arg1), tostring(arg2), tostring(arg3 or ""))
+	end
+	if normalizedEvent == "TRANSMOG_COLLECTION_UPDATED" then
+		return string.format(
+			"event: %s collectionIndex=%s modID=%s itemAppearanceID=%s reason=%s",
+			normalizedEvent,
+			tostring(arg1),
+			tostring(arg2),
+			tostring(arg3),
+			tostring(arg4)
+		)
 	end
 	if normalizedEvent == "ENCOUNTER_END" then
 		return string.format("event: %s boss=%s success=%s", normalizedEvent, tostring(arg2 or ""), tostring(arg5))
@@ -394,13 +408,12 @@ function EventsCommandController.RegisterCoreEvents(frame, addonName)
 	frame:RegisterEvent("PLAYER_LOGIN")
 	frame:RegisterEvent("UPDATE_INSTANCE_INFO")
 	frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-	frame:RegisterEvent("CHAT_MSG_LOOT")
 	frame:RegisterEvent("ENCOUNTER_LOOT_RECEIVED")
 	frame:RegisterEvent("ENCOUNTER_END")
 	frame:RegisterEvent("TRANSMOG_COLLECTION_UPDATED")
-	frame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, _, arg5)
-		if event ~= "ADDON_LOADED" or arg1 == addonName then
-			PrintMessage(FormatEventChatMessage(event, arg1, arg2, arg3, arg5, addonName))
+	frame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
+		if event ~= "CHAT_MSG_LOOT" and (event ~= "ADDON_LOADED" or arg1 == addonName) then
+			PrintMessage(FormatEventChatMessage(event, arg1, arg2, arg3, arg4, arg5, addonName))
 		end
 
 		if event == "ADDON_LOADED" and arg1 == addonName then

@@ -55,6 +55,7 @@ local ClassMatchesSetInfo
 local GetSetProgress
 local GetLootItemSourceID
 local GetLootItemSetIDs
+local GetSelectedLootClassIDs
 local lootPanel
 local dashboardPanel
 local lootPanelState = {
@@ -510,9 +511,26 @@ GetSelectedLootClassFiles = function()
 			return { classFile }
 		end
 	end
-	return addon.Compute.GetSelectedLootClassFiles(StorageGateway.GetSettings(), selectableClasses)
+
+	local settings = StorageGateway.GetSettings()
+	return addon.Compute.GetSelectedLootClassFiles(settings, selectableClasses)
 end
 addon.GetSelectedLootClassFiles = GetSelectedLootClassFiles
+
+GetSelectedLootClassIDs = function()
+	if lootPanelState.classScopeMode == "current" then
+		local _, classFile = UnitClass("player")
+		local classID = classFile and GetClassIDByFile(classFile) or nil
+		if classID then
+			return { classID }
+		end
+		return {}
+	end
+
+	local settings = StorageGateway.GetSettings()
+	return addon.Compute.GetSelectedLootClassIDs(settings, GetClassIDByFile)
+end
+addon.GetSelectedLootClassIDs = GetSelectedLootClassIDs
 
 GetLootTypeLabel = function(typeKey)
 	local labels = {
@@ -645,6 +663,9 @@ local wired = CoreFeatureWiring.Wire({
 	CompareClassIDs = API.CompareClassIDs,
 	GetSelectedLootClassFiles = function()
 		return GetSelectedLootClassFiles()
+	end,
+	GetSelectedLootClassIDs = function()
+		return GetSelectedLootClassIDs()
 	end,
 	GetLootTypeLabel = function(typeKey)
 		return GetLootTypeLabel(typeKey)

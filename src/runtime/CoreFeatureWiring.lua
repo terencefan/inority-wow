@@ -116,7 +116,9 @@ function CoreFeatureWiring.Wire(config)
 	outputs.BuildClassFilterMenu = LootFilterController.BuildClassFilterMenu
 	outputs.BuildSpecFilterMenu = LootFilterController.BuildSpecFilterMenu
 	outputs.BuildLootTypeFilterMenu = LootFilterController.BuildLootTypeFilterMenu
-	outputs.GetSelectedLootClassIDs = LootFilterController.GetSelectedLootClassIDs
+	outputs.GetSelectedLootClassIDs = function()
+		return config.GetSelectedLootClassIDs()
+	end
 
 	local LootSelection = addon.LootSelection
 	LootSelection.Configure({
@@ -678,6 +680,7 @@ function CoreFeatureWiring.Wire(config)
 		getPanel = config.getPanel,
 		getDebugPanel = config.getDebugPanel,
 		getLootPanel = config.getLootPanel,
+		getLootPanelState = config.getLootPanelState,
 		getLootDataCache = config.getLootDataCache,
 		getDB = config.getDB,
 		getResetInstancesHooked = config.getResetInstancesHooked,

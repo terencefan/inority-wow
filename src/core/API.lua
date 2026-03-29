@@ -302,6 +302,7 @@ function API.CollectCurrentInstanceLootData(context)
 	local GetItemInfo = GetRuntimeFunction("GetItemInfo")
 	local C_Item = _G.C_Item
 	local C_TransmogCollection = _G.C_TransmogCollection
+	local C_EncounterJournal = _G.C_EncounterJournal
 	local T = context.T
 	local getItemFact = context.getItemFact
 	local upsertItemFact = context.upsertItemFact
@@ -353,6 +354,7 @@ function API.CollectCurrentInstanceLootData(context)
 	local encounters = {}
 	local encounterByID = {}
 	local missingItemData = false
+	local totalLootAcrossFilterRuns = 0
 	local encounterIndex = 1
 	while true do
 		local name, _, encounterID = EJ_GetEncounterInfoByIndex(encounterIndex, journalInstanceID)
@@ -589,13 +591,24 @@ function API.CollectCurrentInstanceLootData(context)
 		if rawFilterRun then
 			rawFilterRun.totalLoot = totalLoot
 		end
+		totalLootAcrossFilterRuns = totalLootAcrossFilterRuns + totalLoot
 		if rawApiDebug and rawFilterRun then
 			rawApiDebug.filterRuns[#rawApiDebug.filterRuns + 1] = rawFilterRun
 		end
 	end
 	EJ_SetLootFilter(0, 0)
+	local journalReportsLoot = nil
+	if C_EncounterJournal and C_EncounterJournal.InstanceHasLoot then
+		journalReportsLoot = C_EncounterJournal.InstanceHasLoot(journalInstanceID)
+	end
+	local zeroLootRetrySuggested = totalLootAcrossFilterRuns == 0
+		and #encounters > 0
+		and journalReportsLoot ~= false
 	if rawApiDebug then
 		rawApiDebug.missingItemData = missingItemData and true or false
+		rawApiDebug.totalLootAcrossFilterRuns = totalLootAcrossFilterRuns
+		rawApiDebug.journalReportsLoot = journalReportsLoot
+		rawApiDebug.zeroLootRetrySuggested = zeroLootRetrySuggested and true or false
 	end
 
 	return {
@@ -604,6 +617,7 @@ function API.CollectCurrentInstanceLootData(context)
 		debugInfo = debugInfo,
 		encounters = encounters,
 		missingItemData = missingItemData,
+		zeroLootRetrySuggested = zeroLootRetrySuggested,
 		filteredClassCount = #lootFilterClassIDs,
 		rawApiDebug = rawApiDebug,
 	}
