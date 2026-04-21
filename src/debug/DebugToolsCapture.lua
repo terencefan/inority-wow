@@ -70,6 +70,7 @@ function DebugTools.FormatDebugDump(dump)
 	local setSummaryDebug = dump.setSummaryDebug or {}
 	local dashboardSetPieceDebug = dump.dashboardSetPieceDebug or {}
 	local lootApiRawDebug = dump.lootApiRawDebug or {}
+	local lootPanelRegressionRawDebug = dump.lootPanelRegressionRawDebug or {}
 	local dashboardSnapshotWriteDebug = dump.dashboardSnapshotWriteDebug or {}
 	local pvpSetDebug = dump.pvpSetDebug or {}
 	local dungeonDashboardDebug = dump.dungeonDashboardDebug or {}
@@ -536,6 +537,7 @@ function DebugTools.FormatDebugDump(dump)
 		lines[#lines + 1] = string.format("lootFilterClassIDs = %s", table.concat(lootApiRawDebug.lootFilterClassIDs or {}, ","))
 		lines[#lines + 1] = string.format("missingItemData = %s", FormatBoolean(lootApiRawDebug.missingItemData))
 		lines[#lines + 1] = string.format("totalLootAcrossFilterRuns = %s", tostring(lootApiRawDebug.totalLootAcrossFilterRuns))
+		lines[#lines + 1] = string.format("totalLootAllClasses = %s", tostring(lootApiRawDebug.totalLootAllClasses))
 		lines[#lines + 1] = string.format("journalReportsLoot = %s", FormatBoolean(lootApiRawDebug.journalReportsLoot))
 		lines[#lines + 1] = string.format("zeroLootRetrySuggested = %s", FormatBoolean(lootApiRawDebug.zeroLootRetrySuggested))
 		for _, missingItem in ipairs(lootApiRawDebug.missingItems or {}) do
@@ -583,6 +585,74 @@ function DebugTools.FormatDebugDump(dump)
 		end
 	end
 
+	if IsSectionEnabled("lootPanelRegressionRawDebug") and (lootPanelRegressionRawDebug.instanceName or #(lootPanelRegressionRawDebug.bosses or {}) > 0) then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "== Loot Panel Regression Raw =="
+		lines[#lines + 1] = string.format("instanceName = %s", tostring(lootPanelRegressionRawDebug.instanceName))
+		lines[#lines + 1] = string.format("instanceType = %s", tostring(lootPanelRegressionRawDebug.instanceType))
+		lines[#lines + 1] = string.format("difficultyID = %s", tostring(lootPanelRegressionRawDebug.difficultyID))
+		lines[#lines + 1] = string.format("difficultyName = %s", tostring(lootPanelRegressionRawDebug.difficultyName))
+		lines[#lines + 1] = string.format("journalInstanceID = %s", tostring(lootPanelRegressionRawDebug.journalInstanceID))
+		lines[#lines + 1] = string.format("selectedInstanceKey = %s", tostring(lootPanelRegressionRawDebug.selectedInstanceKey))
+		lines[#lines + 1] = string.format("selectedClassIDs = %s", table.concat(lootPanelRegressionRawDebug.selectedClassIDs or {}, ","))
+		lines[#lines + 1] = string.format("selectedClassFiles = %s", table.concat(lootPanelRegressionRawDebug.selectedClassFiles or {}, ","))
+		for _, boss in ipairs(lootPanelRegressionRawDebug.bosses or {}) do
+			lines[#lines + 1] = ""
+			lines[#lines + 1] = string.format(
+				"[%s] encounterID=%s | panelSelected=%s | panelAll=%s",
+				tostring(boss.encounterName or "Unknown"),
+				tostring(boss.encounterID),
+				tostring(boss.panelSelectedCount),
+				tostring(boss.panelAllCount)
+			)
+			for _, run in ipairs(boss.selectedRuns or {}) do
+				lines[#lines + 1] = string.format(
+					"selectedClass=%s | classID=%s | totalLoot=%s",
+					tostring(run.classFile or ""),
+					tostring(run.classID),
+					tostring(run.totalLoot)
+				)
+				if #(run.items or {}) == 0 then
+					lines[#lines + 1] = "  - none"
+				else
+					for _, item in ipairs(run.items or {}) do
+						lines[#lines + 1] = string.format(
+							"  - itemID=%s | name=%s | slot=%s | armorType=%s | typeKey=%s | sourceID=%s | appearanceID=%s | accepted=%s | duplicate=%s",
+							tostring(item.itemID),
+							tostring(item.name),
+							tostring(item.slot),
+							tostring(item.armorType),
+							tostring(item.typeKey),
+							tostring(item.sourceID),
+							tostring(item.appearanceID),
+							FormatBoolean(item.accepted),
+							FormatBoolean(item.duplicate)
+						)
+					end
+				end
+			end
+			lines[#lines + 1] = string.format("allClasses | totalLoot=%s", tostring(boss.allClasses and boss.allClasses.totalLoot or 0))
+			if not boss.allClasses or #(boss.allClasses.items or {}) == 0 then
+				lines[#lines + 1] = "  - none"
+			else
+				for _, item in ipairs(boss.allClasses.items or {}) do
+					lines[#lines + 1] = string.format(
+						"  - itemID=%s | name=%s | slot=%s | armorType=%s | typeKey=%s | sourceID=%s | appearanceID=%s | accepted=%s | duplicate=%s",
+						tostring(item.itemID),
+						tostring(item.name),
+						tostring(item.slot),
+						tostring(item.armorType),
+						tostring(item.typeKey),
+						tostring(item.sourceID),
+						tostring(item.appearanceID),
+						FormatBoolean(item.accepted),
+						FormatBoolean(item.duplicate)
+					)
+				end
+			end
+		end
+	end
+
 	local collectionStateDebug = dump.collectionStateDebug or {}
 	if IsSectionEnabled("collectionStateDebug") and (collectionStateDebug.collectSameAppearance ~= nil or #(collectionStateDebug.items or {}) > 0) then
 		lines[#lines + 1] = ""
@@ -602,6 +672,11 @@ function DebugTools.FormatDebugDump(dump)
 				tostring(item.sourceID),
 				tostring(item.equipLoc),
 				tostring(item.itemSubType)
+			)
+			lines[#lines + 1] = string.format(
+				"  eligibleClasses=%s | selectedVisibleClasses=%s",
+				table.concat(item.eligibleClasses or {}, ","),
+				table.concat(item.selectedVisibleClasses or {}, ",")
 			)
 			lines[#lines + 1] = string.format(
 				"  sourceCollected=%s | sourceValid=%s | appearanceCollected=%s | appearanceUsable=%s | appearanceAnySourceValid=%s | playerHasByItemInfo=%s",
@@ -909,7 +984,7 @@ function DebugTools.FormatDebugDump(dump)
 	end
 
 	local setDashboardPreviewDebug = dump.setDashboardPreviewDebug or {}
-	if IsSectionEnabled("setDashboardPreviewDebug") and ((setDashboardPreviewDebug.payloadJson and setDashboardPreviewDebug.payloadJson ~= "") or (setDashboardPreviewDebug.error and setDashboardPreviewDebug.error ~= "")) then
+	if (setDashboardPreviewDebug.payloadJson and setDashboardPreviewDebug.payloadJson ~= "") or (setDashboardPreviewDebug.error and setDashboardPreviewDebug.error ~= "") then
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Set Dashboard Preview Debug =="
 		if setDashboardPreviewDebug.error and setDashboardPreviewDebug.error ~= "" then
@@ -917,6 +992,8 @@ function DebugTools.FormatDebugDump(dump)
 		else
 			lines[#lines + 1] = string.format("tabOrder = %s", table.concat(setDashboardPreviewDebug.tabOrder or {}, ", "))
 			lines[#lines + 1] = string.format("classFiles = %s", table.concat(setDashboardPreviewDebug.classFiles or {}, ", "))
+			lines[#lines + 1] = string.format("classSetRows = %s", table.concat(setDashboardPreviewDebug.classSetRows or {}, ", "))
+			lines[#lines + 1] = string.format("missingTargetTiers = %s", table.concat(setDashboardPreviewDebug.missingTargetTiers or {}, ", "))
 			lines[#lines + 1] = ""
 			lines[#lines + 1] = "-- JSON Payload --"
 			lines[#lines + 1] = tostring(setDashboardPreviewDebug.payloadJson or "")

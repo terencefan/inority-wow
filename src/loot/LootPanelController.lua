@@ -36,6 +36,7 @@ end
 
 local function GetDB() return ReadDependency("getDB", nil) end
 local function GetLootPanel() return ReadDependency("getLootPanel", nil) end
+local function GetSettings() return ReadDependency("getSettings", {}) end
 
 local function UpdateClassScopeButtonPresentation(lootPanel, isElvUIStyle)
 	local classScopeButton = lootPanel and lootPanel.classScopeButton
@@ -186,6 +187,10 @@ function LootPanelController.InitializeLootPanel()
 	local lootPanel = GetLootPanel()
 	local db = GetDB()
 	local state = dependencies.getLootPanelState and dependencies.getLootPanelState() or {}
+	local settings = GetSettings()
+	if settings.lootClassScopeMode == "current" or settings.lootClassScopeMode == "selected" then
+		state.classScopeMode = settings.lootClassScopeMode
+	end
 	if lootPanel then return end
 	local lootPanelPoint = db.lootPanelPoint or { point = "CENTER", relativePoint = "CENTER", x = 280, y = 0 }
 	local lootPanelSize = db.lootPanelSize or { width = 420, height = 460 }
@@ -314,6 +319,7 @@ function LootPanelController.InitializeLootPanel()
 	UpdateClassScopeButtonPresentation(lootPanel, (db.settings and db.settings.panelStyle) == "elvui")
 	lootPanel.classScopeButton:SetScript("OnClick", function(self)
 		state.classScopeMode = state.classScopeMode == "current" and "selected" or "current"
+		settings.lootClassScopeMode = state.classScopeMode
 		self:SetChecked(state.classScopeMode == "current")
 		CallDependency("InvalidateLootDataCache")
 		CallDependency("ResetLootPanelScrollPosition")
@@ -433,6 +439,14 @@ end
 function LootPanelController.ToggleLootPanel()
 	LootPanelController.InitializeLootPanel()
 	local lootPanel = GetLootPanel()
+	local state = dependencies.getLootPanelState and dependencies.getLootPanelState() or {}
+	local settings = GetSettings()
+	if settings.lootClassScopeMode == "current" or settings.lootClassScopeMode == "selected" then
+		state.classScopeMode = settings.lootClassScopeMode
+		if lootPanel.classScopeButton then
+			lootPanel.classScopeButton:SetChecked(state.classScopeMode == "current")
+		end
+	end
 	if lootPanel:IsShown() then
 		RecordLootPanelOpenDebug("hide")
 		lootPanel:Hide()
@@ -443,6 +457,8 @@ function LootPanelController.ToggleLootPanel()
 	RecordLootPanelOpenDebug("after_show")
 	CallDependency("PreferCurrentLootPanelSelectionOnOpen")
 	RecordLootPanelOpenDebug("after_prefer_current")
+	CallDependency("InvalidateLootDataCache")
+	RecordLootPanelOpenDebug("after_invalidate_cache")
 	CallDependency("ResetLootPanelSessionState", true)
 	RecordLootPanelOpenDebug("after_reset_session")
 	CallDependency("RefreshLootPanel")

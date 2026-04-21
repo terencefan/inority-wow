@@ -161,16 +161,17 @@ local function ShowDashboardMetricTooltip(owner, rowInfo, columnLabel, metric, s
 			GameTooltip:AddLine(Translate("DASHBOARD_TOOLTIP_NO_COLLECTIBLE_MATCHES", "当前快照中没有匹配的散件来源。"), 0.75, 0.75, 0.78, true)
 		end
 	else
+		GameTooltip:AddLine(Translate("DASHBOARD_TOOLTIP_SET_PIECE_SCOPE_NOTE", "这里的数字只统计当前副本快照里命中的套装掉落件数，不等同于整套外观总进度。"), 0.75, 0.75, 0.78, true)
 		GameTooltip:AddDoubleLine(
-			Translate("DASHBOARD_TOOLTIP_SET_PIECE_PROGRESS", "副本掉落套装物品"),
+			Translate("DASHBOARD_TOOLTIP_SET_PIECE_PROGRESS", "当前副本掉落套装件数"),
 			string.format(Translate("LOOT_SET_PROGRESS", "%d/%d"), tonumber(metric.setCollected) or 0, tonumber(metric.setTotal) or 0),
 			0.82, 0.82, 0.90,
 			0.82, 0.82, 0.82
 		)
 		if scopeClassFile then
-			GameTooltip:AddLine(Translate("DASHBOARD_TOOLTIP_SET_COLLECTION_NOTE", "下方显示这些掉落物对应套装的整套收集进度。"), 0.75, 0.75, 0.78, true)
+			GameTooltip:AddLine(Translate("DASHBOARD_TOOLTIP_SET_COLLECTION_NOTE", "下方显示这些掉落物对应套装的整套收集进度，所以可能和套装页里的 8/9、9/9 不同。"), 0.75, 0.75, 0.78, true)
 		else
-			GameTooltip:AddLine(Translate("DASHBOARD_TOOLTIP_SET_TOTAL_NOTE", "下方显示总计涉及套装的整套收集进度。"), 0.75, 0.75, 0.78, true)
+			GameTooltip:AddLine(Translate("DASHBOARD_TOOLTIP_SET_TOTAL_NOTE", "下方显示总计涉及套装的整套收集进度，所以可能和上面的掉落件数不同。"), 0.75, 0.75, 0.78, true)
 		end
 
 		local entries = BuildSetPieceTooltipGroups(metric)

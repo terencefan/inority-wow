@@ -6,7 +6,7 @@ This folder holds local editor automation for the repository. It is not part of 
 
 ## Key Files
 
-- `tasks.json`: exposes named tasks for the unified check script, LuaLS, luacheck, jscpd, and test entrypoints.
+- `tasks.json`: exposes named tasks for the unified check script, LuaLS, luacheck, optional jscpd, and test entrypoints.
 
 ## Design Constraints
 

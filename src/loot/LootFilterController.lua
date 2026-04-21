@@ -78,7 +78,17 @@ function LootFilterController.GetMountCollectionState(item)
 	end
 
 	if C_MountJournal.GetMountInfoByID then
-		local _, _, _, _, isUsable, _, _, _, _, isCollected = C_MountJournal.GetMountInfoByID(mountID)
+		local mountInfoReturns = { C_MountJournal.GetMountInfoByID(mountID) }
+		local isUsable
+		local isCollected
+		local mountInfo = mountInfoReturns[1]
+		if type(mountInfo) == "table" then
+			isUsable = mountInfo.isUsable
+			isCollected = mountInfo.isCollected
+		else
+			isUsable = mountInfoReturns[5]
+			isCollected = mountInfoReturns[10]
+		end
 		if isCollected ~= nil then
 			return isCollected and "collected" or (isUsable and "not_collected" or "unknown")
 		end
@@ -200,6 +210,18 @@ function LootFilterController.BuildLootTypeFilterMenu(button)
 			checked = not LootFilterController.IsLootTypeFilterActive(),
 			func = function()
 				settings.selectedLootTypes = {}
+				RefreshLootPanel()
+				UpdateLootTypeFilterButtons()
+			end,
+		},
+		{
+			text = dependencies.T("LOOT_FILTER_HIDE_COLLECTED_ITEMS", "隐藏已收集物品"),
+			checked = settings.hideCollectedTransmog and true or false,
+			isNotRadio = true,
+			keepShownOnClick = true,
+			func = function()
+				settings.hideCollectedTransmog = not settings.hideCollectedTransmog
+				settings.hideCollectedTransmogExplicit = true
 				RefreshLootPanel()
 				UpdateLootTypeFilterButtons()
 			end,

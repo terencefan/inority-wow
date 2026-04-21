@@ -31,6 +31,11 @@ local function GetLootItemSourceID(item)
 	return fn and fn(item) or nil
 end
 
+local function GetSetIDsBySourceID(sourceID)
+	local fn = dependencies.GetSetIDsBySourceID
+	return fn and fn(sourceID) or {}
+end
+
 local function GetItemFactBySourceID(sourceID)
 	local fn = dependencies.GetItemFactBySourceID
 	return fn and fn(sourceID) or nil
@@ -160,6 +165,98 @@ local function CopyIndexedSetEntry(setEntry)
 	return copy
 end
 
+local function NormalizeSetIDs(rawSetIDs)
+	if type(rawSetIDs) ~= "table" then
+		return {}
+	end
+
+	local setIDs = {}
+	local seenSetIDs = {}
+	for _, entry in ipairs(rawSetIDs) do
+		local setID
+		if type(entry) == "table" then
+			setID = tonumber(entry.setID or entry.transmogSetID or entry.id)
+		else
+			setID = tonumber(entry)
+		end
+		if setID and setID > 0 and not seenSetIDs[setID] then
+			seenSetIDs[setID] = true
+			setIDs[#setIDs + 1] = setID
+		end
+	end
+
+	return setIDs
+end
+
+local function AppendSetIDs(targetSetIDs, seenSetIDs, rawSetIDs)
+	for _, setID in ipairs(NormalizeSetIDs(rawSetIDs)) do
+		if not seenSetIDs[setID] then
+			seenSetIDs[setID] = true
+			targetSetIDs[#targetSetIDs + 1] = setID
+		end
+	end
+end
+
+local function AppendSetIDsFromSourceID(targetSetIDs, seenSetIDs, sourceID)
+	local numericSourceID = tonumber(sourceID) or 0
+	if numericSourceID <= 0 then
+		return
+	end
+
+	AppendSetIDs(targetSetIDs, seenSetIDs, GetSetIDsBySourceID(numericSourceID))
+	if C_TransmogSets and C_TransmogSets.GetSetsContainingSourceID then
+		AppendSetIDs(targetSetIDs, seenSetIDs, C_TransmogSets.GetSetsContainingSourceID(numericSourceID))
+	end
+end
+
+local function ResolveLootItemAppearanceID(item)
+	local appearanceID = tonumber(item and item.appearanceID) or 0
+	if appearanceID > 0 then
+		return appearanceID
+	end
+
+	local sourceID = GetLootItemSourceID(item)
+	if sourceID then
+		local fact = GetItemFactBySourceID(sourceID)
+		appearanceID = tonumber(fact and fact.appearanceID) or 0
+		if appearanceID > 0 then
+			item.appearanceID = appearanceID
+			return appearanceID
+		end
+	end
+
+	if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
+		local itemInfo = item and (item.link or item.itemID)
+		if itemInfo then
+			local resolvedAppearanceID = tonumber((C_TransmogCollection.GetItemInfo(itemInfo))) or 0
+			if resolvedAppearanceID > 0 then
+				item.appearanceID = resolvedAppearanceID
+				return resolvedAppearanceID
+			end
+		end
+	end
+
+	return nil
+end
+
+function LootSets.GetEquivalentLootItemSetIDs(item)
+	local setIDs = {}
+	local seenSetIDs = {}
+
+	AppendSetIDs(setIDs, seenSetIDs, GetLootItemSetIDs(item))
+
+	local appearanceID = ResolveLootItemAppearanceID(item)
+	if not (appearanceID and C_TransmogCollection and C_TransmogCollection.GetAllAppearanceSources) then
+		return setIDs
+	end
+
+	for _, relatedSourceID in ipairs(C_TransmogCollection.GetAllAppearanceSources(appearanceID) or {}) do
+		AppendSetIDsFromSourceID(setIDs, seenSetIDs, relatedSourceID)
+	end
+
+	return setIDs
+end
+
 function LootSets.IsLootItemIncompleteSetPiece(item)
 	if not item or not C_TransmogSets or not C_TransmogSets.GetSetInfo then
 		return false
@@ -170,7 +267,7 @@ function LootSets.IsLootItemIncompleteSetPiece(item)
 		return false
 	end
 
-	for _, setID in ipairs(GetLootItemSetIDs(item)) do
+	for _, setID in ipairs(LootSets.GetEquivalentLootItemSetIDs(item)) do
 		local setInfo = C_TransmogSets.GetSetInfo(setID)
 		if setInfo then
 			local matchesClass = false
@@ -239,7 +336,7 @@ function LootSets.BuildCurrentInstanceLootSummary(data, sourceContext)
 	for _, encounter in ipairs((data and data.encounters) or {}) do
 		local encounterName = encounter.name or Translate("LOOT_UNKNOWN_BOSS", "未知首领")
 		for _, item in ipairs(encounter.loot or {}) do
-			local setIDs = GetLootItemSetIDs(item)
+			local setIDs = LootSets.GetEquivalentLootItemSetIDs(item)
 			local lootRow = {
 				sourceID = GetLootItemSourceID(item),
 				itemID = item.itemID,

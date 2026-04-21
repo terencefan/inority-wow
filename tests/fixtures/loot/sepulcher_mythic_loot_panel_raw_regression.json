@@ -1,0 +1,43 @@
+{
+  "fixtureVersion": 1,
+  "fixtureKey": "loot_panel_raw.sepulcher.mythic.selected_priest_dk_druid",
+  "source": {
+    "type": "user_debug_capture",
+    "captureHint": "slash_debug_loot_preset",
+    "capturedDate": "2026-04-02"
+  },
+  "selectionContext": {
+    "instanceName": "初诞者圣墓",
+    "instanceType": "raid",
+    "instanceID": 2481,
+    "journalInstanceID": 1195,
+    "difficultyID": 16,
+    "difficultyName": "史诗",
+    "selectedInstanceKey": "current",
+    "selectedClassIDs": [5, 6, 11],
+    "selectedClassFiles": ["PRIEST", "DEATHKNIGHT", "DRUID"]
+  },
+  "rawBossCounts": [
+    { "encounterID": 2458, "encounterName": "警戒卫士", "selectedCount": 0, "allCount": 1 },
+    { "encounterID": 2465, "encounterName": "司垢莱克斯，无穷噬灭者", "selectedCount": 1, "allCount": 1 },
+    { "encounterID": 2470, "encounterName": "圣物匠赛·墨克斯", "selectedCount": 2, "allCount": 2 },
+    { "encounterID": 2459, "encounterName": "道茜歌妮，堕落先知", "selectedCount": 2, "allCount": 2 },
+    { "encounterID": 2460, "encounterName": "死亡万神殿原型体", "selectedCount": 0, "allCount": 0 },
+    { "encounterID": 2461, "encounterName": "首席造物师利许威姆", "selectedCount": 0, "allCount": 1 },
+    { "encounterID": 2463, "encounterName": "回收者黑伦度斯", "selectedCount": 0, "allCount": 0 },
+    { "encounterID": 2469, "encounterName": "安度因·乌瑞恩", "selectedCount": 1, "allCount": 2 },
+    { "encounterID": 2457, "encounterName": "恐惧双王", "selectedCount": 0, "allCount": 0 },
+    { "encounterID": 2467, "encounterName": "莱葛隆", "selectedCount": 0, "allCount": 0 },
+    { "encounterID": 2464, "encounterName": "典狱长", "selectedCount": 1, "allCount": 1 }
+  ],
+  "regressionSignals": {
+    "selectedTotal": 7,
+    "allTotal": 10,
+    "bossesWithImpossibleZeroZero": [
+      "死亡万神殿原型体",
+      "回收者黑伦度斯",
+      "恐惧双王",
+      "莱葛隆"
+    ]
+  }
+}

@@ -138,7 +138,7 @@ function UIChromeController.CreateMinimapButton()
 		if button == "LeftButton" then
 			RecordMinimapClickDebug("left_dashboard", button)
 			if type(dependencies.ToggleDashboardPanel) == "function" then
-				dependencies.ToggleDashboardPanel(IsShiftKeyDown and IsShiftKeyDown() and "party" or "raid")
+				dependencies.ToggleDashboardPanel(IsShiftKeyDown and IsShiftKeyDown() and "pvp" or "raid")
 			end
 			return
 		end

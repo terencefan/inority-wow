@@ -4,8 +4,8 @@ local LootPanelRenderer = addon.LootPanelRenderer or {}
 addon.LootPanelRenderer = LootPanelRenderer
 
 local dependencies = LootPanelRenderer._dependencies or {}
-local MISSING_ITEM_REFRESH_DELAY_SECONDS = 0.3
-local MISSING_ITEM_REFRESH_MAX_ATTEMPTS = 4
+local MISSING_ITEM_REFRESH_DELAY_SECONDS = 3
+local MISSING_ITEM_REFRESH_MAX_ATTEMPTS = 40
 local missingItemRefreshState = LootPanelRenderer._missingItemRefreshState or {
 	selectionKey = nil,
 	attempts = 0,
@@ -113,6 +113,14 @@ end
 
 function LootPanelRenderer.GetMissingItemRefreshAttempts()
 	return tonumber(missingItemRefreshState.attempts) or 0
+end
+
+function LootPanelRenderer.GetMissingItemRefreshDelaySeconds()
+	return MISSING_ITEM_REFRESH_DELAY_SECONDS
+end
+
+function LootPanelRenderer.GetMissingItemRefreshMaxAttempts()
+	return MISSING_ITEM_REFRESH_MAX_ATTEMPTS
 end
 
 function LootPanelRenderer.EvaluateMissingItemRefresh(data)
@@ -577,6 +585,11 @@ local function RenderEmptyEncounterRow(row, itemRowHeight)
 	return itemRowHeight
 end
 
+local function IsEncounterExhaustedForCurrentFilter(lootState)
+	local visibleLoot = type(lootState and lootState.visibleLoot) == "table" and lootState.visibleLoot or {}
+	return #visibleLoot == 0
+end
+
 local function RenderEncounterLootRows(row, visibleLoot, itemRowStep, itemRowHeight)
 	local itemYOffset = 0
 	for itemIndex, item in ipairs(visibleLoot) do
@@ -616,7 +629,8 @@ end
 
 local function BuildEncounterCountText(lootState, encounter)
 	local filteredLoot = type(lootState and lootState.filteredLoot) == "table" and lootState.filteredLoot or {}
-	local totalLoot = #((encounter and encounter.loot) or {})
+	local totalLootItems = type(encounter and encounter.allLoot) == "table" and encounter.allLoot or ((encounter and encounter.loot) or {})
+	local totalLoot = #totalLootItems
 	local collectedCount = 0
 	local totalCollectedCount = 0
 
@@ -627,14 +641,14 @@ local function BuildEncounterCountText(lootState, encounter)
 		end
 	end
 
-	for _, item in ipairs((encounter and encounter.loot) or {}) do
+	for _, item in ipairs(totalLootItems) do
 		local displayState = GetLootItemDisplayCollectionState(item)
 		if displayState == "collected" or displayState == "newly_collected" then
 			totalCollectedCount = totalCollectedCount + 1
 		end
 	end
 
-	local filteredColor = collectedCount >= #filteredLoot and #filteredLoot > 0 and "33ff99" or "ffd200"
+	local filteredColor = collectedCount >= #filteredLoot and "33ff99" or "ffd200"
 	local totalColor = totalCollectedCount >= totalLoot and totalLoot > 0 and "33ff99" or "ffd200"
 
 	return string.format(
@@ -654,7 +668,8 @@ local function ShowEncounterCountTooltip(anchor, encounterName, totalKillCount, 
 	end
 
 	local filteredLoot = type(lootState and lootState.filteredLoot) == "table" and lootState.filteredLoot or {}
-	local totalLoot = #((encounter and encounter.loot) or {})
+	local totalLootItems = type(encounter and encounter.allLoot) == "table" and encounter.allLoot or ((encounter and encounter.loot) or {})
+	local totalLoot = #totalLootItems
 	local collectedCount = 0
 	local totalCollectedCount = 0
 
@@ -665,19 +680,19 @@ local function ShowEncounterCountTooltip(anchor, encounterName, totalKillCount, 
 		end
 	end
 
-	for _, item in ipairs((encounter and encounter.loot) or {}) do
+	for _, item in ipairs(totalLootItems) do
 		local displayState = GetLootItemDisplayCollectionState(item)
 		if displayState == "collected" or displayState == "newly_collected" then
 			totalCollectedCount = totalCollectedCount + 1
 		end
 	end
 
-	local filteredColor = collectedCount >= #filteredLoot and #filteredLoot > 0 and "33ff99" or "ffd200"
+	local filteredColor = collectedCount >= #filteredLoot and "33ff99" or "ffd200"
 	local totalColor = totalCollectedCount >= totalLoot and totalLoot > 0 and "33ff99" or "ffd200"
 
 	GameTooltip:SetOwner(anchor, "ANCHOR_RIGHT")
 	GameTooltip:SetText(tostring(encounterName or T("LOOT_UNKNOWN_BOSS", "未知首领")))
-	GameTooltip:AddLine(string.format("|cff8f8f8fx%d|r: 击杀次数", tonumber(totalKillCount) or 0), 1, 1, 1, true)
+	GameTooltip:AddLine(string.format("|cff8f8f8fx%d|r: 累计击杀次数", tonumber(totalKillCount) or 0), 1, 1, 1, true)
 	GameTooltip:AddLine(string.format("|cff%s%d/%d|r: 当前筛选收集进度", filteredColor, collectedCount, #filteredLoot), 1, 1, 1, true)
 	GameTooltip:AddLine(string.format("|cff%s%d/%d|r: 总收集进度", totalColor, totalCollectedCount, totalLoot), 1, 1, 1, true)
 	GameTooltip:Show()
@@ -693,12 +708,15 @@ local function RenderLootBranch(lootPanel, rows, contentWidth, headerRowStep, it
 		local row = EnsurePanelRow(lootPanel, rows, rowIndex, contentWidth, false)
 		local encounterName = encounter.name or T("LOOT_UNKNOWN_BOSS", "未知首领")
 		local lootState = GetEncounterLootDisplayState(encounter)
+		local encounterExhausted = IsEncounterExhaustedForCurrentFilter(lootState)
 		local encounterKilled = IsEncounterKilledByName(encounterKillState, encounterName)
-			or ((tonumber(encounter.index) or 0) > 0 and (tonumber(encounter.index) or 0) <= progressCount)
 		local totalKillCount = GetEncounterTotalKillCount(selectedInstance, encounterName)
 		local autoCollapsed = GetEncounterAutoCollapsed(encounter, encounterName, lootState, encounterKillState, progressCount, encounterKilled)
 		local cachedCollapsed = GetEncounterCollapseCacheEntry(encounterName)
 		local isCollapsed = LootPanelRenderer.ResolveEncounterCollapsedState(lootPanelState, encounter, lootState, cachedCollapsed, autoCollapsed)
+		if encounterExhausted then
+			isCollapsed = true
+		end
 		local tooltipEncounterName = encounterName
 		local tooltipTotalKillCount = totalKillCount
 		local tooltipLootState = lootState
@@ -707,7 +725,7 @@ local function RenderLootBranch(lootPanel, rows, contentWidth, headerRowStep, it
 		row.header:ClearAllPoints()
 		row.header:SetPoint("TOPLEFT", 0, yOffset)
 		row.header:SetScript("OnClick", function()
-			if lootState.fullyCollected then
+			if encounterExhausted or lootState.fullyCollected then
 				return
 			end
 			ToggleLootEncounterCollapsed(encounter.encounterID, encounterName)
@@ -719,7 +737,7 @@ local function RenderLootBranch(lootPanel, rows, contentWidth, headerRowStep, it
 		row.header:SetScript("OnLeave", function()
 			GameTooltip:Hide()
 		end)
-		UpdateEncounterHeaderVisuals(row.header, lootState.fullyCollected, isCollapsed, encounterKilled)
+		UpdateEncounterHeaderVisuals(row.header, encounterExhausted or lootState.fullyCollected, isCollapsed, encounterKilled)
 		row.header.text:SetText(encounterName)
 		local countText = BuildEncounterCountText(lootState, encounter)
 		if totalKillCount > 0 then

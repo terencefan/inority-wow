@@ -7,8 +7,10 @@ local LootPanelRenderer = assert(addon.LootPanelRenderer)
 LootPanelRenderer.ResetMissingItemRefreshState()
 
 assert(LootPanelRenderer.GetMissingItemRefreshAttempts() == 0, "expected missing-item retry state to start empty")
+assert(LootPanelRenderer.GetMissingItemRefreshDelaySeconds() == 3, "expected missing-item retry delay to be 3 seconds")
+assert(LootPanelRenderer.GetMissingItemRefreshMaxAttempts() == 40, "expected missing-item retry budget to allow longer refresh polling")
 
-for attempt = 1, 4 do
+for attempt = 1, LootPanelRenderer.GetMissingItemRefreshMaxAttempts() do
 	local shouldSchedule = LootPanelRenderer.EvaluateMissingItemRefresh({
 		missingItemData = true,
 		selectionKey = "raid::1",
@@ -22,8 +24,11 @@ do
 		missingItemData = true,
 		selectionKey = "raid::1",
 	})
-	assert(shouldSchedule == false, "expected fifth missing-item observation to stop auto-refresh scheduling")
-	assert(LootPanelRenderer.GetMissingItemRefreshAttempts() == 4, "expected retry count to stay capped")
+	assert(shouldSchedule == false, "expected observations beyond the retry budget to stop auto-refresh scheduling")
+	assert(
+		LootPanelRenderer.GetMissingItemRefreshAttempts() == LootPanelRenderer.GetMissingItemRefreshMaxAttempts(),
+		"expected retry count to stay capped"
+	)
 end
 
 do

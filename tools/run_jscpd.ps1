@@ -6,10 +6,10 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $configPath = Join-Path $repoRoot ".jscpd.json"
-$jscpdCli = Join-Path $repoRoot "node_modules\.bin\jscpd.cmd"
+$jscpdCommand = Get-Command "jscpd" -ErrorAction SilentlyContinue
 
-if (-not (Test-Path -LiteralPath $jscpdCli)) {
-	Write-Error "jscpd is not installed locally. Run 'npm install' first, then rerun this script."
+if (-not $jscpdCommand) {
+	Write-Error "jscpd is not available on PATH. Install it with 'npm install -g jscpd', then rerun this script."
 }
 
 function Invoke-NativeChecked {
@@ -40,7 +40,7 @@ function Invoke-NativeChecked {
 
 Push-Location $repoRoot
 try {
-	Invoke-NativeChecked -FilePath $jscpdCli -ArgumentList @(
+	Invoke-NativeChecked -FilePath $jscpdCommand.Source -ArgumentList @(
 		"--config",
 		$configPath,
 		"src",

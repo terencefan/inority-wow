@@ -7,9 +7,9 @@
 - [主配置面板](./ConfigPanel.md)
   说明 `General / Classes / Loot Types` 三个视图、设置落点，以及“更新团本 / 更新地下城”按钮怎样驱动看板重扫。
 - [掉落面板](./LootPanel.md)
-  说明实例选择、EJ 扫描、掉落过滤、收集状态、套装页和行渲染。
+  统一说明实例选择、EJ 扫描、`loot / sets` 页签、收集状态和“隐藏已收藏”链路。
 - [统计看板](./DashboardPanel.md)
-  说明统一看板四个视图的来源、批量扫描计划、离线摘要读取，以及“团本套装”格子的计算方式。
+  统一说明副本摘要页、职业套装页、PVP 套装页的分发和数据来源。
 - [调试面板](./DebugPanel.md)
   说明 `/img debug ...` 入口、调试段开关、dump 收集和复制输出路径。
 - [存储分层](./StorageArchitecture.md)

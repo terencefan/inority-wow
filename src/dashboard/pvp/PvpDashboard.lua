@@ -4,7 +4,8 @@ local PvpDashboard = addon.PvpDashboard or {}
 addon.PvpDashboard = PvpDashboard
 
 local dependencies = {}
-local PVP_DASHBOARD_RULES_VERSION = 1
+local PVP_DASHBOARD_RULES_VERSION = 2
+local PVP_DASHBOARD_SCAN_RULES_VERSION = 1
 
 local EXPANSION_NAMES = {
 	[1] = "燃烧的远征",
@@ -58,6 +59,12 @@ local TRACK_DISPLAY_ORDER = {
 	"honor",
 }
 
+local PVP_SEASON_REDEMPTION_HINTS = {
+	[1] = "第1赛季 T4 兑换",
+	[2] = "第2赛季 T5 兑换",
+	[3] = "第3赛季 T6 兑换",
+}
+
 local BLACKLIST_TOKENS = {
 	"游戏商城",
 	"商栈",
@@ -88,6 +95,25 @@ end
 local function GetClassDisplayName(classFile)
 	local fn = dependencies.getClassDisplayName
 	return fn and fn(classFile) or tostring(classFile or "")
+end
+
+local function GetDB()
+	local fn = dependencies.getDB
+	return fn and fn() or nil
+end
+
+local function RefreshDashboardPanel()
+	local fn = dependencies.refreshDashboardPanel
+	if fn then
+		fn()
+	end
+end
+
+local function PrintMessage(message)
+	local fn = dependencies.Print
+	if fn then
+		fn(message)
+	end
 end
 
 local function GetPvpDashboardClassFiles()
@@ -166,6 +192,15 @@ local function BuildSeasonTierTag(rowInfo)
 	return Translate("PVP_DASHBOARD_UNKNOWN_SEASON_SHORT", "季")
 end
 
+local function GetSeasonRedemptionHint(rowInfo)
+	local seasonStartLocal = tonumber(rowInfo and rowInfo.seasonStartLocal)
+	local seasonEndLocal = tonumber(rowInfo and rowInfo.seasonEndLocal) or seasonStartLocal
+	if not seasonStartLocal or seasonStartLocal ~= seasonEndLocal then
+		return nil
+	end
+	return PVP_SEASON_REDEMPTION_HINTS[seasonStartLocal]
+end
+
 local function BuildBucket()
 	return {
 		collectedPieces = 0,
@@ -178,7 +213,11 @@ local function BuildBucket()
 end
 
 local function AddSetToBucket(bucket, setInfo, track)
-	local collected, total = GetSetProgress(setInfo.setID)
+	local collected = tonumber(setInfo and (setInfo.collectedPieces or setInfo.collected)) or nil
+	local total = tonumber(setInfo and (setInfo.totalPieces or setInfo.total)) or nil
+	if collected == nil or total == nil then
+		collected, total = GetSetProgress(setInfo.setID)
+	end
 	collected = tonumber(collected) or 0
 	total = tonumber(total) or 0
 	bucket.collectedPieces = bucket.collectedPieces + collected
@@ -224,6 +263,13 @@ local function GetTrackKey(setInfo)
 	return nil
 end
 
+function PvpDashboard.StartScan()
+	PvpDashboard.InvalidateCache()
+	RefreshDashboardPanel()
+	PrintMessage(Translate("PVP_DASHBOARD_SCAN_COMPLETE", "PVP 套装页已刷新。"))
+	return true
+end
+
 local function BuildTooltipTrackSummary(trackCounts)
 	local parts = {}
 	for _, trackKey in ipairs({ "aspirant", "combatant", "gladiator", "elite", "honor" }) do
@@ -251,24 +297,36 @@ function PvpDashboard.BuildData()
 	local classFiles = GetPvpDashboardClassFiles()
 	local classSignature = table.concat(classFiles, ",")
 	local cache = PvpDashboard.cache
-	if cache and cache.version == PVP_DASHBOARD_RULES_VERSION and cache.classSignature == classSignature then
+	if cache
+		and cache.version == PVP_DASHBOARD_RULES_VERSION
+		and cache.classSignature == classSignature then
 		return cache.data
 	end
 
 	if not (C_TransmogSets and C_TransmogSets.GetAllSets) then
 		return {
 			message = Translate("PVP_DASHBOARD_UNAVAILABLE", "当前客户端无法读取 PVP 套装数据。"),
-			classFiles = {},
+			classFiles = classFiles,
 			expansions = {},
 		}
 	end
 
 	local expansionsByID = {}
-	local allSets = C_TransmogSets.GetAllSets() or {}
+	local matchedSetCount = 0
 
-	for _, setInfo in ipairs(allSets) do
-		local trackKey = GetTrackKey(setInfo)
+	for _, rawSetInfo in ipairs(C_TransmogSets.GetAllSets() or {}) do
+		local trackKey = GetTrackKey(rawSetInfo)
 		if trackKey then
+			matchedSetCount = matchedSetCount + 1
+			local setInfo = {
+				setID = tonumber(rawSetInfo.setID) or 0,
+				name = rawSetInfo.name,
+				label = rawSetInfo.label,
+				description = rawSetInfo.description,
+				expansionID = tonumber(rawSetInfo.expansionID) or 0,
+				classMask = tonumber(rawSetInfo.classMask) or 0,
+				trackKey = trackKey,
+			}
 			local expansionID = tonumber(setInfo.expansionID) or 0
 			local expansionName = EXPANSION_NAMES[expansionID] or string.format("%s %d", Translate("PVP_DASHBOARD_EXPANSION", "资料片"), expansionID)
 			local expansionEntry = expansionsByID[expansionID]
@@ -297,6 +355,7 @@ function PvpDashboard.BuildData()
 					seasonEndLocal = seasonEndLocal,
 					seasonStartGlobal = seasonStartGlobal,
 					seasonEndGlobal = seasonEndGlobal,
+					redemptionHint = nil,
 					byClass = {},
 					trackRows = {},
 					total = BuildBucket(),
@@ -341,6 +400,7 @@ function PvpDashboard.BuildData()
 		for _, rowInfo in pairs(expansionEntry.rowsByKey) do
 			rowInfo.tierTag = BuildSeasonTierTag(rowInfo)
 			rowInfo.displayLabel = BuildSeasonDisplayLabel(rowInfo)
+			rowInfo.redemptionHint = GetSeasonRedemptionHint(rowInfo)
 			rowInfo.trackRowsOrdered = {}
 			for _, trackKey in ipairs(TRACK_DISPLAY_ORDER) do
 				local trackRow = rowInfo.trackRows and rowInfo.trackRows[trackKey] or nil
@@ -371,7 +431,7 @@ function PvpDashboard.BuildData()
 	local data = {
 		classFiles = classFiles,
 		expansions = expansions,
-		message = #expansions == 0 and Translate("PVP_DASHBOARD_EMPTY", "未找到可统计的 PVP 套装。") or nil,
+		message = (matchedSetCount == 0 or #expansions == 0) and Translate("PVP_DASHBOARD_EMPTY", "未找到可统计的 PVP 套装。") or nil,
 	}
 
 	PvpDashboard.cache = {
@@ -488,6 +548,20 @@ local function ShowMetricTooltip(self)
 			GameTooltip:AddLine(name, 0.90, 0.90, 0.90, true)
 		end
 	end
+	GameTooltip:Show()
+end
+
+local function ShowSeasonRowTooltip(self)
+	local tooltipData = self and self.tooltipData or nil
+	local redemptionHint = tooltipData and tooltipData.redemptionHint or nil
+	if not redemptionHint or redemptionHint == "" then
+		return
+	end
+
+	GameTooltip:SetOwner(self, "ANCHOR_TOP")
+	GameTooltip:ClearLines()
+	GameTooltip:AddLine(tostring(tooltipData.title or Translate("PVP_DASHBOARD_TITLE", "PVP 幻化统计")), 1, 0.82, 0)
+	GameTooltip:AddLine(tostring(redemptionHint), 1, 1, 1, true)
 	GameTooltip:Show()
 end
 
@@ -703,8 +777,14 @@ function PvpDashboard.RenderContent(owner, content, scrollFrame)
 				seasonRow.label:SetTextColor(0.92, 0.92, 0.92)
 				seasonRow.difficultyLabel:Hide()
 				seasonRow:SetScript("OnMouseUp", nil)
-				seasonRow:SetScript("OnEnter", nil)
-				seasonRow:SetScript("OnLeave", nil)
+				seasonRow.tooltipData = {
+					title = tostring(rowInfo.displayLabel or rowInfo.label or "Season"),
+					redemptionHint = GetSeasonRedemptionHint(rowInfo),
+				}
+				seasonRow:SetScript("OnEnter", ShowSeasonRowTooltip)
+				seasonRow:SetScript("OnLeave", function()
+					GameTooltip:Hide()
+				end)
 				seasonRow:Show()
 
 				for _, cell in ipairs(seasonRow.cells or {}) do
@@ -734,8 +814,10 @@ function PvpDashboard.RenderContent(owner, content, scrollFrame)
 					subRow.difficultyLabel:SetFontObject(compact and GameFontDisableSmall or GameFontHighlightSmall)
 					ApplyTrackLabelColor(subRow.difficultyLabel, trackRow.trackKey)
 					subRow:SetScript("OnMouseUp", nil)
+					subRow.tooltipData = seasonRow.tooltipData
 					subRow:SetScript("OnEnter", function()
 						seasonRow.background:SetColorTexture(0.20, 0.18, 0.08, 0.82)
+						ShowSeasonRowTooltip(subRow)
 					end)
 					subRow:SetScript("OnLeave", function()
 						if useEvenStripe then
@@ -743,6 +825,7 @@ function PvpDashboard.RenderContent(owner, content, scrollFrame)
 						else
 							seasonRow.background:SetColorTexture(0.13, 0.13, 0.16, 0.72)
 						end
+						GameTooltip:Hide()
 					end)
 
 					cellLeft = difficultyColumnWidth

@@ -31,6 +31,64 @@ local function BuildLootPanelInstanceSelections()
 	return {}
 end
 
+local function CopyPositiveCountTable(source)
+	local copy = {}
+	for key, value in pairs(source or {}) do
+		local normalizedValue = tonumber(value)
+		if key and normalizedValue and normalizedValue > 0 then
+			copy[tostring(key)] = math.floor(normalizedValue)
+		end
+	end
+	return copy
+end
+
+local function GetNowMinute()
+	return math.floor(time() / 60)
+end
+
+local function FindLootPanelSelectionByKey(selectedInstanceKey)
+	if not selectedInstanceKey or selectedInstanceKey == "" then
+		return nil
+	end
+	for _, selection in ipairs(BuildLootPanelInstanceSelections()) do
+		if selection and selection.key == selectedInstanceKey then
+			return selection
+		end
+	end
+	return nil
+end
+
+local function GetSelectionBossKillCycleInfo(selectedInstanceKey)
+	if selectedInstanceKey == nil or selectedInstanceKey == "" or selectedInstanceKey == "current" then
+		if not GetInstanceInfo then
+			return nil
+		end
+		local instanceName, instanceType, difficultyID, _, _, _, _, instanceID = GetInstanceInfo()
+		if not instanceName or instanceName == "" or instanceType == "none" then
+			return nil
+		end
+		return EncounterState.GetCurrentCharacterBossKillCycleInfo(instanceName, instanceID, difficultyID)
+	end
+
+	local selection = FindLootPanelSelectionByKey(selectedInstanceKey)
+	if not selection then
+		return nil
+	end
+
+	return EncounterState.GetCurrentCharacterBossKillCycleInfo(
+		selection.instanceName,
+		selection.instanceID,
+		selection.difficultyID
+	)
+end
+
+local function IsLootCollapseCacheKeyForSelection(cacheKey, selectionKey)
+	if type(cacheKey) ~= "string" or type(selectionKey) ~= "string" or selectionKey == "" then
+		return false
+	end
+	return cacheKey == selectionKey or cacheKey:find("^" .. selectionKey:gsub("([^%w])", "%%%1") .. "::", 1) ~= nil
+end
+
 function EncounterState.NormalizeEncounterName(name)
 	local normalized = tostring(name or "")
 	normalized = normalized:gsub("|c%x%x%x%x%x%x%x%x", "")
@@ -67,7 +125,7 @@ function EncounterState.SetEncounterKillState(state, bossName, isKilled, encount
 end
 
 function EncounterState.IsEncounterKilledByName(state, encounterName)
-	if not encounterName or encounterName == "" then
+	if type(state) ~= "table" or not encounterName or encounterName == "" then
 		return false
 	end
 	if state.byName[encounterName] ~= nil then
@@ -77,15 +135,6 @@ function EncounterState.IsEncounterKilledByName(state, encounterName)
 	local normalizedName = EncounterState.NormalizeEncounterName(encounterName)
 	if normalizedName ~= "" and state.byNormalizedName[normalizedName] ~= nil then
 		return state.byNormalizedName[normalizedName] and true or false
-	end
-
-	for candidateName, isKilled in pairs(state.byName) do
-		local candidateNormalized = EncounterState.NormalizeEncounterName(candidateName)
-		if candidateNormalized ~= "" and normalizedName ~= "" then
-			if candidateNormalized:find(normalizedName, 1, true) or normalizedName:find(candidateNormalized, 1, true) then
-				return isKilled and true or false
-			end
-		end
 	end
 
 	return false
@@ -216,7 +265,6 @@ end
 
 function EncounterState.NormalizeBossKillCountsForCharacter(existingCounts, lockouts, capturedAt)
 	local normalizedCounts = {}
-	local nowMinute = math.floor((tonumber(capturedAt) or time()) / 60)
 	local activeByScope = {}
 	for _, lockout in ipairs(lockouts or {}) do
 		local scopeKey = EncounterState.GetBossKillCountScopeKey(lockout.name, lockout.difficultyID)
@@ -228,35 +276,14 @@ function EncounterState.NormalizeBossKillCountsForCharacter(existingCounts, lock
 
 	for scopeKey, counts in pairs(existingCounts or {}) do
 		if type(scopeKey) == "string" and type(counts) == "table" then
-			local cycleResetAtMinute = tonumber(counts.cycleResetAtMinute) or 0
 			local activeCycle = activeByScope[scopeKey]
-			if activeCycle and activeCycle.token then
-				local entry = {
-					byName = {},
-					byNormalizedName = {},
-					cycleToken = activeCycle.token,
-					cycleResetAtMinute = activeCycle.resetAtMinute,
-					lastUpdatedAt = tonumber(counts.lastUpdatedAt) or tonumber(capturedAt) or time(),
-				}
-				local keepExisting = counts.cycleToken == activeCycle.token or counts.cycleToken == nil
-				if keepExisting then
-					for encounterName, killCount in pairs(counts.byName or {}) do
-						local normalizedCount = tonumber(killCount)
-						if encounterName and normalizedCount and normalizedCount > 0 then
-							entry.byName[tostring(encounterName)] = math.floor(normalizedCount)
-						end
-					end
-					for normalizedName, killCount in pairs(counts.byNormalizedName or {}) do
-						local normalizedCount = tonumber(killCount)
-						if normalizedName and normalizedCount and normalizedCount > 0 then
-							entry.byNormalizedName[tostring(normalizedName)] = math.floor(normalizedCount)
-						end
-					end
-				end
-				normalizedCounts[scopeKey] = entry
-			elseif cycleResetAtMinute <= 0 or cycleResetAtMinute > nowMinute then
-				normalizedCounts[scopeKey] = counts
-			end
+			normalizedCounts[scopeKey] = {
+				byName = CopyPositiveCountTable(counts.byName),
+				byNormalizedName = CopyPositiveCountTable(counts.byNormalizedName),
+				cycleToken = activeCycle and activeCycle.token or (type(counts.cycleToken) == "string" and counts.cycleToken or nil),
+				cycleResetAtMinute = activeCycle and activeCycle.resetAtMinute or (tonumber(counts.cycleResetAtMinute) or 0),
+				lastUpdatedAt = tonumber(counts.lastUpdatedAt) or tonumber(capturedAt) or time(),
+			}
 		end
 	end
 
@@ -265,7 +292,7 @@ end
 
 function EncounterState.PruneExpiredBossKillCaches()
 	local db = GetDB()
-	local nowMinute = math.floor(time() / 60)
+	local nowMinute = GetNowMinute()
 	if db and type(db.bossKillCache) == "table" then
 		for cacheKey, entry in pairs(db.bossKillCache) do
 			if type(entry) ~= "table" then
@@ -274,6 +301,18 @@ function EncounterState.PruneExpiredBossKillCaches()
 				local cycleResetAtMinute = tonumber(entry.cycleResetAtMinute) or 0
 				if cycleResetAtMinute > 0 and cycleResetAtMinute <= nowMinute then
 					db.bossKillCache[cacheKey] = nil
+				end
+			end
+		end
+	end
+	if db and type(db.lootCollapseCache) == "table" then
+		for cacheKey, entry in pairs(db.lootCollapseCache) do
+			if type(entry) ~= "table" then
+				db.lootCollapseCache[cacheKey] = nil
+			else
+				local cycleResetAtMinute = tonumber(entry.cycleResetAtMinute) or 0
+				if cycleResetAtMinute > 0 and cycleResetAtMinute <= nowMinute then
+					db.lootCollapseCache[cacheKey] = nil
 				end
 			end
 		end
@@ -338,7 +377,16 @@ function EncounterState.ClearTransientDungeonRunState()
 			end
 		end
 		for cacheKey in pairs(db.lootCollapseCache) do
-			if type(cacheKey) == "string" and (partySelectionKeys[cacheKey] or cacheKey:find("::nocycle$", 1)) then
+			local isPartySelectionCache = false
+			if type(cacheKey) == "string" then
+				for selectionKey in pairs(partySelectionKeys) do
+					if IsLootCollapseCacheKeyForSelection(cacheKey, selectionKey) then
+						isPartySelectionCache = true
+						break
+					end
+				end
+			end
+			if type(cacheKey) == "string" and (isPartySelectionCache or cacheKey:find("::nocycle$", 1)) then
 				db.lootCollapseCache[cacheKey] = nil
 			end
 		end
@@ -363,6 +411,10 @@ end
 
 function EncounterState.GetLootCollapseCacheKey(selectedInstanceKey)
 	if selectedInstanceKey and selectedInstanceKey ~= "current" then
+		local cycleInfo = GetSelectionBossKillCycleInfo(selectedInstanceKey)
+		if cycleInfo and cycleInfo.token then
+			return string.format("%s::%s", tostring(selectedInstanceKey), tostring(cycleInfo.token))
+		end
 		return selectedInstanceKey
 	end
 	return EncounterState.GetCurrentBossKillCacheKey()
@@ -376,6 +428,11 @@ function EncounterState.GetEncounterCollapseCacheEntry(encounterName, selectedIn
 	end
 	local cache = db.lootCollapseCache and db.lootCollapseCache[cacheKey]
 	if not cache then
+		return nil
+	end
+	local cycleResetAtMinute = tonumber(cache.cycleResetAtMinute) or 0
+	if cycleResetAtMinute > 0 and cycleResetAtMinute <= GetNowMinute() then
+		db.lootCollapseCache[cacheKey] = nil
 		return nil
 	end
 	if cache.byName and cache.byName[encounterName] ~= nil then
@@ -394,11 +451,14 @@ function EncounterState.SetEncounterCollapseCacheEntry(encounterName, collapsed,
 	if not cacheKey or not encounterName or encounterName == "" or not db then
 		return
 	end
+	local cycleInfo = GetSelectionBossKillCycleInfo(selectedInstanceKey)
 	db.lootCollapseCache = db.lootCollapseCache or {}
 	local cache = db.lootCollapseCache[cacheKey] or {
 		byName = {},
 		byNormalizedName = {},
 	}
+	cache.cycleToken = cycleInfo and cycleInfo.token or cache.cycleToken
+	cache.cycleResetAtMinute = cycleInfo and cycleInfo.resetAtMinute or cache.cycleResetAtMinute
 	cache.byName[encounterName] = collapsed and true or false
 	local normalizedName = EncounterState.NormalizeEncounterName(encounterName)
 	if normalizedName ~= "" then
@@ -463,12 +523,6 @@ function EncounterState.RecordEncounterKill(encounterName)
 				byName = {},
 				byNormalizedName = {},
 			}
-			if cycleInfo and counts.cycleToken and counts.cycleToken ~= cycleInfo.token then
-				counts = {
-					byName = {},
-					byNormalizedName = {},
-				}
-			end
 			counts.cycleToken = cycleInfo and cycleInfo.token or counts.cycleToken
 			counts.cycleResetAtMinute = cycleInfo and cycleInfo.resetAtMinute or counts.cycleResetAtMinute
 			counts.lastUpdatedAt = time()

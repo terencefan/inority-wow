@@ -256,6 +256,12 @@ function CoreFeatureWiring.Wire(config)
 		UpdateResizeButtonTexture = config.UpdateResizeButtonTexture,
 		ApplyElvUISkin = config.ApplyElvUISkin,
 		StartDashboardBulkScan = outputs.StartDashboardBulkScan,
+		StartPvpDashboardScan = function()
+			if addon.PvpDashboard and addon.PvpDashboard.StartScan then
+				return addon.PvpDashboard.StartScan()
+			end
+			return false
+		end,
 	})
 
 	outputs.UpdateDashboardPanelLayout = DashboardPanelController.UpdateDashboardPanelLayout
@@ -348,6 +354,7 @@ function CoreFeatureWiring.Wire(config)
 		LootPanelController.Configure({
 			T = config.T,
 			getDB = config.getDB,
+			getSettings = config.getSettings,
 			getLootPanel = config.getLootPanel,
 			setLootPanel = config.setLootPanel,
 			getPanel = config.getPanel,

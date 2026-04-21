@@ -11,6 +11,7 @@
 - `LootPanelRows.lua`: 共享 row widget 创建、重置、高亮、收藏状态图标。
 - `LootFilterController.lua`: 职业/物品类型等过滤状态管理。
 - `sets/`: 当前副本套装摘要所需的套装计算逻辑。
+- `docs/DropPanelCollectedVisibilityFlow.md`: 掉落面板从采集到“隐藏已收藏”判定的专项链路文档。
 
 ## Runtime Flow
 

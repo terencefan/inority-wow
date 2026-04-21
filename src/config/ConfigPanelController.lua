@@ -515,14 +515,17 @@ function ConfigPanelController.InitializePanel()
 	_G["MogTrackerPanelCheckbox1Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_TRANSMOG", "Hide collected appearances"))
 	_G["MogTrackerPanelCheckbox2Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_MOUNTS", "Hide collected mounts"))
 	_G["MogTrackerPanelCheckbox3Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_PETS", "Hide collected pets"))
-	settings.hideCollectedTransmog = true
-	MogTrackerPanelCheckbox1:SetChecked(true)
+	MogTrackerPanelCheckbox1:SetChecked(settings.hideCollectedTransmog)
 	MogTrackerPanelCheckbox2:SetChecked(settings.hideCollectedMounts)
 	MogTrackerPanelCheckbox3:SetChecked(settings.hideCollectedPets)
 	MogTrackerPanelStyleDropdownButton:SetText(dependencies.GetPanelStyleLabel(settings.panelStyle))
 
-	MogTrackerPanelCheckbox1:Disable()
-	MogTrackerPanelCheckbox1:SetScript("OnClick", nil)
+	MogTrackerPanelCheckbox1:Enable()
+	MogTrackerPanelCheckbox1:SetScript("OnClick", function(self)
+		settings.hideCollectedTransmog = self:GetChecked() and true or false
+		settings.hideCollectedTransmogExplicit = true
+		RefreshLootPanel()
+	end)
 	MogTrackerPanelCheckbox2:SetScript("OnClick", function(self)
 		settings.hideCollectedMounts = self:GetChecked() and true or false
 		RefreshLootPanel()

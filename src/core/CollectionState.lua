@@ -71,6 +71,75 @@ local function SetEncounterKillState(state, bossName, isKilled, encounterIndex)
 	end
 end
 
+local function GetNormalizedAppearanceSourceInfo(sourceID)
+	sourceID = tonumber(sourceID) or 0
+	if sourceID <= 0 or not C_TransmogCollection then
+		return nil
+	end
+
+	if C_TransmogCollection.GetSourceInfo then
+		local sourceInfo = C_TransmogCollection.GetSourceInfo(sourceID)
+		if type(sourceInfo) == "table" then
+			sourceInfo.isCollected = sourceInfo.isCollected
+				or sourceInfo.collected
+				or sourceInfo.sourceIsCollected
+				or false
+			if sourceInfo.isValidSourceForPlayer == nil then
+				sourceInfo.isValidSourceForPlayer = sourceInfo.isValidForPlayer
+					or sourceInfo.validForPlayer
+					or sourceInfo.usable
+			end
+			return sourceInfo
+		end
+	end
+
+	if C_TransmogCollection.GetAppearanceSourceInfo then
+		local categoryID, visualID, canEnchant, icon, isCollected, itemLink, transmogLink, unknown1, itemSubTypeIndex =
+			C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
+		if categoryID ~= nil or visualID ~= nil or isCollected ~= nil or itemLink ~= nil then
+			return {
+				categoryID = categoryID,
+				visualID = visualID,
+				canEnchant = canEnchant,
+				icon = icon,
+				isCollected = isCollected and true or false,
+				itemLink = itemLink,
+				transmogLink = transmogLink,
+				unknown1 = unknown1,
+				itemSubTypeIndex = itemSubTypeIndex,
+			}
+		end
+	end
+
+	return nil
+end
+
+local function GetNormalizedAppearanceInfoBySource(sourceID)
+	sourceID = tonumber(sourceID) or 0
+	if sourceID <= 0 or not (C_TransmogCollection and C_TransmogCollection.GetAppearanceInfoBySource) then
+		return nil
+	end
+
+	local appearanceInfo = C_TransmogCollection.GetAppearanceInfoBySource(sourceID)
+	if type(appearanceInfo) == "table" then
+		appearanceInfo.appearanceIsCollected = appearanceInfo.appearanceIsCollected
+			or appearanceInfo.collected
+			or appearanceInfo.isCollected
+			or false
+		if appearanceInfo.isAnySourceValidForPlayer == nil then
+			appearanceInfo.isAnySourceValidForPlayer = appearanceInfo.anySourceValidForPlayer
+				or appearanceInfo.isValidForPlayer
+		end
+		if appearanceInfo.appearanceIsUsable == nil then
+			appearanceInfo.appearanceIsUsable = appearanceInfo.usable
+				or appearanceInfo.isUsable
+		end
+		return appearanceInfo
+	end
+
+	return nil
+end
+
 function CollectionState.ResolveLootItemCollectionState(item, includeDebug)
 	local itemInfo = item and (item.link or item.itemID)
 	local collectSameAppearance = true
@@ -139,8 +208,8 @@ function CollectionState.ResolveLootItemCollectionState(item, includeDebug)
 		debugInfo.factAppearanceID = cachedFact and cachedFact.appearanceID or nil
 		debugInfo.factSourceID = cachedFact and cachedFact.sourceID or nil
 	end
-	if sourceID and C_TransmogCollection.GetAppearanceSourceInfo then
-		local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
+	if sourceID then
+		local sourceInfo = GetNormalizedAppearanceSourceInfo(sourceID)
 		if debugInfo then
 			debugInfo.sourceCollected = sourceInfo and sourceInfo.isCollected and true or false
 			debugInfo.sourceValid = sourceInfo and sourceInfo.isValidSourceForPlayer and true or false
@@ -159,14 +228,14 @@ function CollectionState.ResolveLootItemCollectionState(item, includeDebug)
 		end
 	end
 
-	if collectSameAppearance and appearanceID and C_TransmogCollection.GetAllAppearanceSources and C_TransmogCollection.GetAppearanceSourceInfo then
+	if collectSameAppearance and appearanceID and C_TransmogCollection.GetAllAppearanceSources then
 		local sourceIDs = C_TransmogCollection.GetAllAppearanceSources(appearanceID)
 		if type(sourceIDs) == "table" and #sourceIDs > 0 then
 			local sawUsableSource = false
 			local collectedSourceCount = 0
 			local collectedSourceIDs = {}
 			for _, relatedSourceID in ipairs(sourceIDs) do
-				local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(relatedSourceID)
+				local sourceInfo = GetNormalizedAppearanceSourceInfo(relatedSourceID)
 				if sourceInfo then
 					if sourceInfo.isCollected then
 						collectedSourceCount = collectedSourceCount + 1
@@ -198,8 +267,8 @@ function CollectionState.ResolveLootItemCollectionState(item, includeDebug)
 		end
 	end
 
-	if collectSameAppearance and sourceID and C_TransmogCollection.GetAppearanceInfoBySource then
-		local appearanceInfo = C_TransmogCollection.GetAppearanceInfoBySource(sourceID)
+	if collectSameAppearance and sourceID then
+		local appearanceInfo = GetNormalizedAppearanceInfoBySource(sourceID)
 		if debugInfo then
 			debugInfo.appearanceCollected = appearanceInfo and appearanceInfo.appearanceIsCollected and true or false
 			debugInfo.appearanceUsable = appearanceInfo and appearanceInfo.appearanceIsUsable and true or false
@@ -226,8 +295,8 @@ function CollectionState.ResolveLootItemCollectionState(item, includeDebug)
 		end
 	end
 
-	if sourceID and C_TransmogCollection.GetAppearanceSourceInfo then
-		local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
+	if sourceID then
+		local sourceInfo = GetNormalizedAppearanceSourceInfo(sourceID)
 		if sourceInfo and sourceInfo.isValidSourceForPlayer then
 			return ReturnState("not_collected", "fallback_source_valid")
 		end
@@ -304,14 +373,13 @@ function CollectionState.LootItemMatchesTypeFilter(item)
 
 	local displayState = CollectionState.GetLootItemDisplayCollectionState(item)
 	local isCollectedLike = displayState == "collected" or displayState == "newly_collected"
-	local hideCollectedTransmog = true
+	if item.typeKey ~= "MOUNT" and item.typeKey ~= "PET" and settings.hideCollectedTransmog and isCollectedLike then
+		return false
+	end
 	if item.typeKey == "MOUNT" and settings.hideCollectedMounts and isCollectedLike then
 		return false
 	end
 	if item.typeKey == "PET" and settings.hideCollectedPets and isCollectedLike then
-		return false
-	end
-	if hideCollectedTransmog and item.typeKey ~= "MOUNT" and item.typeKey ~= "PET" and displayState == "collected" then
 		return false
 	end
 	return true

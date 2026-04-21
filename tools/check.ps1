@@ -1,6 +1,5 @@
 param(
 	[switch]$SkipFormat,
-	[switch]$SkipDuplication,
 	[switch]$SkipLuaLS,
 	[switch]$FailOnWarnings
 )
@@ -59,15 +58,6 @@ try {
 			"Bypass",
 			"-File",
 			(Join-Path $PSScriptRoot "run_luals_check.ps1")
-		)
-	}
-
-	if (-not $SkipDuplication) {
-		Invoke-NativeChecked -FilePath "powershell" -ArgumentList @(
-			"-ExecutionPolicy",
-			"Bypass",
-			"-File",
-			(Join-Path $PSScriptRoot "run_jscpd.ps1")
 		)
 	}
 

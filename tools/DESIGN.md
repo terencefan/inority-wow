@@ -7,7 +7,8 @@ This folder contains local automation scripts for validation, formatting, lintin
 ## Key Files
 
 - `check.ps1`: unified project validation entrypoint.
-- `run_luacheck.ps1`, `run_luals_check.ps1`, `run_stylua.ps1`, `run_jscpd.ps1`: individual quality-tool wrappers.
+- `run_luacheck.ps1`, `run_luals_check.ps1`, `run_stylua.ps1`: default quality-tool wrappers used by the unified check flow.
+- `run_jscpd.ps1`: optional duplication-check wrapper; the expected install path is global `npm install -g jscpd`, and the script resolves it from `PATH`.
 - `run_lua_tests.ps1`: Lua test/validator runner for `tests/unit` and `tests/validation`.
 - `fixtures/*.lua`: captured local mock data that validators can reuse when a real in-game bug already produced a trustworthy debug dump.
 

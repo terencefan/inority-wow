@@ -200,6 +200,27 @@
 - Repair pattern: snapshot the relevant baseline when the panel opens or the user manually refreshes, keep event-driven changes as visual markers during that session, and only commit automatic collapse/removal on the next open or manual refresh.
 - Preventative check: for event-driven WoW panels, ask whether the user expects mid-session state to stay stable; if yes, add a session baseline layer before wiring runtime events straight into filtering or auto-collapse.
 
+### Blizzard API shape drift needs normalized wrappers
+
+- Symptom: collection-dependent UI keeps showing already collected items because the collection state resolver falls back to `unknown`.
+- Root cause: addon code treats a Blizzard API as returning a table/object when the active client path returns multiple positional values, or vice versa.
+- Repair pattern: normalize unstable API shapes behind one helper that prefers the modern API and converts older multi-return signatures into the same table contract before downstream logic reads fields.
+- Preventative check: whenever using a WoW API that exists in both legacy and modern forms, validate the exact return shape in the current client and add a mock covering both shapes before relying on field access like `sourceInfo.isCollected`.
+
+### Collection-state wrappers must normalize equivalent field names
+
+- Symptom: some already collected appearances still show in the loot panel while others hide correctly under the same filter.
+- Root cause: Blizzard transmog helpers returned modern table results with equivalent fields such as `collected`, `isValidForPlayer`, or `usable`, but the addon only checked one legacy field spelling like `isCollected` or `appearanceIsCollected`.
+- Repair pattern: normalize journal/transmog tables into one internal contract as soon as they cross the wrapper boundary, including equivalent collected and usability field names.
+- Preventative check: when a collection/filter decision depends on a Blizzard table result, add a mock for at least one alternate-but-equivalent field spelling and assert the hide-collected path still behaves the same.
+
+### Mount journal collection checks must normalize table vs tuple results
+
+- Symptom: collected mounts still appear in the loot panel even with `Hide collected mounts` enabled.
+- Root cause: `C_MountJournal.GetMountInfoByID` returned a table-shaped result on the active client path, but the addon only read the legacy positional return slots, so `isCollected` stayed `nil` and the state degraded to `unknown`.
+- Repair pattern: capture mount-journal results once, detect whether the first return is a table, and normalize both table and tuple forms before converting to the addon’s `collected/not_collected/unknown` state.
+- Preventative check: whenever a Blizzard journal/helper API feeds a hide-filter or collection-state decision, add a mock that returns the modern table shape and assert the filter still hides collected entries.
+
 ### Compute-layer changes need mock-path validation
 
 - Symptom: a compute/filter refactor passes syntax checks but still crashes at runtime or returns the wrong scope because helper reachability or data-shape assumptions were never exercised.
@@ -263,6 +284,13 @@
 - Repair pattern: detect suspicious all-zero loot scans separately from missing-item resolution and schedule a small bounded delayed refresh budget for that cold-start state.
 - Preventative check: when a WoW EJ panel can render encounters before loot data is stable, log both `totalLoot` and whether the journal reports the instance has loot; if encounters exist but every filter run reports zero, treat it as a retryable warmup condition instead of a final empty result.
 
+### Encounter-token loot calls must use encounterID, not journal index
+
+- Symptom: loot rows attach to the wrong boss or some bosses show impossible `0/0` counts even though the selected raid and difficulty are correct.
+- Root cause: the scan loop passed the journal encounter index (`1..N`) into `GetNumLoot` / `GetLootInfoByIndex` on a client build that interpreted the explicit parameter as `encounterID`, so explicit calls returned another boss's data and bypassed the selected-encounter fallback.
+- Repair pattern: after `EJ_SelectEncounter(encounterID)`, prefer calling loot APIs with the real `encounterID`; keep selected-encounter fallback support for builds that only expose the no-argument form.
+- Preventative check: in any EJ loot validator, include at least one mock where explicit loot calls keyed by index and keyed by `encounterID` return different bosses, and assert the final loot stays attached to the intended encounter name/ID pair.
+
 ### Collected-like states should satisfy hide-collected filters
 
 - Symptom: a collectible row such as a pet or mount remains visible even though the user already owns it and the corresponding "hide collected" option is enabled.
@@ -276,6 +304,13 @@
 - Root cause: code inside a modular Lua file referenced a bare name like `CollectionState` instead of the actual module table (`addon.CollectionState` or an injected dependency), so runtime lookups resolved to `nil` globals.
 - Repair pattern: bind cross-module tables explicitly near the top of the file or fetch them through dependencies before first use; do not rely on implicit globals for addon modules.
 - Preventative check: when adding cross-module calls in a Lua addon file, search that file for a matching local/module binding first; if none exists, wire one explicitly before using the symbol.
+
+### Lifetime counters must not reuse cycle-scoped reset rules
+
+- Symptom: a UI marker that should show cumulative history, such as boss `xN` kill counts, jumps back to `x1` after the weekly reset.
+- Root cause: the same persisted structure tried to represent both cycle-scoped state and lifetime totals, so weekly token rollover cleared data that should have survived.
+- Repair pattern: keep weekly/cycle truth behind reset-aware cache keys or expiry metadata, but store cumulative counters in a separate logical path that never resets on cycle rollover.
+- Preventative check: when adding a persisted counter tied to WoW lockouts, decide explicitly whether it is "this cycle" or "all time" before reusing an existing cache schema or reset token.
 
 ### Fallback labels must not leak internal IDs
 
@@ -1278,9 +1313,135 @@
 - Repair pattern: when a startup path calls `RequestRaidInfo()`, treat the following `UPDATE_INSTANCE_INFO` as the canonical consume point and avoid an extra same-turn capture/signature pass unless the request API is unavailable.
 - Preventative check: for every startup `request -> event` pair, count how many full-state traversals happen before the user can interact; if both the requesting event and the follow-up event scan the same source, collapse them to one consumer.
 
+### Universal loot types still need explicit class visibility rules
+
+- Symptom: a universal item such as a cloak appears in the loot table, but the UI does not count or label it for the active class set.
+- Root cause: `typeKey` was normalized correctly (for example `BACK`), but the class-eligibility helper only knew armor/weapon families and returned an empty class list for universal wearable categories.
+- Repair pattern: keep explicit universal-type handling for categories like `BACK`, `RING`, `NECK`, and `TRINKET`, and map them to the active/selectable class set instead of falling through to "no classes".
+- Preventative check: when adding or debugging loot type keys, verify one armor-locked item and one universal wearable item both produce the expected visible class list in debug output.
+
+### Locale-specific loot slots should not fall through to `MISC`
+
+- Symptom: cloaks, rings, or necks show up in loot debug output, but class visibility and collection logic treat them like generic `MISC` items.
+- Root cause: loot type derivation matched only a narrow set of localized slot labels and did not prioritize stable `equipLoc`, so client labels like `背部`, `颈部`, or `手指` missed their intended universal wearable categories.
+- Repair pattern: derive universal wearable `typeKey`s from `equipLoc` first, then keep localized slot-name matching only as a fallback for incomplete item payloads.
+- Preventative check: when validating loot type derivation, test one armor piece plus one cloak, one ring, and one neck item from the active client locale before trusting collection-state output.
+
+### Universal slots can still be class-restricted by transmog set membership
+
+- Symptom: a cloak, ring, or other normally universal slot is counted for every selected class even though the specific appearance belongs to a class-restricted tier set.
+- Root cause: eligibility logic treated all universal slot `typeKey`s as globally visible and ignored `sourceID -> setID -> classMask` metadata that narrows the owning classes.
+- Repair pattern: for universal wearable slots, resolve attached transmog sets first and honor any non-zero set `classMask`; only fall back to all selectable classes when no class-restricted set metadata exists.
+- Preventative check: when debugging universal-slot loot, validate one plain universal item and one tier-set universal item so the first fans out broadly while the second collapses to the set's class mask.
+
 ### Early-loaded files should not hard-bind later modules
 
 - Symptom: UI-derived values such as collected counters stay at fallback values even though debug output shows the underlying module returns correct results.
 - Root cause: a file loaded earlier in the `.toc` captured another addon module before that later file assigned `addon.SomeModule`, so the caller kept using a stale `nil` reference.
 - Repair pattern: for cross-file module calls, prefer injected dependencies from wiring; if that is not available, resolve `addon.SomeModule` at call time instead of binding it once at file scope.
 - Preventative check: whenever a Lua file calls another addon module directly, compare their `.toc` order and treat earlier-to-later calls as dependency-injection or late-binding cases.
+
+### Direct set-source checks can miss same-appearance set-equivalent loot
+
+- Symptom: a raid loot row that is visually part of the current class tier set does not get set highlighting or current-instance set attribution.
+- Root cause: the logic only resolved `sourceID -> setID` on the exact dropped source, while Blizzard can expose the tier set through a different source that shares the same appearance.
+- Repair pattern: when deriving loot-to-set membership for highlights or current-instance set summaries, augment direct `setID` lookup with `appearanceID -> all related sourceIDs -> setIDs`.
+- Preventative check: validate at least one real tier item whose dropped source is not itself the set source but shares an appearance with the set source; the loot row and set summary should still recognize it as part of the set.
+
+### Forced defaults should not masquerade as user-configurable filters
+
+- Symptom: a panel appears to expose a collected-item filter, but the visible toggle state disagrees with the actual runtime filtering or resets every open.
+- Root cause: settings normalization or panel setup overwrote the saved boolean on every read, so the UI control was decorative while the filter path kept seeing a hardcoded value.
+- Repair pattern: assign the default only when the field is `nil`, then have every config/menu entry read and write that same persisted flag without reinitializing it during setup.
+- Preventative check: whenever adding or restoring a filter toggle, verify fresh default, config toggle, and in-panel toggle all produce the same persisted value and the same runtime filter result.
+
+### Forced defaults need an explicit migration off-ramp
+
+- Symptom: after turning a formerly hardcoded behavior into a user-visible toggle, upgraded users keep seeing the old forced behavior as if they had chosen it themselves.
+- Root cause: historical persisted values from the forced era are indistinguishable from real user intent unless the setting records whether it was ever explicitly changed.
+- Repair pattern: add a one-time normalization migration that resets legacy forced values to the new default, and introduce an explicit `...Explicit` ownership marker that UI writes on first real user interaction.
+- Preventative check: whenever promoting a hardcoded default into a toggle, audit existing SavedVariables and decide how legacy persisted values will be distinguished from post-release user choices before shipping.
+
+### User-facing mode toggles should not live only in runtime state
+
+- Symptom: a panel works correctly after toggling a mode button, but `/reload` or reopen silently returns it to an older mode and reproduces the same filtered/partial view.
+- Root cause: the toggle only mutated transient controller state, so the user's last choice was never written into normalized settings and never restored during startup.
+- Repair pattern: persist user-facing mode choices in settings, normalize the stored value, and sync runtime state from settings before first render or open.
+- Preventative check: when a control changes panel semantics rather than a one-shot action, verify the chosen mode survives reload and is reapplied before the next first render.
+
+### Reused aggregators must still honor the new page's semantic scope
+
+- Symptom: a newly added dashboard page renders plausible data, but it is broader than the user asked for, such as mixing unrelated categories into a supposedly specialized view.
+- Root cause: the implementation reused an existing broad aggregator without reapplying the narrower semantic contract of the new page.
+- Repair pattern: when adding a specialized page, define its inclusion rule explicitly first, then reuse only the lower-level bucket and row helpers; do not reuse the broader page-level grouping unchanged.
+- Preventative check: for every new dashboard, tab, or page, compare one sentence of product intent against the final data query and verify they name the same scope boundaries.
+
+### Debug sections need both capture wiring and formatter wiring
+
+- Symptom: a debug section works through a dedicated command or helper, but the normal "Collect Logs" flow never shows it.
+- Root cause: the formatter was updated, but the main aggregate capture path never invoked or merged the new collector into the final dump.
+- Repair pattern: when adding a debug section, wire both halves in the same patch: call the collector during aggregate capture and assign its payload onto the shared dump before formatting.
+- Preventative check: validate every new debug section through the exact user-facing "Collect Logs" button path, not only through the standalone collector or a direct formatter test.
+
+### Filter-empty encounter states should read as completed, not empty
+
+- Symptom: a boss row in a filtered loot panel shows a warning like "没有符合当前过滤条件的掉落" even though the active filter simply means there is nothing left to display for that encounter.
+- Root cause: the renderer treated `visibleLoot == 0` as a generic empty-result branch instead of the stronger state "this encounter is exhausted for the current filter".
+- Repair pattern: when the active filter leaves an encounter with zero visible items, reuse the completed/check visual state and collapse behavior rather than rendering an empty warning row.
+- Preventative check: for collection UIs with filters, test one encounter that becomes `0 visible items` under the active filter and verify it reads as completed/exhausted, not as an error or missing-data state.
+
+### Total-progress counters must not reuse filtered subsets
+
+- Symptom: a panel shows plausible current-filter progress, but the supposed total-progress column shrinks to the same subset and can even read `0/0` for encounters that still have loot overall.
+- Root cause: both counters were computed from the class-filtered loot list because the data layer never preserved a separate all-loot snapshot.
+- Repair pattern: store filtered loot and all-loot separately, then have total counters/tooltips read from the all-loot snapshot while row rendering continues to use the filtered list.
+- Preventative check: whenever UI shows both filtered and total metrics, validate one fixture where the filtered subset is empty but the unfiltered set is not; the total metric must remain non-zero.
+
+### Debug presets should replace section selections when they promise a focused capture
+
+- Symptom: a targeted debug shortcut like `/img debug loot` still produces a huge mixed dump with unrelated sections from earlier sessions.
+- Root cause: the preset command only enabled its required sections on top of existing `debugLogSections` state instead of replacing the previous selection.
+- Repair pattern: when a debug command is meant to collect one focused capture, clear the saved section map first and then enable only that preset's required sections.
+- Preventative check: after adding a preset debug command, run it once after a "full debug" capture and verify the next dump contains only the preset's intended sections.
+
+### Debug-visible class dumps must reflect item eligibility
+
+- Symptom: loot debug output shows `selectedVisibleClasses` containing classes that the current item can never use, which points investigation at the wrong subsystem.
+- Root cause: the debug collector copied the globally selected loot classes directly instead of intersecting them with the item's eligible class set.
+- Repair pattern: when dumping per-item visible classes, derive them from `eligibleClasses ∩ selected loot classes` in eligibility order rather than logging the raw panel selection.
+- Preventative check: for any per-item debug field named `visible` or `counted`, verify it is produced from the item's own filter/eligibility contract and not from a broader panel-level snapshot.
+
+### Encounter Journal full scans must clear stale slot filters
+
+- Symptom: a loot panel or raw loot debug dump only shows one equipment slot, such as every boss returning only waist items across the whole raid.
+- Root cause: the Encounter Journal keeps a separate global slot filter state, and clearing only `EJ_SetLootFilter(classID, 0)` does not reset that slot-level filter.
+- Repair pattern: before each full loot scan, call `C_EncounterJournal.ResetSlotFilter()` (or an equivalent wrapper), then restore the prior slot filter after the scan if you need to preserve user-facing EJ state.
+- Preventative check: when an EJ loot dump looks implausibly uniform by slot, log `C_EncounterJournal.GetSlotFilter()` and add a mock where a stale slot filter starts active; the scan should still return mixed slots.
+
+### Dashboard metrics must state whether they count drops or full sets
+
+- Symptom: users compare an instance-row number like `12/12` against a set-page number like `8/9` and conclude a slot such as cloak/back was skipped.
+- Root cause: the dashboard cell summarizes current-instance matched drop pieces, while the set page summarizes full-set appearance completion, but the UI copy does not make that scope difference explicit.
+- Repair pattern: in dashboard tooltips and labels, state clearly when a metric is "current-instance matched drops" versus "full-set progress", and place the full-set explanation immediately next to the per-instance number.
+- Preventative check: whenever two UI surfaces show progress for related transmog data, verify the visible copy names the counting scope so users cannot mistake source-scoped counts for whole-set completion.
+
+### Current-cycle encounter kill state must ignore expired saved lockouts
+
+- Symptom: the loot panel marks bosses as already killed this week immediately after reset, even though the only recorded kill came from the previous cycle.
+- Root cause: the saved-instance fallback for encounter kill state accepted any matching lockout by name/difficulty and reused its encounter flags even when `resetSeconds <= 0`.
+- Repair pattern: when deriving per-boss "killed this cycle" state, only consume saved lockouts whose reset timer is still active; keep historical kill counts in their separate aggregate path.
+- Preventative check: add a mocked lockout case where an expired saved instance reports killed encounters and verify the loot panel kill map stays empty while lifetime/aggregate kill counters remain unchanged.
+
+### Boss-specific UI state must not be inferred from aggregate progress counts
+
+- Symptom: individual boss rows show as killed or auto-collapsed even though the addon only knows an aggregate `N/M` progress value and has no boss-by-boss confirmation.
+- Root cause: UI code reused `progressCount` as if "first N encounters are dead" were equivalent to per-boss truth, which breaks when encounter order or available kill detail diverges.
+- Repair pattern: use aggregate progress only for aggregate displays; any per-boss state such as row color, killed markers, or auto-collapse must come from explicit boss-name/encounter-level kill records.
+- Preventative check: whenever a panel renders boss-specific kill state, add a mock where `progressCount > 0` but the boss kill map is empty and verify no individual boss is marked killed.
+
+### Boss-name kill matching must stay exact after normalization
+
+- Symptom: an un-killed boss row still renders as killed because another boss with a similar name was killed.
+- Root cause: the kill-state lookup used substring/fuzzy matching after normalization, so partial overlaps between boss names leaked truth across rows.
+- Repair pattern: restrict boss kill lookup to exact raw-name or exact normalized-name matches; treat any remaining alias issues as an explicit mapping problem, not a fuzzy-match problem.
+- Preventative check: add a mock where one killed boss name is a prefix or substring of another label and verify only the exact intended row is marked killed.

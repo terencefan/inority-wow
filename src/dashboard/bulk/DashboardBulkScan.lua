@@ -529,7 +529,7 @@ function DashboardBulkScan.GetDashboardBulkScanExpansionRows(instanceType)
 	local plans = GetDashboardBulkScanPlans()
 	local plan = plans[normalizedType]
 	if type(plan) ~= "table" then
-		return {}
+		plan = DashboardBulkScan.BuildExpansionScanPlan(normalizedType)
 	end
 
 	local rows = {}

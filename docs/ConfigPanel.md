@@ -88,21 +88,63 @@
 
 可以把它理解成“设置入口 + 主动重扫入口”，而不是“数据展示面板”。
 
-## 7. 一条完整链路
+## 7. 数据链路图
 
-用户在主配置面板点击“更新团本”时，链路是：
+主配置面板本身不是事实数据面板，但它会把用户设置写回 `settings`，并触发掉落面板或统计看板的下游数据链。
 
-```mermaid
-flowchart TD
-    A["bulkUpdateRaidButton"] --> B["StartDashboardBulkScan()"]
-    B --> C["PrepareDashboardBulkScan()"]
-    C --> D["BuildLootPanelInstanceSelections()"]
-    C --> E["ClearRaidDashboardStoredData()"]
-    C --> F["InvalidateSetDashboard()"]
-    B --> G["ContinueDashboardBulkScan()"]
-    G --> H["CollectDashboardInstanceData()"]
-    G --> I["UpdateRaidDashboardSnapshot()"]
-    I --> J["RefreshDashboardPanel()"]
+```dot
+digraph ConfigDataFlow {
+  rankdir=LR;
+  graph [fontsize=10];
+  node [shape=box style="rounded,filled" fillcolor="#FFFBEB" color="#B45309" fontname="Microsoft YaHei" fontsize=10];
+  edge [color="#92400E" fontsize=9 fontname="Microsoft YaHei"];
+
+  Input [label="ConfigPanel input"];
+  Settings [label="settings"];
+  Classes [label="selectedClasses"];
+  Types [label="selectedLootTypes"];
+  Bulk [label="StartDashboardBulkScan()"];
+  LootCache [label="InvalidateLootDataCache()"];
+  LootData [label="LootDataController"];
+  DashStore [label="dashboard summaries"];
+
+  Input -> Settings;
+  Settings -> Classes;
+  Settings -> Types;
+  Classes -> LootCache -> LootData;
+  Types -> LootData;
+  Input -> Bulk -> DashStore;
+}
 ```
 
-这条链路说明主配置面板上的“更新”按钮，本质上是在启动统计看板的离线摘要重建任务。
+## 8. 渲染链路图
+
+主配置面板的渲染重点不是复杂数据汇总，而是“当前视图 -> 对应控件集合”的切换。
+
+```dot
+digraph ConfigRenderFlow {
+  rankdir=LR;
+  graph [fontsize=10];
+  node [shape=box style="rounded,filled" fillcolor="#EEF6FF" color="#2563EB" fontname="Microsoft YaHei" fontsize=10];
+  edge [color="#2563EB" fontsize=9 fontname="Microsoft YaHei"];
+
+  Init [label="InitializePanelNavigation()"];
+  View [label="SetPanelView()"];
+  General [label="config view"];
+  Classes [label="classes view"];
+  Loot [label="loot view"];
+  GeneralUI [label="general controls"];
+  ClassUI [label="UpdateClassFilterUI()"];
+  LootUI [label="UpdateLootTypeFilterUI()"];
+
+  Init -> View;
+  View -> General -> GeneralUI;
+  View -> Classes -> ClassUI;
+  View -> Loot -> LootUI;
+}
+```
+
+这两张图合起来看，主配置面板的职责就是：
+
+- 数据链路上改 `settings` 或启动 bulk scan
+- 渲染链路上切换并重画当前配置视图

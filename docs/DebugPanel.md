@@ -53,30 +53,59 @@
 
 slash 命令的作用之一，就是替用户提前打开一组和当前问题最相关的分段。
 
-## 4. 捕获流程
+## 4. 数据链路图
 
-通用 `/img debug` 的主链路是：
+调试面板的数据链路是“命令 -> collector -> last dump -> 格式化输入”。
 
-```mermaid
-flowchart TD
-    A["/img debug"] --> B["HandleDebugSlash()"]
-    B --> C["EnableDebugSections()"]
-    B --> D["CaptureAndShowDebugDump()"]
-    D --> E["InitializeDebugPanel()"]
-    D --> F["DebugTools.CaptureEncounterDebugDump()"]
-    F --> G["setLastDebugDump()"]
-    G --> H["RefreshPanelText()"]
-    H --> I["FormatDebugDump()"]
-    I --> J["scroll child text"]
+```dot
+digraph DebugDataFlow {
+  rankdir=LR;
+  graph [fontsize=10];
+  node [shape=box style="rounded,filled" fillcolor="#FFFBEB" color="#B45309" fontname="Microsoft YaHei" fontsize=10];
+  edge [color="#92400E" fontsize=9 fontname="Microsoft YaHei"];
+
+  Slash [label="/img debug ..."];
+  Handle [label="HandleDebugSlash()"];
+  Sections [label="EnableDebugSections()"];
+  Capture [label="Capture*DebugDump()"];
+  Last [label="lastDebugDump"];
+  Temp [label="db.debugTemp"];
+  Format [label="FormatDebugDump()"];
+
+  Slash -> Handle;
+  Handle -> Sections;
+  Handle -> Capture;
+  Capture -> Last;
+  Temp -> Format;
+  Last -> Format;
+}
 ```
 
-如果是专项命令，比如 `/img debug raid=...`，则链路中间的捕获函数会换成对应 collector，但最后仍然会落到：
+如果是专项命令，比如 `/img debug raid=...`，中间的 collector 会换成对应 capture 函数，但最终仍会落到 `lastDebugDump`。
 
-- `SetLastDebugDump(...)`
-- `ShowDebugOutputPanel()`
-- `RefreshPanelText()`
+## 5. 渲染链路图
 
-## 5. 为什么调试面板是“focused dump”
+调试面板的渲染链路是“准备 panel -> 格式化文本 -> 填进滚动文本框”。
+
+```dot
+digraph DebugRenderFlow {
+  rankdir=LR;
+  graph [fontsize=10];
+  node [shape=box style="rounded,filled" fillcolor="#EEF6FF" color="#2563EB" fontname="Microsoft YaHei" fontsize=10];
+  edge [color="#2563EB" fontsize=9 fontname="Microsoft YaHei"];
+
+  Show [label="ShowDebugOutputPanel()"];
+  Init [label="InitializeDebugPanel()"];
+  Refresh [label="RefreshPanelText()"];
+  Format [label="FormatDebugDump()"];
+  Text [label="scroll child text"];
+  Focus [label="focus + select text"];
+
+  Show -> Init -> Refresh -> Format -> Text -> Focus;
+}
+```
+
+## 6. 为什么调试面板是“focused dump”
 
 调试面板的目标不是长期开着看日志，而是快速生成一次可复制的聚焦输出。
 
@@ -88,7 +117,7 @@ flowchart TD
 
 这让用户可以更快地执行“抓一份、复制、贴给维护者”的流程。
 
-## 6. 与主配置面板的关系
+## 7. 与主配置面板的关系
 
 主配置面板不再承载 debug tab，但两者仍共享一部分配置状态：
 
@@ -102,7 +131,7 @@ flowchart TD
 - 调试输出文本是当前 dump 的格式化结果。
 - 某些事件路径会把临时调试对象先写进 `db.debugTemp`，再由格式化层读取。
 
-## 7. 什么时候看这份文档
+## 8. 什么时候看这份文档
 
 下面这些问题优先看调试面板文档：
 

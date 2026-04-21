@@ -25,6 +25,28 @@ local NormalizeSetDebugInfo = DebugTools.NormalizeSetDebugInfo
 local EncodeJsonValue = DebugTools.EncodeJsonValue
 local IsSectionEnabled = DebugTools.IsSectionEnabled
 
+local function GetVisibleSelectedLootClasses(getEligibleClassesForLootItem, getSelectedLootClassFiles, item)
+	local eligibleClasses = getEligibleClassesForLootItem and getEligibleClassesForLootItem(item) or {}
+	local selectedClasses = getSelectedLootClassFiles and getSelectedLootClassFiles() or {}
+	if #eligibleClasses == 0 or #selectedClasses == 0 then
+		return {}
+	end
+
+	local selectedClassMap = {}
+	for _, classFile in ipairs(selectedClasses) do
+		selectedClassMap[classFile] = true
+	end
+
+	local visibleClasses = {}
+	for _, classFile in ipairs(eligibleClasses) do
+		if selectedClassMap[classFile] then
+			visibleClasses[#visibleClasses + 1] = classFile
+		end
+	end
+	return visibleClasses
+end
+DebugTools.GetVisibleSelectedLootClasses = GetVisibleSelectedLootClasses
+
 function DebugTools.CapturePvpSetDebugDump()
 	local db = dependencies.getDB and dependencies.getDB() or nil
 	local dump = {
@@ -146,12 +168,17 @@ end
 
 function DebugTools.CaptureSetDashboardPreviewDump()
 	local db = dependencies.getDB and dependencies.getDB() or nil
+	local getStoredDashboardCache = dependencies.getStoredDashboardCache
+	local getRaidTierTag = dependencies.getRaidTierTag
+	local getRaidDifficultyDisplayOrder = dependencies.getRaidDifficultyDisplayOrder
 	local setDashboard = addon.SetDashboard
 	local dump = {
 		setDashboardPreviewDebug = {
 			error = nil,
 			tabOrder = {},
 			classFiles = {},
+			classSetRows = {},
+			missingTargetTiers = {},
 			payload = nil,
 			payloadJson = nil,
 		},
@@ -224,6 +251,134 @@ function DebugTools.CaptureSetDashboardPreviewDump()
 				end
 				payload.tabs[tabKey] = tabPayload
 			end
+
+			if setDashboard.BuildClassSetData then
+				local okClassData, classSetData = pcall(setDashboard.BuildClassSetData)
+				if okClassData and type(classSetData) == "table" then
+					local classSetPayload = {
+						message = classSetData.message,
+						expansions = {},
+					}
+					for _, expansionEntry in ipairs(classSetData.expansions or {}) do
+						local expansionPayload = {
+							expansionName = tostring(expansionEntry.expansionName or "Other"),
+							rows = {},
+						}
+						for _, rowInfo in ipairs(expansionEntry.rows or {}) do
+							local rowLabel = tostring(rowInfo.label or "")
+							expansionPayload.rows[#expansionPayload.rows + 1] = {
+								label = rowLabel,
+								instanceNames = rowInfo.instanceNames or {},
+								totalSets = tonumber(rowInfo.total and rowInfo.total.totalSets) or 0,
+							}
+							previewDebug.classSetRows[#previewDebug.classSetRows + 1] = rowLabel
+						end
+						classSetPayload.expansions[#classSetPayload.expansions + 1] = expansionPayload
+					end
+					table.sort(previewDebug.classSetRows)
+					payload.classSets = classSetPayload
+				else
+					payload.classSets = {
+						error = okClassData and "invalid class set payload" or tostring(classSetData),
+					}
+				end
+			end
+
+			local targetTierLookup = {
+				T2 = true,
+				T7 = true,
+				T9 = true,
+				T17 = true,
+			}
+			local seenTargetTierLookup = {}
+			local classSetTrace = {
+				targetTiers = { "T2", "T7", "T9", "T17" },
+				seenTierTags = {},
+				cacheEntries = {},
+			}
+
+			local storedCache = getStoredDashboardCache and getStoredDashboardCache("raid") or nil
+			local cacheEntries = storedCache and storedCache.entries or nil
+			if type(cacheEntries) == "table" then
+				for _, entry in pairs(cacheEntries) do
+					if type(entry) == "table" and tostring(entry.instanceType or "raid") == "raid" then
+						local bestDifficultyEntry = nil
+						local bestDisplayOrder = -math.huge
+						local bestDifficultyID = -1
+						for difficultyID, difficultyEntry in pairs(entry.difficultyData or {}) do
+							if type(difficultyEntry) == "table" then
+								local displayOrder = getRaidDifficultyDisplayOrder and getRaidDifficultyDisplayOrder(difficultyID) or 999
+								local numericDifficultyID = tonumber(difficultyID) or 0
+								if not bestDifficultyEntry
+									or displayOrder > bestDisplayOrder
+									or (displayOrder == bestDisplayOrder and numericDifficultyID > bestDifficultyID) then
+									bestDifficultyEntry = difficultyEntry
+									bestDisplayOrder = displayOrder
+									bestDifficultyID = numericDifficultyID
+								end
+							end
+						end
+
+						local tierTag = tostring(getRaidTierTag and getRaidTierTag({
+							instanceType = "raid",
+							instanceName = entry.instanceName,
+							journalInstanceID = entry.journalInstanceID,
+						}) or "")
+						if tierTag ~= "" then
+							classSetTrace.seenTierTags[#classSetTrace.seenTierTags + 1] = tierTag
+							if targetTierLookup[tierTag] then
+								seenTargetTierLookup[tierTag] = true
+							end
+						end
+
+						if tierTag ~= "" and (targetTierLookup[tierTag] or tierTag == "T31" or tierTag == "T30") then
+							local rawSetPieceCount = 0
+							local setPieceWithSetIDCount = 0
+							local setIDLookup = {}
+							local setIDs = {}
+							for _, pieceInfo in pairs(bestDifficultyEntry and bestDifficultyEntry.total and bestDifficultyEntry.total.setPieces or {}) do
+								rawSetPieceCount = rawSetPieceCount + 1
+								local pieceSetIDs = pieceInfo and pieceInfo.setIDs or nil
+								if type(pieceSetIDs) == "table" and #pieceSetIDs > 0 then
+									setPieceWithSetIDCount = setPieceWithSetIDCount + 1
+									for _, setID in ipairs(pieceSetIDs) do
+										local key = tostring(setID)
+										if not setIDLookup[key] then
+											setIDLookup[key] = true
+											setIDs[#setIDs + 1] = key
+										end
+									end
+								end
+							end
+							table.sort(setIDs)
+							classSetTrace.cacheEntries[#classSetTrace.cacheEntries + 1] = {
+								instanceName = tostring(entry.instanceName or ""),
+								expansionName = tostring(entry.expansionName or ""),
+								tierTag = tierTag,
+								bestDifficultyID = bestDifficultyID,
+								bestDisplayOrder = bestDisplayOrder,
+								rawSetPieceCount = rawSetPieceCount,
+								setPieceWithSetIDCount = setPieceWithSetIDCount,
+								setIDs = setIDs,
+							}
+						end
+					end
+				end
+			end
+
+			table.sort(classSetTrace.seenTierTags)
+			table.sort(classSetTrace.cacheEntries, function(a, b)
+				if tostring(a.tierTag or "") ~= tostring(b.tierTag or "") then
+					return tostring(a.tierTag or "") < tostring(b.tierTag or "")
+				end
+				return tostring(a.instanceName or "") < tostring(b.instanceName or "")
+			end)
+			for _, tierTag in ipairs(classSetTrace.targetTiers) do
+				if not seenTargetTierLookup[tierTag] then
+					previewDebug.missingTargetTiers[#previewDebug.missingTargetTiers + 1] = tierTag
+				end
+			end
+			payload.classSetTrace = classSetTrace
 
 			previewDebug.payload = payload
 			previewDebug.payloadJson = EncodeJsonValue(payload)
@@ -399,7 +554,6 @@ function DebugTools.CaptureEncounterDebugDump()
 	local getStoredDashboardCache = dependencies.getStoredDashboardCache
 	local getRaidTierTag = dependencies.getRaidTierTag
 	local getDashboardClassFiles = dependencies.getDashboardClassFiles
-	local getDashboardClassIDs = dependencies.getDashboardClassIDs
 	local getSelectedLootClassIDs = dependencies.getSelectedLootClassIDs
 	local getEligibleClassesForLootItem = dependencies.getEligibleClassesForLootItem
 	local isKnownRaidInstanceName = dependencies.isKnownRaidInstanceName
@@ -409,6 +563,7 @@ function DebugTools.CaptureEncounterDebugDump()
 	local getExpansionOrder = dependencies.getExpansionOrder
 	local characterKey = dependencies.CharacterKey and dependencies.CharacterKey() or nil
 
+	local previewDump = DebugTools.CaptureSetDashboardPreviewDump and DebugTools.CaptureSetDashboardPreviewDump() or nil
 	local dump = api.CaptureEncounterDebugDump({
 		CharacterKey = dependencies.CharacterKey,
 		ExtractSavedInstanceProgress = dependencies.ExtractSavedInstanceProgress,
@@ -421,6 +576,9 @@ function DebugTools.CaptureEncounterDebugDump()
 	dump.startupLifecycleDebug = db.debugTemp and db.debugTemp.startupLifecycleDebug or nil
 	dump.runtimeErrorDebug = db.debugTemp and db.debugTemp.runtimeErrorDebug or nil
 	dump.bulkScanProfileDebug = db.debugTemp and db.debugTemp.bulkScanProfileDebug or nil
+	dump.setDashboardPreviewDebug = (previewDump and previewDump.setDashboardPreviewDebug)
+		or (db.debugTemp and db.debugTemp.setDashboardPreviewDebug)
+		or nil
 
 	local selectedInstance = getSelectedLootPanelInstance and getSelectedLootPanelInstance() or nil
 	local data = collectCurrentInstanceLootData and collectCurrentInstanceLootData() or {}
@@ -679,17 +837,112 @@ function DebugTools.CaptureEncounterDebugDump()
 		end
 	end
 	local lootApiRawDebug = nil
-	if IsSectionEnabled("lootApiRawDebug") and api and api.CollectCurrentInstanceLootData and selectedInstance then
+	local lootPanelRegressionRawDebug = nil
+	local needsRawLootRegressionData = IsSectionEnabled("lootApiRawDebug") or IsSectionEnabled("lootPanelRegressionRawDebug")
+	if needsRawLootRegressionData and api and api.CollectCurrentInstanceLootData and selectedInstance then
 		local rawData = api.CollectCurrentInstanceLootData({
 			T = Translate,
 			findJournalInstanceByInstanceInfo = dependencies.findJournalInstanceByInstanceInfo,
 			getSelectedLootClassIDs = getSelectedLootClassIDs,
-			getLootFilterClassIDs = getDashboardClassIDs,
+			getLootFilterClassIDs = getSelectedLootClassIDs,
 			deriveLootTypeKey = deriveLootTypeKey,
 			targetInstance = selectedInstance,
 			captureRawApiDebug = true,
 		})
 		lootApiRawDebug = rawData and rawData.rawApiDebug or nil
+		if IsSectionEnabled("lootPanelRegressionRawDebug") and rawData and lootApiRawDebug then
+			local selectedClassFiles = getSelectedLootClassFiles and getSelectedLootClassFiles() or {}
+			local bossOrder = {}
+			for _, encounter in ipairs(rawData.encounters or {}) do
+				bossOrder[#bossOrder + 1] = {
+					encounterID = tonumber(encounter.encounterID) or 0,
+					encounterName = tostring(encounter.name or ""),
+					panelSelectedCount = #(encounter.loot or {}),
+					panelAllCount = #(encounter.allLoot or {}),
+					selectedRuns = {},
+					allClasses = {
+						classID = 0,
+						classFile = "ALL",
+						totalLoot = 0,
+						items = {},
+					},
+				}
+			end
+
+			local function CopyRawItem(rawItem)
+				return {
+					lootIndex = tonumber(rawItem and rawItem.lootIndex) or 0,
+					itemID = tonumber(rawItem and rawItem.itemID) or 0,
+					name = rawItem and rawItem.name or nil,
+					slot = rawItem and rawItem.slot or nil,
+					armorType = rawItem and rawItem.armorType or nil,
+					itemLink = rawItem and rawItem.itemLink or nil,
+					resolvedName = rawItem and rawItem.resolvedName or nil,
+					resolvedLink = rawItem and rawItem.resolvedLink or nil,
+					itemType = rawItem and rawItem.itemType or nil,
+					itemSubType = rawItem and rawItem.itemSubType or nil,
+					itemClassID = tonumber(rawItem and rawItem.itemClassID) or nil,
+					itemSubClassID = tonumber(rawItem and rawItem.itemSubClassID) or nil,
+					typeKey = rawItem and rawItem.typeKey or nil,
+					appearanceID = tonumber(rawItem and rawItem.appearanceID) or nil,
+					sourceID = tonumber(rawItem and rawItem.sourceID) or nil,
+					accepted = rawItem and rawItem.accepted and true or false,
+					duplicate = rawItem and rawItem.duplicate and true or false,
+					lootKey = rawItem and rawItem.lootKey or nil,
+				}
+			end
+
+			local function BuildEncounterBuckets(rawRun)
+				local totalsByEncounterID = {}
+				local itemsByEncounterID = {}
+				for _, encounterEntry in ipairs(rawRun and rawRun.encounters or {}) do
+					totalsByEncounterID[tonumber(encounterEntry.encounterID) or 0] = tonumber(encounterEntry.totalLoot) or 0
+				end
+				for _, rawItem in ipairs(rawRun and rawRun.items or {}) do
+					local encounterID = tonumber(rawItem and rawItem.encounterID) or 0
+					itemsByEncounterID[encounterID] = itemsByEncounterID[encounterID] or {}
+					itemsByEncounterID[encounterID][#itemsByEncounterID[encounterID] + 1] = CopyRawItem(rawItem)
+				end
+				return totalsByEncounterID, itemsByEncounterID
+			end
+
+			for _, rawRun in ipairs(lootApiRawDebug.filterRuns or {}) do
+				local _, classFile = GetClassInfo(tonumber(rawRun.classID) or 0)
+				local totalsByEncounterID, itemsByEncounterID = BuildEncounterBuckets(rawRun)
+				for _, bossEntry in ipairs(bossOrder) do
+					bossEntry.selectedRuns[#bossEntry.selectedRuns + 1] = {
+						classID = tonumber(rawRun.classID) or 0,
+						classFile = classFile,
+						totalLoot = totalsByEncounterID[bossEntry.encounterID] or 0,
+						items = itemsByEncounterID[bossEntry.encounterID] or {},
+					}
+				end
+			end
+
+			if type(lootApiRawDebug.allClassesRun) == "table" then
+				local totalsByEncounterID, itemsByEncounterID = BuildEncounterBuckets(lootApiRawDebug.allClassesRun)
+				for _, bossEntry in ipairs(bossOrder) do
+					bossEntry.allClasses = {
+						classID = 0,
+						classFile = "ALL",
+						totalLoot = totalsByEncounterID[bossEntry.encounterID] or 0,
+						items = itemsByEncounterID[bossEntry.encounterID] or {},
+					}
+				end
+			end
+
+			lootPanelRegressionRawDebug = {
+				instanceName = tostring(selectedInstance.instanceName or ""),
+				instanceType = tostring(selectedInstance.instanceType or ""),
+				difficultyID = tonumber(selectedInstance.difficultyID) or 0,
+				difficultyName = tostring(selectedInstance.difficultyName or ""),
+				journalInstanceID = tonumber(selectedInstance.journalInstanceID) or 0,
+				selectedInstanceKey = getLootPanelSelectedInstanceKey and getLootPanelSelectedInstanceKey() or nil,
+				selectedClassIDs = lootApiRawDebug.selectedClassIDs or {},
+				selectedClassFiles = selectedClassFiles,
+				bosses = bossOrder,
+			}
+		end
 	end
 	local setSummaryDebug = {
 		classScopeMode = getClassScopeMode and getClassScopeMode() or "selected",
@@ -799,6 +1052,12 @@ function DebugTools.CaptureEncounterDebugDump()
 				name = item.name,
 				slot = item.slot,
 				typeKey = item.typeKey,
+				eligibleClasses = getEligibleClassesForLootItem and getEligibleClassesForLootItem(item) or {},
+				selectedVisibleClasses = GetVisibleSelectedLootClasses(
+					getEligibleClassesForLootItem,
+					getSelectedLootClassFiles,
+					item
+				),
 				appearanceID = collectionDebug.appearanceID,
 				sourceID = collectionDebug.sourceID,
 				state = collectionDebug.state,
@@ -942,6 +1201,7 @@ function DebugTools.CaptureEncounterDebugDump()
 	end
 	dump.dashboardSetPieceDebug = dashboardSetPieceDebug
 	dump.lootApiRawDebug = lootApiRawDebug
+	dump.lootPanelRegressionRawDebug = lootPanelRegressionRawDebug
 	dump.collectionStateDebug = collectionStateDebug
 	dump.lootPanelSelectionDebug = lootPanelSelectionDebug
 	dump.bulkScanQueueDebug = bulkScanQueueDebug
@@ -1088,6 +1348,7 @@ function DebugTools.CaptureEncounterDebugDump()
 	db.debugTemp.setSummaryDebug = setSummaryDebug
 	db.debugTemp.dashboardSetPieceDebug = dashboardSetPieceDebug
 	db.debugTemp.lootApiRawDebug = lootApiRawDebug
+	db.debugTemp.lootPanelRegressionRawDebug = lootPanelRegressionRawDebug
 	db.debugTemp.collectionStateDebug = collectionStateDebug
 	db.debugTemp.dashboardSnapshotDebug = dump.dashboardSnapshotDebug
 	dump.dashboardSnapshotWriteDebug = db.debugTemp.dashboardSnapshotWriteDebug

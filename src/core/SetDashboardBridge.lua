@@ -257,6 +257,7 @@ function SetDashboardBridge.ConfigureLootSetsModule()
 		T = dependencies.T,
 		GetSelectedLootClassFiles = dependencies.GetSelectedLootClassFiles,
 		GetLootItemSetIDs = SetDashboardBridge.GetLootItemSetIDs,
+		GetSetIDsBySourceID = dependencies.GetSetIDsBySourceID,
 		GetLootItemSourceID = SetDashboardBridge.GetLootItemSourceID,
 		GetItemFactBySourceID = dependencies.GetItemFactBySourceID,
 		GetItemFactsBySetID = dependencies.GetItemFactsBySetID,
@@ -284,6 +285,9 @@ function SetDashboardBridge.ConfigureRaidDashboardModule()
 		if addon.PvpDashboard and addon.PvpDashboard.Configure then
 			addon.PvpDashboard.Configure({
 				T = dependencies.T,
+				getDB = dependencies.getDB,
+				refreshDashboardPanel = dependencies.RefreshDashboardPanel,
+				Print = dependencies.Print,
 				getPvpDashboardClassFiles = BuildAllClassFiles,
 				getDashboardClassFiles = dependencies.GetDashboardClassFiles,
 				getClassDisplayName = dependencies.GetClassDisplayName,
@@ -422,6 +426,9 @@ function SetDashboardBridge.ConfigureRaidDashboardModule()
 	if addon.PvpDashboard and addon.PvpDashboard.Configure then
 		addon.PvpDashboard.Configure({
 			T = dependencies.T,
+			getDB = dependencies.getDB,
+			refreshDashboardPanel = dependencies.RefreshDashboardPanel,
+			Print = dependencies.Print,
 			getPvpDashboardClassFiles = BuildAllClassFiles,
 			getDashboardClassFiles = dependencies.GetDashboardClassFiles,
 			getClassDisplayName = dependencies.GetClassDisplayName,
@@ -444,6 +451,8 @@ function SetDashboardBridge.ConfigureRaidDashboardModule()
 			getClassDisplayName = dependencies.GetClassDisplayName,
 			getSetProgress = SetDashboardBridge.GetSetProgress,
 			classMatchesSetInfo = SetDashboardBridge.ClassMatchesSetInfo,
+			getRaidTierTag = dependencies.GetRaidTierTag,
+			getRaidDifficultyDisplayOrder = dependencies.GetRaidDifficultyDisplayOrder,
 			isExpansionCollapsed = function(expansionName)
 				return IsExpansionCollapsed(expansionName, "set")
 			end,

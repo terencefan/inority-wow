@@ -30,6 +30,12 @@ local ELIGIBLE_CLASSES_BY_TYPE = {
 	ONE_HAND = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "DEATHKNIGHT", "SHAMAN", "MAGE", "WARLOCK", "MONK", "DRUID", "DEMONHUNTER", "EVOKER" },
 	TWO_HAND = { "WARRIOR", "PALADIN", "HUNTER", "DEATHKNIGHT", "SHAMAN", "MONK", "DRUID", "EVOKER" },
 }
+local UNIVERSAL_ELIGIBLE_TYPES = {
+	BACK = true,
+	RING = true,
+	NECK = true,
+	TRINKET = true,
+}
 
 local function GetAPI()
 	return dependencies.API or addon.API or {}
@@ -63,6 +69,74 @@ end
 
 local function GetSelectableClasses()
 	return dependencies.selectableClasses or {}
+end
+
+local function HasMaskBit(mask, classBit)
+	mask = tonumber(mask) or 0
+	classBit = tonumber(classBit) or 0
+	if mask <= 0 or classBit <= 0 then
+		return false
+	end
+	if bit and bit.band then
+		return bit.band(mask, classBit) ~= 0
+	end
+	if bit32 and bit32.band then
+		return bit32.band(mask, classBit) ~= 0
+	end
+	return mask % (classBit * 2) >= classBit
+end
+
+local function NormalizeNumericList(values)
+	local normalized = {}
+	local seen = {}
+	for _, value in ipairs(values or {}) do
+		local numericValue = tonumber(value) or 0
+		if numericValue > 0 and not seen[numericValue] then
+			seen[numericValue] = true
+			normalized[#normalized + 1] = numericValue
+		end
+	end
+	return normalized
+end
+
+local function GetItemSetIDs(item)
+	local existingSetIDs = NormalizeNumericList(item and item.setIDs or nil)
+	if #existingSetIDs > 0 then
+		return existingSetIDs
+	end
+	local getSetIDsBySourceID = dependencies.GetSetIDsBySourceID
+	local sourceID = tonumber(item and item.sourceID) or 0
+	if sourceID > 0 and type(getSetIDsBySourceID) == "function" then
+		return NormalizeNumericList(getSetIDsBySourceID(sourceID))
+	end
+	return {}
+end
+
+local function GetSetRestrictedEligibleClasses(item)
+	local classMaskByFile = dependencies.classMaskByFile or {}
+	local selectableClasses = GetSelectableClasses()
+	local setIDs = GetItemSetIDs(item)
+	local matchedClasses = {}
+	local seenClasses = {}
+
+	for _, setID in ipairs(setIDs) do
+		local setInfo = C_TransmogSets and C_TransmogSets.GetSetInfo and C_TransmogSets.GetSetInfo(setID) or nil
+		local classMask = tonumber(setInfo and setInfo.classMask) or 0
+		if classMask > 0 then
+			for _, classFile in ipairs(selectableClasses) do
+				local classBit = classMaskByFile[classFile]
+				if classBit and HasMaskBit(classMask, classBit) and not seenClasses[classFile] then
+					seenClasses[classFile] = true
+					matchedClasses[#matchedClasses + 1] = classFile
+				end
+			end
+		end
+	end
+
+	if #matchedClasses > 0 then
+		return matchedClasses
+	end
+	return nil
 end
 
 function ClassLogic.Configure(config)
@@ -183,6 +257,17 @@ function ClassLogic.GetEligibleClassesForLootItem(item)
 	local classes = ELIGIBLE_CLASSES_BY_TYPE[typeKey]
 	if classes then
 		return classes
+	end
+	if UNIVERSAL_ELIGIBLE_TYPES[typeKey] then
+		local restrictedClasses = GetSetRestrictedEligibleClasses(item)
+		if restrictedClasses then
+			return restrictedClasses
+		end
+		local allClasses = {}
+		for _, classFile in ipairs(GetSelectableClasses()) do
+			allClasses[#allClasses + 1] = classFile
+		end
+		return allClasses
 	end
 	return {}
 end

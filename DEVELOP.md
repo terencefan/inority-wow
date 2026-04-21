@@ -20,7 +20,6 @@ powershell -ExecutionPolicy Bypass -File .\tools\install_git_hooks.ps1
 - `luac -p`
 - `luacheck`
 - `LuaLS`
-- `jscpd`
 - `stylua --check`
 - Lua tests / validators
 
@@ -107,13 +106,12 @@ powershell -ExecutionPolicy Bypass -File .\tools\run_luals_check.ps1 -FailOnWarn
 - WoW AddOn 项目里低信号的动态环境诊断已在 `.luarc.json` 里降噪
 - `types/` 目录被加入了 LuaLS workspace library，编辑器跳转和补全会直接读取这些 stub
 
-## JSCPD
+## JSCPD（可选）
 
 > 这一段说明重复代码检查的入口和范围。
 
 - 项目已接入重复代码检查配置：[.jscpd.json](./.jscpd.json)
 - 命令行检查脚本：[tools/run_jscpd.ps1](./tools/run_jscpd.ps1)
-- Node 依赖由 [package.json](./package.json) 和 [package-lock.json](./package-lock.json) 管理
 - 默认检查范围：
   - `src/`
   - `Locale/`
@@ -123,6 +121,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\run_luals_check.ps1 -FailOnWarn
 运行：
 
 ```powershell
+npm install -g jscpd
 powershell -ExecutionPolicy Bypass -File .\tools\run_jscpd.ps1
 ```
 
@@ -133,9 +132,10 @@ powershell -ExecutionPolicy Bypass -File .\tools\run_jscpd.ps1 -FailOnClones
 ```
 
 说明：
-- 本机 `jscpd` 已通过本地 `node_modules` 接入
-- `dist/`、`node_modules/`、`.npm-cache/` 已排除，不参与重复代码统计
-- 默认模式用于看基线；只有传 `-FailOnClones` 才会把重复块升级为失败
+- 推荐使用 `npm install -g jscpd`
+- 只要 `jscpd` 在 `PATH` 上，脚本也可以配合其他全局工具管理方式使用
+- `dist/` 已排除，不参与重复代码统计
+- 默认 unified check / pre-commit 不再包含重复代码扫描；只有显式运行 `run_jscpd.ps1` 时才会执行
 
 ## VS Code Tasks
 
@@ -145,7 +145,6 @@ powershell -ExecutionPolicy Bypass -File .\tools\run_jscpd.ps1 -FailOnClones
 - 可直接运行：
   - `MogTracker: check`
   - `MogTracker: check (skip format)`
-  - `MogTracker: check (skip format + duplication)`
   - `MogTracker: luacheck`
   - `MogTracker: LuaLS`
   - `MogTracker: jscpd`
@@ -162,6 +161,5 @@ powershell -ExecutionPolicy Bypass -File .\tools\run_jscpd.ps1 -FailOnClones
 - `luac -p`
 - `luacheck`
 - `LuaLS`
-- `jscpd`
 - `stylua --check`
 - Lua tests / validators

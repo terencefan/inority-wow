@@ -164,6 +164,18 @@ local function EnableDebugSections(sectionKeys)
 	end
 end
 
+local function ReplaceDebugSections(sectionKeys)
+	local _, settings = EnsureDebugSettings()
+	if not settings then
+		return
+	end
+
+	settings.debugLogSections = {}
+	for _, sectionKey in ipairs(sectionKeys or {}) do
+		settings.debugLogSections[sectionKey] = true
+	end
+end
+
 local function InvalidateRaidDashboardCache()
 	if type(dependencies.InvalidateRaidDashboardCache) == "function" then
 		dependencies.InvalidateRaidDashboardCache()
@@ -365,6 +377,8 @@ local function HandleDebugSlash(rawCommand)
 			"bulkScanProfileDebug",
 			"selectedDifficultyProbe",
 			"lootApiRawDebug",
+			"lootPanelRegressionRawDebug",
+			"collectionStateDebug",
 		})
 		dependencies.CaptureAndShowDebugDump()
 		return true
@@ -419,6 +433,19 @@ local function HandleDebugSlash(rawCommand)
 				tonumber(debugDump.pvpSetDebug.totalSetCount) or 0
 			))
 		end
+		return true
+	end
+
+	if debugTargetType == "loot" then
+		ReplaceDebugSections({
+			"currentLootDebug",
+			"lootPanelSelectionDebug",
+			"lootApiRawDebug",
+			"lootPanelRegressionRawDebug",
+			"collectionStateDebug",
+		})
+		dependencies.CaptureAndShowDebugDump()
+		PrintMessage("Loot panel raw regression debug collected. Press Ctrl+C to copy.")
 		return true
 	end
 
@@ -545,7 +572,7 @@ function EventsCommandController.RegisterCoreEvents(frame, addonName)
 				local lootPanel = GetLootPanel()
 				if lootPanel and lootPanel:IsShown() then
 					if type(dependencies.MarkLootEncounterPendingAutoCollapse) == "function" then
-						dependencies.MarkLootEncounterPendingAutoCollapse(arg2, 10)
+						dependencies.MarkLootEncounterPendingAutoCollapse(arg2, 30)
 					end
 					dependencies.RefreshLootPanel()
 				end
@@ -577,6 +604,6 @@ function EventsCommandController.RegisterSlashCommands()
 		if HandleDebugSlash(rawCommand) then
 			return
 		end
-		PrintMessage("Usage: /img debug [setboard|sets=...|raid=...|dungeon=...|pvpsets]")
+		PrintMessage("Usage: /img debug [loot|setboard|sets=...|raid=...|dungeon=...|pvpsets]")
 	end
 end

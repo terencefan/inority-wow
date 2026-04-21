@@ -410,7 +410,7 @@ function TooltipUI.ShowMinimapTooltip(owner)
 	hint = tooltipFrame:AddLine()
 	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_RIGHT_CLICK_LOOT", "Right-click: show or hide the loot panel"), nil, "LEFT", #columnArgs)
 	hint = tooltipFrame:AddLine()
-	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_SHIFT_LEFT_CLICK", "Shift + Left-click: open the dashboard to the dungeon set view"), nil, "LEFT", #columnArgs)
+	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_SHIFT_LEFT_CLICK", "Shift + Left-click: open the dashboard to the PVP set view"), nil, "LEFT", #columnArgs)
 	hint = tooltipFrame:AddLine()
 	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_CTRL_LEFT_CLICK", "Ctrl + Left-click: show or hide the config panel"), nil, "LEFT", #columnArgs)
 

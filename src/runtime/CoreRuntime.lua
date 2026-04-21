@@ -217,6 +217,10 @@ end
 
 local function InitializeDefaults()
 	StorageGateway.InitializeDefaults()
+	local settings = StorageGateway.GetSettings()
+	if settings.lootClassScopeMode == "current" or settings.lootClassScopeMode == "selected" then
+		lootPanelState.classScopeMode = settings.lootClassScopeMode
+	end
 end
 StorageGateway.Configure({
 	getDB = function()
@@ -344,7 +348,9 @@ ClassLogic.Configure({
 	API = API,
 	DifficultyRules = DifficultyRules,
 	selectableClasses = selectableClasses,
+	classMaskByFile = CLASS_MASK_BY_FILE,
 	getDB = StorageGateway.GetDB,
+	GetSetIDsBySourceID = StorageGateway.GetSetIDsBySourceID,
 	getLootPanelState = function()
 		return lootPanelState
 	end,
@@ -974,6 +980,7 @@ end
 
 DeriveLootTypeKey = function(item)
 	local slot = string.lower(tostring(item and item.slot or ""))
+	local equipLoc = string.upper(tostring(item and item.equipLoc or ""))
 	local armorType = string.lower(tostring(item and item.armorType or ""))
 	local itemType = item and item.itemType or nil
 	local itemSubType = item and item.itemSubType or nil
@@ -998,7 +1005,11 @@ DeriveLootTypeKey = function(item)
 	if armorType == "mail" or armorType == "锁甲" then return "MAIL" end
 	if armorType == "leather" or armorType == "皮甲" then return "LEATHER" end
 	if armorType == "cloth" or armorType == "布甲" then return "CLOTH" end
-	if slot:find("cloak", 1, true) or slot:find("back", 1, true) or slot:find("披风", 1, true) then return "BACK" end
+	if equipLoc == "INVTYPE_CLOAK" then return "BACK" end
+	if equipLoc == "INVTYPE_FINGER" then return "RING" end
+	if equipLoc == "INVTYPE_NECK" then return "NECK" end
+	if equipLoc == "INVTYPE_TRINKET" then return "TRINKET" end
+	if slot:find("cloak", 1, true) or slot:find("back", 1, true) or slot:find("披风", 1, true) or slot:find("背部", 1, true) then return "BACK" end
 	if slot:find("shield", 1, true) or slot:find("盾", 1, true) then return "SHIELD" end
 	if slot:find("held in off%-hand") or slot:find("off%-hand") or slot:find("副手", 1, true) then return "OFF_HAND" end
 	if subClassName:find("dagger", 1, true) or subClassName:find("匕首", 1, true) then return "DAGGER" end
@@ -1025,8 +1036,8 @@ DeriveLootTypeKey = function(item)
 	if slot:find("sword", 1, true) or slot:find("剑", 1, true) then return "SWORD" end
 	if slot:find("two%-hand") or slot:find("双手", 1, true) then return "TWO_HAND" end
 	if slot:find("one%-hand") or slot:find("单手", 1, true) then return "ONE_HAND" end
-	if slot:find("finger", 1, true) or slot:find("ring", 1, true) or slot:find("戒指", 1, true) then return "RING" end
-	if slot:find("neck", 1, true) or slot:find("项链", 1, true) then return "NECK" end
+	if slot:find("finger", 1, true) or slot:find("ring", 1, true) or slot:find("戒指", 1, true) or slot:find("手指", 1, true) then return "RING" end
+	if slot:find("neck", 1, true) or slot:find("项链", 1, true) or slot:find("颈部", 1, true) then return "NECK" end
 	if slot:find("trinket", 1, true) or slot:find("饰品", 1, true) then return "TRINKET" end
 	if subClassName:find("mount", 1, true) or subClassName:find("坐骑", 1, true) then
 		return "MOUNT"

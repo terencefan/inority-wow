@@ -33,23 +33,6 @@
       "problemMatcher": []
     },
     {
-      "label": "MogTracker: check (skip format + duplication)",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        ".\\tools\\check.ps1",
-        "-SkipFormat",
-        "-SkipDuplication"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "problemMatcher": []
-    },
-    {
       "label": "MogTracker: luacheck",
       "type": "shell",
       "command": "powershell",

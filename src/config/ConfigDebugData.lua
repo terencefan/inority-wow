@@ -161,6 +161,8 @@ function ConfigDebugData.InitializeDebugPanel()
 	local layout = ConfigDebugData.GetDebugLogSectionLayout()
 	MogTrackerDebugPanelListHeader:ClearAllPoints()
 	MogTrackerDebugPanelListHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, layout.listHeaderOffset)
+	MogTrackerDebugPanelRefreshButton:ClearAllPoints()
+	MogTrackerDebugPanelRefreshButton:SetPoint("RIGHT", panel, "TOPRIGHT", -24, layout.listHeaderOffset + 2)
 	MogTrackerDebugPanelScrollFrame:ClearAllPoints()
 	MogTrackerDebugPanelScrollFrame:SetSize(632, layout.scrollHeight)
 	MogTrackerDebugPanelScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, layout.scrollTopOffset)
@@ -173,42 +175,44 @@ end
 
 function ConfigDebugData.GetDebugLogSectionLayout()
 	local definitions = {
-		{ key = "startupLifecycleDebug", label = "Startup Lifecycle Debug" },
-		{ key = "runtimeErrorDebug", label = "Runtime Error Debug" },
-		{ key = "rawSavedInstanceInfo", label = "Raw GetSavedInstanceInfo" },
-		{ key = "currentLootDebug", label = "Current Loot Encounter Debug" },
-		{ key = "minimapTooltipDebug", label = "Minimap Tooltip Debug" },
-	{ key = "minimapClickDebug", label = "Minimap Click Debug" },
-	{ key = "lootPanelSelectionDebug", label = "Loot Panel Selection Debug" },
-	{ key = "lootPanelRenderTimingDebug", label = "Loot Panel Render Timing Debug" },
-	{ key = "lootPanelOpenDebug", label = "Loot Panel Open Debug" },
-	{ key = "bulkScanQueueDebug", label = "Bulk Scan Queue Debug" },
-	{ key = "selectedDifficultyProbe", label = "Selected Loot Panel Instance Difficulty Probe" },
-		{ key = "normalizedLockouts", label = "Normalized Lockouts" },
-		{ key = "setSummaryDebug", label = "Loot Set Summary Debug" },
+		{ key = "bulkScanQueueDebug", label = "Bulk Scan Queue Debug" },
 		{ key = "dashboardSetPieceDebug", label = "Dashboard Set Piece Metric Debug" },
-		{ key = "lootApiRawDebug", label = "Loot API Raw Debug" },
-		{ key = "collectionStateDebug", label = "Loot Collection State Debug" },
 		{ key = "dashboardSnapshotDebug", label = "Dashboard Snapshot Debug" },
 		{ key = "dashboardSnapshotWriteDebug", label = "Dashboard Snapshot Write Debug" },
+		{ key = "currentLootDebug", label = "Current Loot Encounter Debug" },
+		{ key = "dungeonDashboardDebug", label = "Dungeon Dashboard Debug" },
+		{ key = "lootApiRawDebug", label = "Loot API Raw Debug" },
+		{ key = "lootPanelRegressionRawDebug", label = "Loot Panel Regression Raw" },
+		{ key = "collectionStateDebug", label = "Loot Collection State Debug" },
+		{ key = "lootPanelOpenDebug", label = "Loot Panel Open Debug" },
+		{ key = "lootPanelRenderTimingDebug", label = "Loot Panel Render Timing Debug" },
+		{ key = "lootPanelSelectionDebug", label = "Loot Panel Selection Debug" },
+		{ key = "minimapClickDebug", label = "Minimap Click Debug" },
+		{ key = "minimapTooltipDebug", label = "Minimap Tooltip Debug" },
+		{ key = "normalizedLockouts", label = "Normalized Lockouts" },
 		{ key = "pvpSetDebug", label = "PVP Set Debug" },
+		{ key = "rawSavedInstanceInfo", label = "Raw GetSavedInstanceInfo" },
+		{ key = "runtimeErrorDebug", label = "Runtime Error Debug" },
+		{ key = "selectedDifficultyProbe", label = "Selected Loot Panel Instance Difficulty Probe" },
 		{ key = "setCategoryDebug", label = "Set Category Debug" },
 		{ key = "setDashboardPreviewDebug", label = "Set Dashboard Preview Debug" },
-		{ key = "dungeonDashboardDebug", label = "Dungeon Dashboard Debug" },
+		{ key = "setSummaryDebug", label = "Loot Set Summary Debug" },
+		{ key = "startupLifecycleDebug", label = "Startup Lifecycle Debug" },
 	}
-	local columns = 2
+	local columns = 3
 	local rowHeight = 24
 	local rows = math.max(1, math.ceil(#definitions / columns))
 	local buttonsTopOffset = -86
 	local buttonsBottomOffset = math.abs(buttonsTopOffset) + ((rows - 1) * rowHeight) + 24
+	local actionRowHeight = 34
 	return {
 		definitions = definitions,
 		columns = columns,
-		columnWidth = 170,
+		columnWidth = 206,
 		rowHeight = rowHeight,
 		listHeaderOffset = -(buttonsBottomOffset + 12),
 		scrollTopOffset = -(buttonsBottomOffset + 34),
-		scrollHeight = math.max(120, 460 - math.abs(-(buttonsBottomOffset + 34))),
+		scrollHeight = math.max(120, 460 - math.abs(-(buttonsBottomOffset + 34)) - actionRowHeight),
 	}
 end
 

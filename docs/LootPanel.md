@@ -1,33 +1,31 @@
 # 掉落面板
 
-本文说明 MogTracker 当前的掉落面板如何从用户打开一路走到实例选择、Encounter Journal 扫描、过滤、缓存和最终渲染。
+本文统一说明 MogTracker 掉落面板的入口、实例选择、EJ 采集、`loot / sets` 两个页签，以及“隐藏已收藏”链路。
 
-## 1. 入口和模块分工
+## 1. 模块分工
 
-当前掉落面板使用的是模块化结构，不再是旧的 `CoreLootPanel.lua / CoreLootRender.lua` 分工。主链路如下：
+- `LootPanelController.lua`
+  面板生命周期、按钮、tab、整体布局
+- `LootSelection.lua`
+  当前区域、副本/难度选择树和菜单切换
+- `LootDataController.lua`
+  当前 selection 的掉落数据采集和缓存
+- `CollectionState.lua`
+  收集状态、隐藏已收藏和 encounter 级显示态
+- `LootPanelRenderer.lua`
+  `loot / sets` 两个 tab 的主渲染
+- `LootPanelRows.lua`
+  item row、encounter row 的复用和视觉状态
+- `LootSets.lua`
+  当前副本套装摘要
+- `SetDashboardBridge.lua`
+  套装相关桥接 helper
 
-- `src/loot/LootPanelController.lua`
-  负责面板生命周期、标题区按钮、tab 切换和整体布局。
-- `src/loot/LootSelection.lua`
-  负责“当前区域 + 所有可选副本/难度”的选择构建、菜单组织和选中切换。
-- `src/loot/LootDataController.lua`
-  负责掉落数据采集、缓存和当前实例摘要。
-- `src/core/CollectionState.lua`
-  负责收集状态、已收集隐藏和首领可见掉落计算。
-- `src/loot/LootPanelRenderer.lua`
-  负责 `loot / sets` 两个 tab 的最终渲染。
-- `src/loot/LootPanelRows.lua`
-  负责 item row、encounter row 的复用和视觉状态重置。
-- `src/loot/sets/LootSets.lua`
-  负责当前副本套装摘要、缺失部位和来源描述。
-- `src/core/SetDashboardBridge.lua`
-  负责套装相关的跨模块桥接，例如 `GetSetProgress()`、`GetLootItemSetIDs()`、`ClassMatchesSetInfo()`。
+## 2. 打开链路
 
-## 2. 打开面板时发生什么
+掉落面板常规入口是小地图按钮右键，最终走到 `LootPanelController.ToggleLootPanel()`。
 
-掉落面板常规入口是小地图按钮右键，最终会走到 `LootPanelController.ToggleLootPanel()`。
-
-首次打开会先 `InitializeLootPanel()` 创建 frame、标题按钮、tab、scroll frame 和 resize handle。之后每次真正“打开”时的顺序是：
+真正打开一次面板的顺序：
 
 1. `InitializeLootPanel()`
 2. `lootPanel:Show()`
@@ -35,47 +33,67 @@
 4. `ResetLootPanelSessionState(true)`
 5. `RefreshLootPanel()`
 
-这个顺序有两个维护点：
+## 3. 数据链路图
 
-- `Show()` 发生在主刷新之前，所以首开时 `OnShow` 只负责 frame 生命周期和调试打点，不负责真正的数据准备。
-- 真正决定“这次打开看哪个副本”的逻辑在 `PreferCurrentLootPanelSelectionOnOpen()`，不是 `InitializeLootPanel()`。
+掉落面板的数据链路是“selection -> EJ/raw loot -> collection state -> 当前页消费的数据结构”。
 
-更细一层的开启链路如下：
+```dot
+digraph LootDataFlow {
+  rankdir=LR;
+  graph [fontsize=10];
+  node [shape=box style="rounded,filled" fillcolor="#FFFBEB" color="#B45309" fontname="Microsoft YaHei" fontsize=10];
+  edge [color="#92400E" fontsize=9 fontname="Microsoft YaHei"];
 
-```mermaid
-flowchart TD
-    A["UIChromeController.ToggleLootPanel()"] --> B["LootPanelController.ToggleLootPanel()"]
-    B --> C{"lootPanel exists?"}
-    C -- "no" --> D["InitializeLootPanel()"]
-    C -- "yes" --> E{"lootPanel:IsShown()?"}
-    D --> E
-    E -- "yes" --> F["lootPanel:Hide()"]
-    E -- "no" --> G["lootPanel:Show()"]
-    G --> H["PreferCurrentLootPanelSelectionOnOpen()"]
-    H --> I["ResetLootPanelSessionState(true)"]
-    I --> J["LootPanelRenderer.RefreshLootPanel()"]
-    J --> K["LootSelection.GetSelectedLootPanelInstance()"]
-    K --> L["LootDataController.CollectCurrentInstanceLootData()"]
-    L --> M{"lootDataCache hit?"}
-    M -- "yes" --> N["cached data"]
-    M -- "no" --> O["APICollectCurrentInstanceLootData()"]
-    N --> P["render loot/sets tab"]
-    O --> P
-    P --> Q{"missingItemData?"}
-    Q -- "yes" --> R["ScheduleMissingItemRefresh()"]
+  Select [label="GetSelectedLootPanelInstance()"];
+  Tree [label="BuildLootPanelInstanceSelections()"];
+  Data [label="CollectCurrentInstanceLootData()"];
+  Cache [label="lootDataCache"];
+  API [label="APICollectCurrentInstanceLootData()"];
+  Encounter [label="encounters + loot rows"];
+  Display [label="GetEncounterLootDisplayState()"];
+  SetSummary [label="BuildCurrentInstanceSetSummary()"];
+
+  Select -> Tree;
+  Select -> Data;
+  Data -> Cache;
+  Data -> API -> Encounter;
+  Encounter -> Display;
+  Encounter -> SetSummary;
+}
 ```
 
-这几步分别解决：
+## 4. 渲染链路图
 
-- `PreferCurrentLootPanelSelectionOnOpen()`：默认优先回到当前所在副本。
-- `ResetLootPanelSessionState(true)`：为本次打开建立稳定会话基线。
-- `RefreshLootPanel()`：根据当前选中副本和 tab 重画内容。
+掉落面板的渲染链路是“panel refresh -> 当前 tab -> 对应 rows/widget 更新”。
 
-## 3. 面板核心状态
+```dot
+digraph LootRenderFlow {
+  rankdir=LR;
+  graph [fontsize=10];
+  node [shape=box style="rounded,filled" fillcolor="#EEF6FF" color="#2563EB" fontname="Microsoft YaHei" fontsize=10];
+  edge [color="#2563EB" fontsize=9 fontname="Microsoft YaHei"];
 
-### 3.1 `lootPanelState`
+  Toggle [label="ToggleLootPanel()"];
+  Init [label="InitializeLootPanel()"];
+  Prefer [label="PreferCurrentLootPanelSelectionOnOpen()"];
+  Session [label="ResetLootPanelSessionState(true)"];
+  Refresh [label="RefreshLootPanel()"];
+  Renderer [label="LootPanelRenderer"];
+  Loot [label="RenderLootBranch()"];
+  Sets [label="render sets tab"];
+  Rows [label="LootPanelRows / set rows"];
 
-这是偏 UI 的选择态，至少包含：
+  Toggle -> Init -> Prefer -> Session -> Refresh -> Renderer;
+  Renderer -> Loot -> Rows;
+  Renderer -> Sets -> Rows;
+}
+```
+
+## 5. 核心状态
+
+### 4.1 `lootPanelState`
+
+偏 UI 的选择态，至少包含：
 
 - `selectedInstanceKey`
 - `currentTab`
@@ -83,170 +101,225 @@ flowchart TD
 - `collapsed`
 - `manualCollapsed`
 
-### 3.2 `lootPanelSessionState`
+### 4.2 `lootPanelSessionState`
 
-这是本次打开期间的会话稳定态，主要用于避免 UI 在面板已打开时因事件刷新而跳动：
+本次打开期间的会话稳定态，主要用于避免 UI 在面板已打开时跳动：
 
 - `active`
 - `itemCollectionBaseline`
 - `itemCelebrated`
 - `encounterBaseline`
 
-### 3.3 `lootDataCache`
+### 4.3 `lootDataCache`
 
-这是当前实例掉落数据缓存。它跟实例选择、职业范围和规则版本绑定，不直接缓存整张 UI。
+当前实例掉落数据缓存。它跟实例选择、职业范围和规则版本绑定，不直接缓存整张 UI。
 
-## 4. 实例选择如何构建
+## 6. 实例选择与采集
 
-`LootSelection.BuildLootPanelInstanceSelections()` 会先尝试解析当前区域，然后构建完整的副本/难度树。
+`LootSelection.BuildLootPanelInstanceSelections()` 会：
 
-结果里每个 selection 典型包含：
+1. 尝试解析当前区域
+2. 构建“资料片 -> 副本 -> 难度”选择树
+3. 为每个 selection 生成：
+   - `instanceName`
+   - `journalInstanceID`
+   - `instanceType`
+   - `difficultyID`
+   - `difficultyName`
+   - `expansionName`
+   - `instanceOrder`
+   - `key`
 
-- `instanceName`
-- `journalInstanceID`
-- `instanceType`
-- `difficultyID`
-- `difficultyName`
-- `expansionName`
-- `instanceOrder`
-- `key`
+`RefreshLootPanel()` 会调用 `LootDataController.CollectCurrentInstanceLootData()`：
 
-这里有两个容易混淆的点：
+- 先查 `lootDataCache`
+- miss 时走 `APICollectCurrentInstanceLootData()`
+- 采集路径会做 `EJ_SelectInstance()`、`EJ_SetDifficulty()`、遍历 encounter 和 loot rows
 
-- `PreferCurrentLootPanelSelectionOnOpen()` 只是在“打开面板时”尝试把 `selectedInstanceKey` 切到当前副本。
-- `GetSelectedLootPanelInstance()` 才是渲染期的最终兜底解析；如果当前 key 无效，它会重新从当前副本或空选择中收敛。
+后续过滤和显示最依赖这些字段：
 
-实例菜单由 `BuildLootPanelInstanceMenu()` 组织。用户改选择后会：
+- `typeKey`
+- `itemID`
+- `link`
+- `appearanceID`
+- `sourceID`
 
-- 更新 `selectedInstanceKey`
-- 清折叠态
-- 重置滚动
-- `InvalidateLootDataCache()`
-- `RefreshLootPanel()`
+## 7. 选择与采集补充图
 
-统计看板跳转则走 `OpenLootPanelForDashboardSelection()`，这条路径不会“优先当前副本”，而是直接写入目标 selection，再 `Show()` + `RefreshLootPanel()`。
+```dot
+digraph LootSelectionAndData {
+  rankdir=LR;
+  graph [fontsize=10];
+  node [shape=box style="rounded,filled" fillcolor="#FFFBEB" color="#B45309" fontname="Microsoft YaHei" fontsize=10];
+  edge [color="#92400E" fontsize=9 fontname="Microsoft YaHei"];
 
-## 5. 数据采集
+  Refresh [label="RefreshLootPanel()"];
+  Selected [label="GetSelectedLootPanelInstance()"];
+  Selections [label="BuildLootPanelInstanceSelections()"];
+  Collect [label="CollectCurrentInstanceLootData()"];
+  Cache [label="lootDataCache"];
+  Api [label="APICollectCurrentInstanceLootData()"];
+  EJ [label="EJ scan"];
+  Facts [label="Resolve item fact"];
+  Data [label="encounters + loot rows"];
 
-`RefreshLootPanel()` 会调用 `LootDataController.CollectCurrentInstanceLootData()`。
-
-这一步先查 `lootDataCache`，命中则直接复用；未命中时走 API 采集路径：
-
-```mermaid
-flowchart TD
-    A["RefreshLootPanel()"] --> B["CollectCurrentInstanceLootData()"]
-    B --> C{"cache hit?"}
-    C -- yes --> D["cached data"]
-    C -- no --> E["APICollectCurrentInstanceLootData()"]
-    E --> F["EJ_SelectInstance()"]
-    E --> G["EJ_SetDifficulty()"]
-    E --> H["scan encounter loot"]
-    H --> I["encounters + loot rows"]
+  Refresh -> Selected -> Selections;
+  Selected -> Collect;
+  Collect -> Cache;
+  Collect -> Api;
+  Api -> EJ -> Facts -> Data;
+}
 ```
 
-这里再往下拆一层：
+## 8. `loot` 页签
 
-- `RefreshLootPanel()` 先做 UI 级准备：重置旧 rows、同步 tab 按钮、解析当前 selection、更新标题。
-- 如果当前职业范围为空，会直接渲染空状态，不会进入 EJ 扫描。
-- 只有在需要真实数据时，才会进入 `CollectCurrentInstanceLootData()`。
-- `CollectCurrentInstanceLootData()` 的 cache key 同时编码了实例选择、难度、职业范围和 `classScopeMode`。
-- 如果返回数据里仍有 `missingItemData`，renderer 会通过 `ScheduleMissingItemRefresh()` 做限次延迟补刷新，而不是在同一次打开里同步重扫到底。
+`loot` tab 按首领展示当前副本的可见掉落。
 
-采集输入包括：
+每个首领先经过：
 
-- 当前目标实例。
-- 当前生效职业 ID 列表。
-- 掉落类型归类函数。
-- item fact 读写能力。
+- `CollectionState.GetEncounterLootDisplayState(encounter)`
 
-## 6. 为什么要按职业多轮扫
+这一步会把原始 `encounter.loot` 收敛成：
 
-Encounter Journal 支持职业过滤。掉落采集会对当前生效职业列表多轮执行 `EJ_SetLootFilter(...)`，再把多轮结果合并去重。
+- `filteredLoot`
+- `visibleLoot`
+- `fullyCollected`
 
-这样做的好处是：
+`LootPanelRenderer.RenderLootBranch()` 只消费 `visibleLoot`，并通过 `LootPanelRows.lua` 更新：
 
-- Blizzard 先帮我们筛掉明显无关掉落。
-- 后续渲染层只处理插件自身的过滤逻辑。
-
-## 7. 收集状态和显示过滤
-
-`CollectionState.GetLootItemCollectionState(item)` 是统一入口。
-
-它会按收藏品家族分流：
-
-- 幻化外观走 `C_TransmogCollection`
-- 坐骑走 `C_MountJournal`
-- 宠物走 `C_PetJournal`
-
-同时它还会处理：
-
-- 同外观已收集算收集。
-- source 级与 appearance 级回退。
-- 本次会话中的 `newly_collected` 表现。
-
-随后 `CollectionState.GetEncounterLootDisplayState(encounter)` 会把：
-
-- 当前类型过滤
-- 已收集隐藏规则
-- 可见物品列表
-- 首领是否全收集
-
-统一算出来，渲染层直接消费。
-
-## 8. `loot` tab
-
-`loot` tab 会对每个首领渲染：
-
-- header 行
-- 折叠/展开状态
-- 击杀与进度提示
-- 展开后的 item rows
-
-item row 由 `LootPanelRows` 懒创建并复用。每次渲染前先 `ResetLootItemRowState()`，避免跨 tab 或跨刷新残留：
-
-- 图标
-- 文本颜色
 - 收集图标
-- 新收集高亮
+- newly collected 高亮
 - 套装高亮
 - 职业图标
 
-## 9. `sets` tab
+## 9. `sets` 页签
 
-`sets` tab 不直接显示首领掉落，而是走 `LootSets.BuildCurrentInstanceSetSummary(data, context)`。
+`sets` tab 不直接显示 boss 掉落列表，而是调用：
+
+- `LootSets.BuildCurrentInstanceSetSummary(data, context)`
 
 这一步会：
 
-1. 先把当前副本掉落映射为 `setID -> source rows`。
-2. 读取每个 set 的当前进度。
-3. 计算缺失部位。
-4. 按职业分组排序。
+1. 把当前副本掉落映射成 `setID -> source rows`
+2. 读取每个 set 的当前进度
+3. 计算缺失部位
+4. 按职业分组排序
 
-因此 `sets` tab 本质上是“当前实例相关套装摘要页”，不是单纯换一种排版。
+所以它本质上是“当前实例相关套装摘要页”，不是 `loot` 页的另一种排版。
 
-## 10. 与统计看板的关系
+## 10. 隐藏已收藏链路
 
-掉落面板和统计看板共用一部分桥接能力：
+item 是否最终显示，主链路是：
 
-- `GetLootItemSetIDs()`
-- `ClassMatchesSetInfo()`
-- `GetSetProgress()`
-- `GetLootItemCollectionState()`
+1. `LootPanelRenderer.RefreshLootPanel()`
+2. `LootDataController.CollectCurrentInstanceLootData()`
+3. `CollectionState.GetEncounterLootDisplayState()`
+4. `CollectionState.LootItemMatchesTypeFilter()`
+5. `LootPanelRenderer.RenderLootBranch()`
 
-另外，看板重扫时使用的实例选择树，也和掉落面板选择树共源。
+因此“已收藏仍然显示”的根因通常只会落在：
 
-因此如果你同时看到：
+- 原始掉落数据不完整
+- `displayState` 没有进入 collected-like
+- `hideCollectedTransmog / Mounts / Pets` 没有命中
+- `typeKey` 走错收藏品分支
 
-- 掉落面板套装页不对
-- 统计看板套装格子也不对
+### 9.1 实际状态 vs 显示态
 
-先怀疑桥接层和 collection state，而不是两个 UI 同时各自出 bug。
+这里有两层状态：
 
-## 11. 维护建议
+- `GetLootItemCollectionState(item)`
+  真实收藏状态
+- `GetLootItemDisplayCollectionState(item)`
+  面板显示态，会叠加 session baseline
+
+### 9.2 过滤规则
+
+`LootItemMatchesTypeFilter(item)` 的顺序是：
+
+1. 读取 `StorageGateway.GetSettings()`
+2. 检查 `selectedLootTypes`
+3. 调 `GetLootItemDisplayCollectionState(item)`
+4. 判断是否属于 collected-like：
+   - `collected`
+   - `newly_collected`
+5. 按类型和设置决定是否隐藏：
+   - 幻化：`hideCollectedTransmog`
+   - 坐骑：`hideCollectedMounts`
+   - 宠物：`hideCollectedPets`
+
+## 11. 首领击杀次数统计图
+
+掉落面板里首领 header 旁边的击杀次数，以及相关 tooltip，走的是单独一条链：
+
+- 事件侧通过 `EncounterState.RecordEncounterKill(encounterName)` 记录当前 run 的击杀
+- `EncounterState.GetEncounterTotalKillCount(selection, encounterName)` 读取当前角色在该副本难度下的累计击杀次数
+- `LootPanelRenderer` 在渲染首领 header 时把次数显示出来，并参与 auto-collapse / tooltip 展示
+
+```dot
+digraph LootBossKillCountFlow {
+  rankdir=LR;
+  graph [fontsize=10];
+  node [shape=box style="rounded,filled" fillcolor="#F5F3FF" color="#6D28D9" fontname="Microsoft YaHei" fontsize=10];
+  edge [color="#6D28D9" fontsize=9 fontname="Microsoft YaHei"];
+
+  Event [label="boss kill event"];
+  Record [label="EncounterState\nRecordEncounterKill()"];
+  CacheKey [label="GetCurrentBossKillCacheKey()"];
+  Cache [label="bossKillCache[cacheKey]"];
+  Counts [label="characters[*].bossKillCounts"];
+  Scope [label="GetBossKillCountScopeKey()\n(instanceName + difficultyID)"];
+  Read [label="GetEncounterTotalKillCount(selection, encounterName)"];
+  Render [label="LootPanelRenderer"];
+  Header [label="encounter header / tooltip"];
+  Collapse [label="auto-collapse hint"];
+
+  Event -> Record -> CacheKey -> Cache;
+  Cache -> Counts;
+  Counts -> Scope -> Read;
+  Read -> Render;
+  Render -> Header;
+  Render -> Collapse;
+}
+```
+
+这张图描述的是“击杀次数统计”本身，不是 `visibleLoot` 过滤链。它服务于：
+
+- 首领 header 上的击杀次数提示
+- 鼠标提示里的 `xN` 次击杀信息
+- 基于击杀进度的折叠/展开辅助判断
+
+## 12. 隐藏已收藏排查图
+
+```dot
+digraph LootCollectedVisibility {
+  rankdir=LR;
+  graph [fontsize=10];
+  node [shape=box style="rounded,filled" fillcolor="#FFF1F2" color="#BE123C" fontname="Microsoft YaHei" fontsize=10];
+  edge [color="#BE123C" fontsize=9 fontname="Microsoft YaHei"];
+
+  Problem [label="Collected item still visible"];
+  Display [label="GetEncounterLootDisplayState()"];
+  Filter [label="LootItemMatchesTypeFilter()"];
+  State [label="GetLootItemDisplayCollectionState()"];
+  Real [label="ResolveLootItemCollectionState()"];
+  Data [label="APICollectCurrentInstanceLootData()"];
+  Visible [label="visibleLoot"];
+
+  Problem -> Display -> Visible;
+  Visible -> Filter -> State -> Real -> Data;
+}
+```
+
+## 13. 常见排查
 
 如果症状是：
 
-- “菜单对，但掉落不对”，先看 `LootSelection.lua` 和 `LootDataController.lua`。
-- “数据对，但显示串状态”，先看 `LootPanelRows.lua` 和 `LootPanelRenderer.lua`。
-- “套装页不对”，先看 `LootSets.lua` 和 `SetDashboardBridge.lua`。
-- “收集图标不对”，先看 `CollectionState.lua`。
+- 菜单对，但掉落不对
+  先看 `LootSelection.lua` 和 `LootDataController.lua`
+- 数据对，但显示串状态
+  先看 `LootPanelRows.lua` 和 `LootPanelRenderer.lua`
+- `sets` 页不对
+  先看 `LootSets.lua` 和 `SetDashboardBridge.lua`
+- 收集图标或隐藏已收藏不对
+  先看 `CollectionState.lua`

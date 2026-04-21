@@ -143,6 +143,7 @@ local function BuildDefaultDebugLogSections()
 		setSummaryDebug = false,
 		dashboardSetPieceDebug = false,
 		lootApiRawDebug = false,
+		lootPanelRegressionRawDebug = false,
 		collectionStateDebug = false,
 		dashboardSnapshotDebug = false,
 		dashboardSnapshotWriteDebug = false,
@@ -531,12 +532,25 @@ function Storage.NormalizeSettings(settings)
 	if settings.showExpired == nil then
 		settings.showExpired = false
 	end
-	settings.hideCollectedTransmog = true
+	if settings.hideCollectedTransmog == nil then
+		settings.hideCollectedTransmog = false
+	end
+	if settings.hideCollectedTransmogExplicit == nil then
+		-- Older builds forced this filter on without a real user-owned choice.
+		-- Reset legacy persisted true values to the new default-off behavior.
+		if settings.hideCollectedTransmog then
+			settings.hideCollectedTransmog = false
+		end
+		settings.hideCollectedTransmogExplicit = false
+	end
 	if settings.hideCollectedMounts == nil then
 		settings.hideCollectedMounts = false
 	end
 	if settings.hideCollectedPets == nil then
 		settings.hideCollectedPets = false
+	end
+	if settings.lootClassScopeMode == nil then
+		settings.lootClassScopeMode = "current"
 	end
 	if settings.panelStyle == nil then
 		settings.panelStyle = "blizzard"
@@ -572,9 +586,13 @@ function Storage.NormalizeSettings(settings)
 	settings.showRaids = true
 	settings.showDungeons = true
 	settings.showExpired = settings.showExpired and true or false
-	settings.hideCollectedTransmog = true
+	settings.hideCollectedTransmog = settings.hideCollectedTransmog and true or false
+	settings.hideCollectedTransmogExplicit = settings.hideCollectedTransmogExplicit and true or false
 	settings.hideCollectedMounts = settings.hideCollectedMounts and true or false
 	settings.hideCollectedPets = settings.hideCollectedPets and true or false
+	if settings.lootClassScopeMode ~= "selected" then
+		settings.lootClassScopeMode = "current"
+	end
 	settings.collectSameAppearance = true
 	if settings.panelStyle ~= "elvui" then
 		settings.panelStyle = "blizzard"

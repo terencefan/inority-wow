@@ -48,6 +48,20 @@ local function OpenWardrobeCollection(mode, searchText)
 	end
 end
 
+local function SetDashedBorderVisible(itemRow, visible)
+	if type(itemRow) ~= "table" or type(itemRow.newlyCollectedDashedBorder) ~= "table" then
+		return
+	end
+
+	for _, segment in ipairs(itemRow.newlyCollectedDashedBorder) do
+		if visible then
+			segment:Show()
+		else
+			segment:Hide()
+		end
+	end
+end
+
 function LootPanelRows.EnsureLootItemRow(parentFrame, row, index)
 	row.itemRows = row.itemRows or {}
 	local itemRow = row.itemRows[index]
@@ -67,6 +81,26 @@ function LootPanelRows.EnsureLootItemRow(parentFrame, row, index)
 	itemRow.newlyCollectedHighlight:SetPoint("BOTTOMRIGHT", 2, 0)
 	itemRow.newlyCollectedHighlight:SetColorTexture(0.30, 0.85, 0.45, 0.22)
 	itemRow.newlyCollectedHighlight:Hide()
+	itemRow.newlyCollectedDashedBorder = {}
+	local borderSegments = itemRow.newlyCollectedDashedBorder
+	local function AddBorderSegment(point, relativePoint, xOffset, yOffset, width, height)
+		local segment = itemRow:CreateTexture(nil, "OVERLAY", nil, 3)
+		segment:SetColorTexture(1.0, 0.84, 0.18, 0.95)
+		segment:SetSize(width, height)
+		segment:SetPoint(point, itemRow, relativePoint, xOffset, yOffset)
+		segment:Hide()
+		borderSegments[#borderSegments + 1] = segment
+	end
+	AddBorderSegment("TOPLEFT", "TOPLEFT", -2, 1, 10, 2)
+	AddBorderSegment("TOP", "TOP", 0, 1, 10, 2)
+	AddBorderSegment("TOPRIGHT", "TOPRIGHT", 2, 1, 10, 2)
+	AddBorderSegment("BOTTOMLEFT", "BOTTOMLEFT", -2, -1, 10, 2)
+	AddBorderSegment("BOTTOM", "BOTTOM", 0, -1, 10, 2)
+	AddBorderSegment("BOTTOMRIGHT", "BOTTOMRIGHT", 2, -1, 10, 2)
+	AddBorderSegment("TOPLEFT", "TOPLEFT", -2, -2, 2, 6)
+	AddBorderSegment("BOTTOMLEFT", "BOTTOMLEFT", -2, 2, 2, 6)
+	AddBorderSegment("TOPRIGHT", "TOPRIGHT", 2, -2, 2, 6)
+	AddBorderSegment("BOTTOMRIGHT", "BOTTOMRIGHT", 2, 2, 2, 6)
 	itemRow.acquiredFlash = itemRow:CreateTexture(nil, "OVERLAY", nil, 2)
 	itemRow.acquiredFlash:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
 	itemRow.acquiredFlash:SetBlendMode("ADD")
@@ -152,12 +186,18 @@ function LootPanelRows.UpdateLootItemSetHighlight(itemRow, item)
 	if not itemRow or not itemRow.highlight or not itemRow.text then
 		return
 	end
-	if GetLootItemDisplayCollectionState(item) == "newly_collected" then
+	local displayState = GetLootItemDisplayCollectionState(item)
+	if displayState == "newly_collected" then
 		itemRow.highlight:Hide()
 		itemRow.text:SetTextColor(0.70, 1.0, 0.78)
 		return
 	end
-	local shouldHighlight = item and GetLootItemDisplayCollectionState(item) ~= "collected" and IsLootItemIncompleteSetPiece(item)
+	if displayState == "collected" then
+		itemRow.highlight:Hide()
+		itemRow.text:SetTextColor(0.70, 1.0, 0.78)
+		return
+	end
+	local shouldHighlight = item and IsLootItemIncompleteSetPiece(item)
 	if shouldHighlight then
 		itemRow.highlight:Show()
 		itemRow.text:SetTextColor(1.0, 0.93, 0.65)
@@ -176,14 +216,27 @@ function LootPanelRows.UpdateLootItemAcquiredHighlight(itemRow, item)
 	local lootPanelSessionState = GetLootPanelSessionState()
 	lootPanelSessionState.itemCelebrated = lootPanelSessionState.itemCelebrated or {}
 	if displayState == "newly_collected" then
+		itemRow.newlyCollectedHighlight:SetColorTexture(0.30, 0.85, 0.45, 0.22)
 		itemRow.newlyCollectedHighlight:Show()
+		SetDashedBorderVisible(itemRow, true)
 		if itemRow.acquiredFlash and itemRow.acquiredFlashAnim and itemKey and not lootPanelSessionState.itemCelebrated[itemKey] then
 			lootPanelSessionState.itemCelebrated[itemKey] = true
 			itemRow.acquiredFlashAnim:Stop()
 			itemRow.acquiredFlashAnim:Play()
 		end
+	elseif displayState == "collected" then
+		itemRow.newlyCollectedHighlight:SetColorTexture(0.24, 0.72, 0.38, 0.16)
+		itemRow.newlyCollectedHighlight:Show()
+		SetDashedBorderVisible(itemRow, false)
+		if itemRow.acquiredFlashAnim then
+			itemRow.acquiredFlashAnim:Stop()
+		end
+		if itemRow.acquiredFlash then
+			itemRow.acquiredFlash:Hide()
+		end
 	else
 		itemRow.newlyCollectedHighlight:Hide()
+		SetDashedBorderVisible(itemRow, false)
 		if itemRow.acquiredFlashAnim then
 			itemRow.acquiredFlashAnim:Stop()
 		end
@@ -250,8 +303,7 @@ function LootPanelRows.GetEncounterAutoCollapsed(encounter, encounterName, lootS
 	local lootPanelSessionState = GetLootPanelSessionState()
 	local isKilled = encounterKilled and true or false
 	if not isKilled then
-		isKilled = (type(isEncounterKilledByName) == "function" and isEncounterKilledByName(encounterKillState, encounterName))
-			or ((tonumber(encounter.index) or 0) > 0 and (tonumber(encounter.index) or 0) <= progressCount)
+		isKilled = type(isEncounterKilledByName) == "function" and isEncounterKilledByName(encounterKillState, encounterName) or false
 	end
 	local autoCollapsed = lootState.fullyCollected or isKilled
 	if not lootPanelSessionState.active then
@@ -326,6 +378,7 @@ function LootPanelRows.ResetLootItemRowState(itemRow)
 	if itemRow.newlyCollectedHighlight then
 		itemRow.newlyCollectedHighlight:Hide()
 	end
+	SetDashedBorderVisible(itemRow, false)
 	if itemRow.acquiredFlashAnim then
 		itemRow.acquiredFlashAnim:Stop()
 	end

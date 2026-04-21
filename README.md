@@ -949,9 +949,10 @@ powershell -ExecutionPolicy Bypass -File .\tools\check.ps1 -SkipFormat
 powershell -ExecutionPolicy Bypass -File .\tools\check.ps1 -FailOnWarnings
 ```
 
-如果本轮只想跳过重复代码检查：
+如果需要重复代码扫描，请单独运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\check.ps1 -SkipDuplication
+npm install -g jscpd
+powershell -ExecutionPolicy Bypass -File .\tools\run_jscpd.ps1
 ```
 
