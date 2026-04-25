@@ -4,14 +4,15 @@
 
 ## Files
 
-- `LootPanelController.lua`: 面板生命周期、窗口布局、按钮交互、Tab 切换。
-- `LootSelection.lua`: 副本/难度选择构建、下拉菜单、当前选择切换。
+- `LootPanelController.lua`: 面板生命周期、窗口布局、按钮交互、`RefreshRequest` 入口、Tab 切换。
+- `LootSelection.lua`: 副本/难度选择构建、下拉菜单、默认打开优先级、`SelectionContext` 读取。
 - `LootDataController.lua`: 当前选择对应的掉落数据采集、缓存、扩展信息查询。
-- `LootPanelRenderer.lua`: 面板主渲染流程，按 `loot` / `sets` 分支生成内容。
+- `LootPanelRenderer.lua`: 面板主渲染流程、面板级唯一状态区、按 `loot` / `sets` 分支生成内容。
 - `LootPanelRows.lua`: 共享 row widget 创建、重置、高亮、收藏状态图标。
 - `LootFilterController.lua`: 职业/物品类型等过滤状态管理。
 - `sets/`: 当前副本套装摘要所需的套装计算逻辑。
 - `ui-loot-panel.md`: 掉落面板从采集到“隐藏已收藏”判定的专项链路说明现已并入该文档。
+- `ui-loot-panel-subsystem-refactor-spec.md`: loot panel 子系统从当前 wiring 形态收敛到数据管线 owner 模型的目标态 spec。
 
 ## Runtime Flow
 
@@ -20,84 +21,93 @@ flowchart TD
     A["用户打开 Loot 面板"] --> B["LootPanelController.ToggleLootPanel()"]
     B --> C["InitializeLootPanel()"]
     C --> D["创建面板、按钮、Tab、ScrollFrame"]
-    D --> E["PreferCurrentLootPanelSelectionOnOpen()"]
-    E --> F["ResetLootPanelSessionState(true)"]
-    F --> G["RefreshLootPanel()"]
+    D --> E["RequestLootPanelRefresh({ reason = open })"]
+    E --> F["PreferCurrentLootPanelSelectionOnOpen()"]
+    F --> G["恢复 lastManualTab"]
+    G --> H["ResetLootPanelSessionState(true)"]
+    H --> I["RefreshLootPanel(refreshRequest)"]
 
-    G --> H["LootPanelRenderer.RefreshLootPanel()"]
-    H --> I["GetLootPanelState()"]
-    I --> J["LootSelection.GetSelectedLootPanelInstance()"]
-    J --> K["LootSelection.BuildLootPanelInstanceSelections()"]
-    K --> L["selection cache / EJ options"]
+    I --> J["LootPanelRenderer.RefreshLootPanel()"]
+    J --> K["GetLootPanelState()"]
+    K --> L["LootSelection.GetSelectedLootPanelInstance()"]
+    L --> M["LootSelection.BuildLootPanelInstanceSelections()"]
+    M --> N["selection cache / EJ options"]
 
-    I --> M{"当前范围下是否有可用职业?"}
-    M -- 否 --> N["渲染空状态提示"]
-    M -- 是 --> O["LootDataController.CollectCurrentInstanceLootData()"]
+    K --> O{"当前范围下是否有可用职业?"}
+    O -- 否 --> P["PanelBannerViewModel: empty"]
+    O -- 是 --> Q["LootDataController.CollectCurrentInstanceLootData()"]
 
-    O --> P{"命中 loot data cache?"}
-    P -- 是 --> Q["loot data cache hit"]
-    P -- 否 --> R["APICollectCurrentInstanceLootData()"]
-    R --> S["encounters / loot rows"]
-    S --> T["loot data cache write"]
-    Q --> U["data"]
-    T --> U
+    Q --> R{"命中 loot data cache?"}
+    R -- 是 --> S["loot data cache hit"]
+    R -- 否 --> T["APICollectCurrentInstanceLootData()"]
+    T --> U["encounters / loot rows"]
+    U --> V["loot data cache write"]
+    S --> W["data"]
+    V --> W
 
-    U --> V["BuildCurrentEncounterKillMap()"]
-    V --> W{"当前 Tab"}
+    W --> X["BuildCurrentEncounterKillMap()"]
+    X --> Y{"当前 Tab"}
 
-    W -- loot --> X["按首领分组渲染"]
-    X --> Y["GetEncounterLootDisplayState()"]
-    Y --> Z["计算 visibleLoot / fullyCollected"]
-    Z --> AA["GetEncounterAutoCollapsed()"]
-    AA --> AB["渲染首领 header"]
-    AB --> AC["逐行创建 item row"]
-    AC --> AD["UpdateLootItemCollectionState()"]
-    AD --> AE["UpdateLootItemAcquiredHighlight()"]
-    AE --> AF["UpdateLootItemSetHighlight()"]
-    AF --> AG["UpdateLootItemClassIcons()"]
+    Y -- loot --> Z["按首领分组渲染"]
+    Z --> AA["GetEncounterLootDisplayState()"]
+    AA --> AB["计算 visibleLoot / fullyCollected"]
+    AB --> AC["GetEncounterAutoCollapsed()"]
+    AC --> AD["渲染首领 header"]
+    AD --> AE["逐行创建 item row"]
+    AE --> AF["UpdateLootItemCollectionState()"]
+    AF --> AG["UpdateLootItemAcquiredHighlight()"]
+    AG --> AH["UpdateLootItemSetHighlight()"]
+    AH --> AI["UpdateLootItemClassIcons()"]
 
-    W -- sets --> AH["BuildCurrentInstanceSetSummary(data)"]
-    AH --> AI["按职业分组渲染套装"]
-    AI --> AJ["渲染 set row"]
-    AJ --> AK["渲染 missing piece row"]
-    AK --> AL["UpdateSetCompletionRowVisual()"]
+    Y -- sets --> AJ["BuildCurrentInstanceSetSummary(data)"]
+    AJ --> AK["按职业分组渲染套装"]
+    AK --> AL["渲染 set row"]
+    AL --> AM["渲染 missing piece row"]
+    AM --> AN["UpdateSetCompletionRowVisual()"]
 
-    W -- error --> AM["渲染错误和调试信息"]
+    Y -- error --> AO["PanelBannerViewModel: error"]
 
-    AG --> AN["设置 content 高度和滚动区域"]
-    AL --> AN
-    AM --> AN
-    AN --> AO{"data.missingItemData?"}
-    AO -- 是 --> AP["C_Timer.After(0.3, callback)"]
-    AO -- 否 --> AQ["结束"]
+    AI --> AP["设置 content 高度和滚动区域"]
+    AN --> AP
+    AO --> AP
+    AP --> AQ{"data.missingItemData?"}
+    AQ -- 是 --> AR["C_Timer.After(0.3, callback)"]
+    AQ -- 否 --> AT["结束"]
 
-    AR["用户点击副本下拉"] --> AS["LootSelection.BuildLootPanelInstanceMenu()"]
-    AS --> AT["资料片 -> 副本 -> 难度菜单树"]
-    AT --> AU["selected selection"]
-    AU --> AV["selectedInstanceKey"]
-    AV --> AW["InvalidateLootDataCache()"]
-    AW --> AX["ResetLootPanelScrollPosition()"]
-    AX --> G
+    AU["用户点击副本下拉"] --> AV["LootSelection.BuildLootPanelInstanceMenu()"]
+    AV --> AW["资料片 -> 副本 -> 难度菜单树"]
+    AW --> AX["selected selection"]
+    AX --> AY["selectedInstanceKey"]
+    AY --> AZ["RequestLootPanelRefresh({ reason = selection_changed })"]
+    AZ --> I
 
-    AY["用户切换 loot / sets Tab"] --> AZ["LootPanelController.SetLootPanelTab()"]
-    AZ --> BA["ResetLootPanelScrollPosition()"]
-    BA --> G
+    BA["用户切换 loot / sets Tab"] --> BB["LootPanelController.SetLootPanelTab()"]
+    BB --> BC["RequestLootPanelRefresh({ reason = tab_changed })"]
+    BC --> I
 
-    BB["用户点击刷新"] --> BC["InvalidateLootDataCache()"]
-    BC --> BD["ResetLootPanelSessionState(true)"]
-    BD --> BE["ResetLootPanelScrollPosition()"]
-    BE --> G
+    BD["用户点击刷新"] --> BE["RequestLootPanelRefresh({ reason = manual_refresh })"]
+    BE --> I
 
     classDef decisionNode fill:#f3d36b,stroke:#8a6d1f,color:#1f1f1f,stroke-width:1px;
     classDef functionNode fill:#7db7ff,stroke:#245ea8,color:#0f1e33,stroke-width:1px;
     classDef renderNode fill:#79d89b,stroke:#2d7a48,color:#102417,stroke-width:1px;
     classDef stateNode fill:#d8dde6,stroke:#667085,color:#1f2937,stroke-width:1px;
 
-    class M,P,W,AO decisionNode;
-    class B,C,E,F,G,H,I,J,K,O,R,V,AS,AW,AX,AZ,BA,BC,BD,BE functionNode;
-    class N,X,Y,Z,AA,AB,AC,AD,AE,AF,AG,AH,AI,AJ,AK,AL,AM,AN renderNode;
-    class D,L,Q,S,T,U,AT,AU,AV,AP,AQ,AR,AY,BB stateNode;
+    class O,R,Y,AQ decisionNode;
+    class B,C,E,F,G,H,I,J,K,L,M,Q,T,X,AV,AZ,BB,BC,BE functionNode;
+    class P,Z,AA,AB,AC,AD,AE,AF,AG,AH,AI,AJ,AK,AL,AM,AN,AO,AP renderNode;
+    class D,N,S,U,V,W,AR,AT,AU,AW,AX,AY,BA,BD stateNode;
 ```
+
+## Phase 1 Contract
+
+当前第一阶段重构已经把几条关键边界从“隐式 refresh”收敛成显式 contract：
+
+- `RefreshRequest` 统一覆盖 `open / selection_changed / filter_changed / tab_changed / runtime_event / manual_refresh`
+- `SelectionContext` 显式持有 `lastManualSelectionKey / lastManualTab / lastObservedCurrentInstance`
+- `manual_refresh` 是强刷新；`runtime_event` 默认是弱刷新
+- 面板级唯一状态区已经开始由 `PanelBannerViewModel` 承担
+- `loot / sets` 两页都保持组结构稳定，空态解释由当前页签语义决定
 
 ## Cache Lifecycle
 

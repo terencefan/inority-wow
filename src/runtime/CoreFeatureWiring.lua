@@ -30,6 +30,7 @@ function CoreFeatureWiring.Wire(config)
 	InstanceMetadata.Configure({
 		API = config.API,
 		CoreMetadata = config.CoreMetadata,
+		Log = addon.Log,
 		journalInstanceLookupRulesVersion = config.journalInstanceLookupRulesVersion,
 		lootPanelSelectionRulesVersion = config.lootPanelSelectionRulesVersion,
 	})
@@ -69,6 +70,7 @@ function CoreFeatureWiring.Wire(config)
 	outputs.IsEncounterKilledByName = EncounterState.IsEncounterKilledByName
 	outputs.RecordEncounterKill = EncounterState.RecordEncounterKill
 	outputs.GetEncounterTotalKillCount = EncounterState.GetEncounterTotalKillCount
+	outputs.BuildBossKillCountViewModel = EncounterState.BuildBossKillCountViewModel
 	outputs.MergeBossKillCache = EncounterState.MergeBossKillCache
 
 	local LootFilterController = addon.LootFilterController
@@ -95,6 +97,15 @@ function CoreFeatureWiring.Wire(config)
 		end,
 		BuildLootFilterMenu = function(button, items)
 			return config.BuildLootFilterMenu(button, items)
+		end,
+		RequestLootPanelRefresh = function(request)
+			if outputs.RequestLootPanelRefresh then
+				return outputs.RequestLootPanelRefresh(request)
+			end
+			if config.RefreshLootPanel then
+				config.RefreshLootPanel()
+			end
+			return request
 		end,
 		RefreshLootPanel = function()
 			if config.RefreshLootPanel then
@@ -124,6 +135,7 @@ function CoreFeatureWiring.Wire(config)
 	LootSelection.Configure({
 		T = config.T,
 		getDB = config.getDB,
+		getSettings = config.getSettings,
 		getLootPanelState = config.getLootPanelState,
 		getLootPanel = config.getLootPanel,
 		GetExpansionOrder = function(expansionName)
@@ -152,6 +164,15 @@ function CoreFeatureWiring.Wire(config)
 			return {}
 		end,
 		ResetLootPanelScrollPosition = config.ResetLootPanelScrollPosition,
+		RequestLootPanelRefresh = function(request)
+			if outputs.RequestLootPanelRefresh then
+				return outputs.RequestLootPanelRefresh(request)
+			end
+			if config.RefreshLootPanel then
+				config.RefreshLootPanel()
+			end
+			return request
+		end,
 		RefreshLootPanel = function()
 			if config.RefreshLootPanel then
 				config.RefreshLootPanel()
@@ -183,6 +204,7 @@ function CoreFeatureWiring.Wire(config)
 	outputs.BuildLootPanelSelectionKey = LootSelection.BuildLootPanelSelectionKey
 	outputs.BuildLootDataCacheKey = LootSelection.BuildLootDataCacheKey
 	outputs.AreNumericListsEquivalent = LootSelection.AreNumericListsEquivalent
+	outputs.BuildSelectionContext = LootSelection.BuildSelectionContext
 	outputs.BuildLootPanelInstanceMenu = LootSelection.BuildLootPanelInstanceMenu
 	outputs.GetLootPanelInstanceExpansionInfo = LootSelection.GetLootPanelInstanceExpansionInfo
 	outputs.BuildLootPanelInstanceSelections = LootSelection.BuildLootPanelInstanceSelections
@@ -551,6 +573,7 @@ function CoreFeatureWiring.Wire(config)
 			BuildCurrentEncounterKillMap = outputs.BuildCurrentEncounterKillMap,
 			IsEncounterKilledByName = outputs.IsEncounterKilledByName,
 			GetEncounterTotalKillCount = outputs.GetEncounterTotalKillCount,
+			BuildBossKillCountViewModel = outputs.BuildBossKillCountViewModel,
 			GetEncounterCollapseCacheEntry = config.GetEncounterCollapseCacheEntry,
 			ToggleLootEncounterCollapsed = outputs.ToggleLootEncounterCollapsed,
 			EnsureLootItemRow = addon.LootPanelRows.EnsureLootItemRow,
@@ -580,11 +603,13 @@ function CoreFeatureWiring.Wire(config)
 	outputs.RefreshLootPanel = addon.LootPanelRenderer.RefreshLootPanel
 	outputs.BuildCurrentInstanceSetSummary = addon.LootPanelRenderer.BuildCurrentInstanceSetSummary
 	ConfigureLootPanelController(outputs.RefreshLootPanel)
+	outputs.RequestLootPanelRefresh = LootPanelController.RequestLootPanelRefresh
 
 	if addon.DebugTools and addon.DebugTools.Configure then
 		addon.DebugTools.Configure({
 			T = config.T,
 			API = config.API,
+			Log = addon.Log,
 			Compute = addon.Compute,
 			getDB = config.getDB,
 			getSettings = config.getSettings,
@@ -710,6 +735,10 @@ function CoreFeatureWiring.Wire(config)
 		InvalidateRaidDashboardCache = config.InvalidateRaidDashboard,
 		RefreshPanelText = outputs.RefreshPanelText,
 		RefreshLootPanel = function()
+			if outputs.RequestLootPanelRefresh then
+				outputs.RequestLootPanelRefresh({ reason = "runtime_event" })
+				return
+			end
 			if outputs.RefreshLootPanel then
 				outputs.RefreshLootPanel()
 			end
@@ -728,6 +757,7 @@ function CoreFeatureWiring.Wire(config)
 		CaptureDungeonDashboardDebugDump = config.CaptureDungeonDashboardDebugDump,
 		CapturePvpSetDebugDump = config.CapturePvpSetDebugDump,
 		SetPanelView = outputs.SetPanelView,
+		Log = addon.Log,
 		Print = config.Print,
 	})
 

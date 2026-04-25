@@ -60,6 +60,10 @@ local function GetAPI()
 	return dependencies.API or addon.API or {}
 end
 
+local function GetLog()
+	return dependencies.Log or addon.Log
+end
+
 local function GetCoreMetadata()
 	return dependencies.CoreMetadata or addon.CoreMetadata or {}
 end
@@ -149,7 +153,25 @@ function InstanceMetadata.FindJournalInstanceByInstanceInfo(instanceName, instan
 	local cached = lookupEntries[cacheKey]
 	if cached ~= nil then
 		if cached == false then
+			local log = GetLog()
+			if log and type(log.Debug) == "function" then
+				log.Debug("metadata.instance", "journal_lookup_cache_miss", {
+					instanceName = tostring(instanceName or ""),
+					instanceID = tonumber(instanceID) or 0,
+					instanceType = tostring(instanceType or "any"),
+				})
+			end
 			return nil
+		end
+		local log = GetLog()
+		if log and type(log.Debug) == "function" then
+			log.Debug("metadata.instance", "journal_lookup_cache_hit", {
+				instanceName = tostring(instanceName or ""),
+				instanceID = tonumber(instanceID) or 0,
+				instanceType = tostring(instanceType or "any"),
+				journalInstanceID = tonumber(cached.journalInstanceID) or 0,
+				resolution = tostring(cached.resolution or "cache"),
+			})
 		end
 		return cached.journalInstanceID, cached.resolution
 	end
@@ -179,6 +201,16 @@ function InstanceMetadata.FindJournalInstanceByInstanceInfo(instanceName, instan
 							journalInstanceID = journalInstanceID,
 							resolution = "name",
 						}
+						local log = GetLog()
+						if log and type(log.Info) == "function" then
+							log.Info("metadata.instance", "journal_instance_resolved", {
+								instanceName = tostring(instanceName or ""),
+								instanceID = tonumber(instanceID) or 0,
+								instanceType = tostring(instanceType or "any"),
+								journalInstanceID = tonumber(journalInstanceID) or 0,
+								resolution = "name",
+							})
+						end
 						return journalInstanceID, "name"
 					end
 					local normalizedJournalName = NormalizeInstanceDisplayName(journalName)
@@ -206,6 +238,16 @@ function InstanceMetadata.FindJournalInstanceByInstanceInfo(instanceName, instan
 			journalInstanceID = normalizedNameMatchJournalInstanceID,
 			resolution = "normalized_name",
 		}
+		local log = GetLog()
+		if log and type(log.Info) == "function" then
+			log.Info("metadata.instance", "journal_instance_resolved", {
+				instanceName = tostring(instanceName or ""),
+				instanceID = tonumber(instanceID) or 0,
+				instanceType = tostring(instanceType or "any"),
+				journalInstanceID = tonumber(normalizedNameMatchJournalInstanceID) or 0,
+				resolution = "normalized_name",
+			})
+		end
 		return normalizedNameMatchJournalInstanceID, "normalized_name"
 	end
 
@@ -214,6 +256,16 @@ function InstanceMetadata.FindJournalInstanceByInstanceInfo(instanceName, instan
 			journalInstanceID = fuzzyNameMatchJournalInstanceID,
 			resolution = "fuzzy_name",
 		}
+		local log = GetLog()
+		if log and type(log.Info) == "function" then
+			log.Info("metadata.instance", "journal_instance_resolved", {
+				instanceName = tostring(instanceName or ""),
+				instanceID = tonumber(instanceID) or 0,
+				instanceType = tostring(instanceType or "any"),
+				journalInstanceID = tonumber(fuzzyNameMatchJournalInstanceID) or 0,
+				resolution = "fuzzy_name",
+			})
+		end
 		return fuzzyNameMatchJournalInstanceID, "fuzzy_name"
 	end
 
@@ -222,13 +274,43 @@ function InstanceMetadata.FindJournalInstanceByInstanceInfo(instanceName, instan
 			journalInstanceID = mapMatchJournalInstanceID,
 			resolution = "instanceID",
 		}
+		local log = GetLog()
+		if log and type(log.Info) == "function" then
+			log.Info("metadata.instance", "journal_instance_resolved", {
+				instanceName = tostring(instanceName or ""),
+				instanceID = tonumber(instanceID) or 0,
+				instanceType = tostring(instanceType or "any"),
+				journalInstanceID = tonumber(mapMatchJournalInstanceID) or 0,
+				resolution = "instanceID",
+			})
+		end
 		return mapMatchJournalInstanceID, "instanceID"
 	end
 
 	lookupEntries[cacheKey] = false
+	local log = GetLog()
+	if log and type(log.Debug) == "function" then
+		log.Debug("metadata.instance", "journal_instance_unresolved", {
+			instanceName = tostring(instanceName or ""),
+			instanceID = tonumber(instanceID) or 0,
+			instanceType = tostring(instanceType or "any"),
+		})
+	end
 	return nil
 end
 
 function InstanceMetadata.GetCurrentJournalInstanceID()
-	return GetAPI().GetCurrentJournalInstanceID(InstanceMetadata.FindJournalInstanceByInstanceInfo)
+	local journalInstanceID, debugInfo = GetAPI().GetCurrentJournalInstanceID(InstanceMetadata.FindJournalInstanceByInstanceInfo)
+	local log = GetLog()
+	if log and type(log.Info) == "function" then
+		log.Info("metadata.instance", "current_journal_instance_resolved", {
+			journalInstanceID = tonumber(journalInstanceID) or 0,
+			instanceName = debugInfo and tostring(debugInfo.instanceName or "") or "",
+			instanceType = debugInfo and tostring(debugInfo.instanceType or "") or "",
+			instanceID = debugInfo and (tonumber(debugInfo.instanceID) or 0) or 0,
+			difficultyID = debugInfo and (tonumber(debugInfo.difficultyID) or 0) or 0,
+			resolution = debugInfo and tostring(debugInfo.resolution or "unresolved") or "unresolved",
+		})
+	end
+	return journalInstanceID, debugInfo
 end

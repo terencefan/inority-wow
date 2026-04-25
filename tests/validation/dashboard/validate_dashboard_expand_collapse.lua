@@ -52,6 +52,7 @@ local function createTexture()
 	function texture:SetPoint() end
 	function texture:ClearAllPoints() end
 	function texture:SetColorTexture() end
+	function texture:SetVertexColor() end
 	function texture:SetHeight() end
 	function texture:SetWidth() end
 	function texture:SetSize() end
@@ -131,6 +132,9 @@ local function createFrame(frameType, parent)
 	end
 	function frame:SetVerticalScroll(value)
 		self.verticalScroll = value
+	end
+	function frame:SetEnabled(value)
+		self.enabled = value and true or false
 	end
 
 	return frame
@@ -303,14 +307,20 @@ collapsedState["Mock Expansion"] = false
 RaidDashboard.RenderContent(owner, content, scrollFrame)
 assert(owner.dashboardUI and owner.dashboardUI.rows and owner.dashboardUI.rows[1], "expected expansion row to render")
 assert(owner.dashboardUI.rows[1]:IsShown(), "expected expansion row to stay visible when expanded")
-assert(owner.dashboardUI.rows[2] and owner.dashboardUI.rows[2]:IsShown(), "expected instance row to render when expansion is expanded")
+assert(
+	owner.dashboardUI.rows[2] and owner.dashboardUI.rows[2]:IsShown(),
+	"expected instance row to render when expansion is expanded"
+)
 local expandedHeight = tonumber(content.height) or 0
 local expandedSummary = owner.dashboardUI.rows[1].cells[1].topText:GetText()
 
 collapsedState["Mock Expansion"] = true
 RaidDashboard.RenderContent(owner, content, scrollFrame)
 assert(owner.dashboardUI.rows[1]:IsShown(), "expected expansion row to stay visible when collapsed")
-assert(owner.dashboardUI.rows[2] and not owner.dashboardUI.rows[2]:IsShown(), "expected instance row to hide when expansion is collapsed")
+assert(
+	owner.dashboardUI.rows[2] and not owner.dashboardUI.rows[2]:IsShown(),
+	"expected instance row to hide when expansion is collapsed"
+)
 local collapsedHeight = tonumber(content.height) or 0
 local collapsedSummary = owner.dashboardUI.rows[1].cells[1].topText:GetText()
 
@@ -319,7 +329,10 @@ assert(expandedSummary == collapsedSummary, "expected expansion summary metric t
 
 collapsedState["Mock Expansion"] = false
 RaidDashboard.RenderContent(owner, content, scrollFrame)
-assert(owner.dashboardUI.rows[2] and owner.dashboardUI.rows[2]:IsShown(), "expected instance row to show again after re-expanding")
+assert(
+	owner.dashboardUI.rows[2] and owner.dashboardUI.rows[2]:IsShown(),
+	"expected instance row to show again after re-expanding"
+)
 
 print("validated_dashboard_expand_collapse=true")
 print(string.format("expanded_height=%d", expandedHeight))

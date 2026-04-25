@@ -12,6 +12,15 @@ MogTracker 是一个魔兽世界插件，用来追踪角色副本锁定、当前
   - `/imt` 默认进入配置相关入口。
   - `/img debug ...` 打开独立调试面板并采集 focused debug dump。
 
+## 统一日志
+
+当前第一阶段统一日志实现范围固定为 `runtime + debug + InstanceMetadata + 统一日志面板 UI`，并包含必要的 `storage/runtime bootstrap` 基础设施。
+
+- `runtime` 事件、启动链路和运行时错误统一走结构化日志入口。
+- `/img debug ...` 仍是入口，但面板已经升级为统一日志面板，支持 `level / scope / session` 过滤。
+- 面板支持 `Copy JSON`、`复制给 Agent` 与导出当前结果，底层都基于统一日志导出 contract。
+- 目标态与 contract 见 [`docs/specs/operations/operations-unified-logging-design.md`](./docs/specs/operations/operations-unified-logging-design.md)。
+
 ## Docs 导航
 
 设计、实现和维护文档统一位于 [`docs/`](./docs/)，其中 spec 总入口见 [`docs/specs/README.md`](./docs/specs/README.md)：

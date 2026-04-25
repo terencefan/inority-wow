@@ -33,6 +33,14 @@ local function RefreshLootPanel()
 	end
 end
 
+local function RequestLootPanelRefresh(request)
+	if type(dependencies.RequestLootPanelRefresh) == "function" then
+		return dependencies.RequestLootPanelRefresh(request)
+	end
+	RefreshLootPanel()
+	return request
+end
+
 local function UpdateLootTypeFilterButtons()
 	if type(dependencies.UpdateLootTypeFilterButtons) == "function" then
 		dependencies.UpdateLootTypeFilterButtons()
@@ -141,7 +149,7 @@ function LootFilterController.BuildClassFilterMenu(button)
 			func = function()
 				lootPanelState.classID = 0
 				lootPanelState.specID = 0
-				RefreshLootPanel()
+				RequestLootPanelRefresh({ reason = "filter_changed" })
 			end,
 		},
 	}
@@ -155,7 +163,7 @@ function LootFilterController.BuildClassFilterMenu(button)
 				func = function()
 					lootPanelState.classID = classID
 					lootPanelState.specID = 0
-					RefreshLootPanel()
+					RequestLootPanelRefresh({ reason = "filter_changed" })
 				end,
 			}
 		end
@@ -177,7 +185,7 @@ function LootFilterController.BuildSpecFilterMenu(button)
 			checked = (tonumber(lootPanelState.specID) or 0) == 0,
 			func = function()
 				lootPanelState.specID = 0
-				RefreshLootPanel()
+				RequestLootPanelRefresh({ reason = "filter_changed" })
 			end,
 		},
 	}
@@ -191,7 +199,7 @@ function LootFilterController.BuildSpecFilterMenu(button)
 				checked = (tonumber(lootPanelState.specID) or 0) == specID,
 				func = function()
 					lootPanelState.specID = specID
-					RefreshLootPanel()
+					RequestLootPanelRefresh({ reason = "filter_changed" })
 				end,
 			}
 		end
@@ -210,7 +218,7 @@ function LootFilterController.BuildLootTypeFilterMenu(button)
 			checked = not LootFilterController.IsLootTypeFilterActive(),
 			func = function()
 				settings.selectedLootTypes = {}
-				RefreshLootPanel()
+				RequestLootPanelRefresh({ reason = "filter_changed" })
 				UpdateLootTypeFilterButtons()
 			end,
 		},
@@ -222,7 +230,7 @@ function LootFilterController.BuildLootTypeFilterMenu(button)
 			func = function()
 				settings.hideCollectedTransmog = not settings.hideCollectedTransmog
 				settings.hideCollectedTransmogExplicit = true
-				RefreshLootPanel()
+				RequestLootPanelRefresh({ reason = "filter_changed" })
 				UpdateLootTypeFilterButtons()
 			end,
 		},
@@ -240,7 +248,7 @@ function LootFilterController.BuildLootTypeFilterMenu(button)
 				else
 					settings.selectedLootTypes[typeKey] = true
 				end
-				RefreshLootPanel()
+				RequestLootPanelRefresh({ reason = "filter_changed" })
 				UpdateLootTypeFilterButtons()
 			end,
 		}

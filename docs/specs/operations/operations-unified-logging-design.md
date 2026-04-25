@@ -258,6 +258,9 @@ digraph TargetLoggingState {
 
 ### 范围
 
+- 第一阶段实现边界固定为 `runtime + debug + InstanceMetadata + 统一日志面板 UI`
+- 第一阶段允许包含必要的 `storage/runtime bootstrap` 基础设施，但不扩到其他业务面板或全量业务模块
+- `runtime` 负责统一事件/错误写入，`debug` 负责结构化导出与面板消费，`InstanceMetadata` 作为首个 core 邻接模块接入稳定 `scope / event / level / fields` contract
 - 新增统一日志组件的技术设计与对外 contract
 - 定义 `runtime` 模块的接入边界
 - 定义 debug 导出的结构化产物
@@ -271,7 +274,6 @@ digraph TargetLoggingState {
 - 如果日志结构设计过重，会让 WoW 运行时热点路径产生不必要开销
 - 如果持久化边界设计不清，会让 SavedVariables 体积快速膨胀
 - 如果“日志”和“业务快照”混成一类，会让导出产物继续失控
-- 第一阶段只接入 `runtime`，会出现新旧两套 debug 写法并存的过渡期
 
 ### 收益
 
@@ -687,24 +689,6 @@ db.runtimeLogs = {
     - 持久化截断次数
     - 聚合窗口命中次数
     - 丢弃日志次数
-
-### 发布 / 迁移 / 兼容性
-
-- 第一阶段迁移顺序建议：
-  1. 新增统一日志组件
-  2. 先迁 `EventsCommandController` 的启动、事件、错误日志
-  3. 再迁 `ConfigDebugData` 的导出读取入口
-  4. 最后把 `startupLifecycleDebug` / `runtimeErrorDebug` 从 `debugTemp` 迁走
-
-- 兼容策略：
-  - 过渡期允许 debug dump 同时读取：
-    - 新统一日志导出
-    - 旧 `db.debugTemp` 快照
-  - 直到 runtime 路径稳定后，再逐步缩减旧字段读取
-
-- 回滚策略：
-  - 保留旧 debug panel 渲染器
-  - 如果统一日志组件异常，可以退回旧 `debugTemp` 驱动模式
 
 ## 访谈记录
 

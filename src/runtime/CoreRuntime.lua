@@ -228,12 +228,21 @@ StorageGateway.Configure({
 	end,
 	initializeDefaults = Storage.InitializeDefaults,
 	normalizeSettings = Storage.NormalizeSettings,
+	normalizeRuntimeLogs = Storage.NormalizeRuntimeLogs,
 	normalizeItemFactEntry = Storage.NormalizeItemFactEntry,
 	normalizeItemFactCache = Storage.NormalizeItemFactCache,
 	normalizeDashboardSummaryStore = Storage.NormalizeDashboardSummaryStore,
 	normalizeDashboardSummaryContainer = Storage.NormalizeDashboardSummaryContainer,
 	dbVersion = DB_VERSION,
 })
+
+if addon.UnifiedLogger and addon.UnifiedLogger.Configure then
+	addon.UnifiedLogger.Configure({
+		getDB = StorageGateway.GetDB,
+		getSettings = StorageGateway.GetSettings,
+		getRuntimeLogs = StorageGateway.GetRuntimeLogs,
+	})
+end
 local UIChromeController = addon.UIChromeController
 UIChromeController.Configure({
 	T = T,

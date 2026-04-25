@@ -75,6 +75,54 @@ local function GetRaidDifficultyDisplayOrder(difficultyID)
 	return 999
 end
 
+local function GetDashboardBulkScanEmptyText(instanceType)
+	if type(dependencies.GetDashboardBulkScanEmptyText) == "function" then
+		return dependencies.GetDashboardBulkScanEmptyText(instanceType)
+	end
+	if type(addon.GetDashboardBulkScanEmptyText) == "function" then
+		return addon.GetDashboardBulkScanEmptyText(instanceType)
+	end
+	if instanceType == "all" then
+		return Translate("DASHBOARD_BULK_SCAN_EMPTY_ALL", "没有可扫描的团队副本或地下城。")
+	end
+	if instanceType == "party" then
+		return Translate("DASHBOARD_BULK_SCAN_EMPTY_DUNGEON", "没有可扫描的地下城。")
+	end
+	return Translate("DASHBOARD_BULK_SCAN_EMPTY", "没有可扫描的团队副本。")
+end
+
+local function GetDashboardBulkScanProgressText(instanceType)
+	if type(dependencies.GetDashboardBulkScanProgressText) == "function" then
+		return dependencies.GetDashboardBulkScanProgressText(instanceType)
+	end
+	if type(addon.GetDashboardBulkScanProgressText) == "function" then
+		return addon.GetDashboardBulkScanProgressText(instanceType)
+	end
+	if instanceType == "all" then
+		return Translate("DASHBOARD_BULK_SCAN_PROGRESS_ALL", "全量更新进度：%d/%d %s (%s)")
+	end
+	if instanceType == "party" then
+		return Translate("DASHBOARD_BULK_SCAN_PROGRESS_DUNGEON", "地下城统计扫描进度：%d/%d %s (%s)")
+	end
+	return Translate("DASHBOARD_BULK_SCAN_PROGRESS", "团队副本统计扫描进度：%d/%d %s (%s)")
+end
+
+local function GetDashboardBulkScanCompleteText(instanceType)
+	if type(dependencies.GetDashboardBulkScanCompleteText) == "function" then
+		return dependencies.GetDashboardBulkScanCompleteText(instanceType)
+	end
+	if type(addon.GetDashboardBulkScanCompleteText) == "function" then
+		return addon.GetDashboardBulkScanCompleteText(instanceType)
+	end
+	if instanceType == "all" then
+		return Translate("DASHBOARD_BULK_SCAN_COMPLETE_ALL", "全量更新完成：%d 个副本难度。")
+	end
+	if instanceType == "party" then
+		return Translate("DASHBOARD_BULK_SCAN_COMPLETE_DUNGEON", "地下城统计扫描完成：%d 个副本。")
+	end
+	return Translate("DASHBOARD_BULK_SCAN_COMPLETE", "团队副本统计扫描完成：%d 个副本。")
+end
+
 local function BuildLootPanelSelectionKey(selection)
 	if type(dependencies.BuildLootPanelSelectionKey) == "function" then
 		return dependencies.BuildLootPanelSelectionKey(selection)
@@ -164,34 +212,35 @@ local function EnsureScanProfile(scanState)
 	if type(scanState) ~= "table" then
 		return nil
 	end
-	scanState.profile = type(scanState.profile) == "table" and scanState.profile or {
-		mainSelections = 0,
-		reconcileSelections = 0,
-		collectMs = 0,
-		snapshotMs = 0,
-		reconcileCollectMs = 0,
-		reconcileSnapshotMs = 0,
-		uiRefreshMs = 0,
-		refreshCount = 0,
-		snapshotStoreMs = 0,
-		snapshotRemoveMs = 0,
-		snapshotBuildStatsMs = 0,
-		snapshotProgressMs = 0,
-		snapshotBucketBuildMs = 0,
-		snapshotFinalizeMs = 0,
-		maxCollectMs = 0,
-		maxSnapshotMs = 0,
-		maxReconcileCollectMs = 0,
-		maxReconcileSnapshotMs = 0,
-		maxRefreshMs = 0,
-		maxSnapshotStoreMs = 0,
-		maxSnapshotRemoveMs = 0,
-		maxSnapshotBuildStatsMs = 0,
-		maxSnapshotProgressMs = 0,
-		maxSnapshotBucketBuildMs = 0,
-		maxSnapshotFinalizeMs = 0,
-		lastBoundaryExpansionName = nil,
-	}
+	scanState.profile = type(scanState.profile) == "table" and scanState.profile
+		or {
+			mainSelections = 0,
+			reconcileSelections = 0,
+			collectMs = 0,
+			snapshotMs = 0,
+			reconcileCollectMs = 0,
+			reconcileSnapshotMs = 0,
+			uiRefreshMs = 0,
+			refreshCount = 0,
+			snapshotStoreMs = 0,
+			snapshotRemoveMs = 0,
+			snapshotBuildStatsMs = 0,
+			snapshotProgressMs = 0,
+			snapshotBucketBuildMs = 0,
+			snapshotFinalizeMs = 0,
+			maxCollectMs = 0,
+			maxSnapshotMs = 0,
+			maxReconcileCollectMs = 0,
+			maxReconcileSnapshotMs = 0,
+			maxRefreshMs = 0,
+			maxSnapshotStoreMs = 0,
+			maxSnapshotRemoveMs = 0,
+			maxSnapshotBuildStatsMs = 0,
+			maxSnapshotProgressMs = 0,
+			maxSnapshotBucketBuildMs = 0,
+			maxSnapshotFinalizeMs = 0,
+			lastBoundaryExpansionName = nil,
+		}
 	return scanState.profile
 end
 
@@ -277,7 +326,9 @@ EnsurePendingMissingSelections = function(scanState)
 	if type(scanState) ~= "table" then
 		return nil
 	end
-	scanState.pendingMissingSelections = type(scanState.pendingMissingSelections) == "table" and scanState.pendingMissingSelections or {}
+	scanState.pendingMissingSelections = type(scanState.pendingMissingSelections) == "table"
+			and scanState.pendingMissingSelections
+		or {}
 	local pending = scanState.pendingMissingSelections
 	pending.order = type(pending.order) == "table" and pending.order or {}
 	pending.byKey = type(pending.byKey) == "table" and pending.byKey or {}
@@ -373,7 +424,12 @@ local function ReconcilePendingMissingSelections(scanState, expansionName, isFin
 			profile.maxReconcileCollectMs = math.max(tonumber(profile.maxReconcileCollectMs) or 0, collectMs)
 			profile.maxReconcileSnapshotMs = math.max(tonumber(profile.maxReconcileSnapshotMs) or 0, snapshotMs)
 		end
-		if dashboardData and dashboardData.missingItemData and not isFinalPass and (tonumber(entry.attemptCount) or 0) < 1 then
+		if
+			dashboardData
+			and dashboardData.missingItemData
+			and not isFinalPass
+			and (tonumber(entry.attemptCount) or 0) < 1
+		then
 			QueuePendingMissingSelection(scanState, selection, (tonumber(entry.attemptCount) or 0) + 1)
 		end
 	end
@@ -551,19 +607,25 @@ local function PrepareDashboardBulkScan(instanceType)
 	InvalidateLootPanelSelectionCacheEntries()
 	local plan = DashboardBulkScan.BuildExpansionScanPlan(normalizedType)
 	if tonumber(plan.totalSelections) <= 0 then
-		PrintMessage(addon.GetDashboardBulkScanEmptyText(normalizedType))
+		PrintMessage(GetDashboardBulkScanEmptyText(normalizedType))
 		return false
 	end
 
 	local plans = GetDashboardBulkScanPlans()
 	plans[normalizedType] = plan
 
-	PrintMessage(string.format(
-		Translate("DASHBOARD_BULK_SCAN_PLAN_READY", "%s扫描计划已重建：%d 个资料片，%d 个副本难度。"),
-		normalizedType == "party" and Translate("CONFIG_BULK_UPDATE_DUNGEON", "地下城") or Translate("CONFIG_BULK_UPDATE_RAID", "团本"),
-		#(plan.expansions or {}),
-		tonumber(plan.totalSelections) or 0
-	))
+	PrintMessage(
+		string.format(
+			Translate(
+				"DASHBOARD_BULK_SCAN_PLAN_READY",
+				"%s扫描计划已重建：%d 个资料片，%d 个副本难度。"
+			),
+			normalizedType == "party" and Translate("CONFIG_BULK_UPDATE_DUNGEON", "地下城")
+				or Translate("CONFIG_BULK_UPDATE_RAID", "团本"),
+			#(plan.expansions or {}),
+			tonumber(plan.totalSelections) or 0
+		)
+	)
 	RefreshDashboardPanel()
 	return true
 end
@@ -604,7 +666,7 @@ local function StartPreparedBulkScan(instanceType, expansionName)
 		local expansionEntry = GetExpansionPlanEntry(normalizedType, expansionName)
 		local queue = expansionEntry and expansionEntry.queue or {}
 		if #queue == 0 then
-			PrintMessage(addon.GetDashboardBulkScanEmptyText(normalizedType))
+			PrintMessage(GetDashboardBulkScanEmptyText(normalizedType))
 			return false
 		end
 
@@ -634,7 +696,7 @@ local function StartPreparedBulkScan(instanceType, expansionName)
 
 	local queue = BuildPlanQueue(plan)
 	if #queue == 0 then
-		PrintMessage(addon.GetDashboardBulkScanEmptyText(normalizedType))
+		PrintMessage(GetDashboardBulkScanEmptyText(normalizedType))
 		return false
 	end
 
@@ -682,16 +744,20 @@ function DashboardBulkScan.UpdateConfigBulkUpdateButtons()
 
 	if panel.bulkUpdateRaidButton then
 		panel.bulkUpdateRaidButton:SetEnabled(not isActive)
-		panel.bulkUpdateRaidButton:SetText(isActive and activeType == "raid"
-			and Translate("CONFIG_BULK_UPDATE_RUNNING_RAID", "团本更新中...")
-			or Translate("CONFIG_BULK_UPDATE_RAID", "更新团本"))
+		panel.bulkUpdateRaidButton:SetText(
+			isActive and activeType == "raid" and Translate("CONFIG_BULK_UPDATE_RUNNING_RAID", "团本更新中...")
+				or Translate("CONFIG_BULK_UPDATE_RAID", "更新团本")
+		)
 	end
 
 	if panel.bulkUpdateDungeonButton then
 		panel.bulkUpdateDungeonButton:SetEnabled(not isActive)
-		panel.bulkUpdateDungeonButton:SetText(isActive and activeType == "party"
-			and Translate("CONFIG_BULK_UPDATE_RUNNING_DUNGEON", "地下城更新中...")
-			or Translate("CONFIG_BULK_UPDATE_DUNGEON", "更新地下城"))
+		panel.bulkUpdateDungeonButton:SetText(
+			isActive
+					and activeType == "party"
+					and Translate("CONFIG_BULK_UPDATE_RUNNING_DUNGEON", "地下城更新中...")
+				or Translate("CONFIG_BULK_UPDATE_DUNGEON", "更新地下城")
+		)
 	end
 end
 
@@ -750,7 +816,9 @@ local function ContinueDashboardBulkScan()
 				completedEntry.completed = tonumber(scanState.total) or completedEntry.completed or 0
 			end
 		end
-		PrintMessage(string.format(addon.GetDashboardBulkScanCompleteText(scanState.instanceType), tonumber(scanState.total) or 0))
+		PrintMessage(
+			string.format(GetDashboardBulkScanCompleteText(scanState.instanceType), tonumber(scanState.total) or 0)
+		)
 		DashboardBulkScan.UpdateConfigBulkUpdateButtons()
 		RefreshDashboardPanelMeasured(scanState)
 		RecordScanProfileSummary(scanState, "main_complete", scanState.expansionName)
@@ -787,13 +855,15 @@ local function ContinueDashboardBulkScan()
 		UpdateExpansionPlanProgress(scanState)
 	end
 
-	PrintMessage(string.format(
-		addon.GetDashboardBulkScanProgressText(scanState.instanceType),
-		tonumber(scanState.completed) or 0,
-		tonumber(scanState.total) or 0,
-		tostring(selection.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")),
-		tostring(selection.difficultyName or Translate("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度"))
-	))
+	PrintMessage(
+		string.format(
+			GetDashboardBulkScanProgressText(scanState.instanceType),
+			tonumber(scanState.completed) or 0,
+			tonumber(scanState.total) or 0,
+			tostring(selection.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")),
+			tostring(selection.difficultyName or Translate("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度"))
+		)
+	)
 	if ShouldRefreshDashboardAfterSelection(scanState, selection, nextIndex) then
 		ReconcilePendingMissingSelections(scanState, selection.expansionName, false)
 		RefreshDashboardPanelMeasured(scanState)
@@ -815,41 +885,53 @@ function DashboardBulkScan.StartDashboardBulkScan(skipConfirm, forcedInstanceTyp
 	end
 
 	local plan = GetDashboardBulkScanPlans()[tostring(instanceType or "raid")]
-	local expansionEntry = normalizedExpansionName ~= "" and GetExpansionPlanEntry(instanceType, normalizedExpansionName) or nil
-	local queue = normalizedExpansionName ~= "" and (expansionEntry and expansionEntry.queue or {}) or BuildPlanQueue(plan)
+	local expansionEntry = normalizedExpansionName ~= ""
+			and GetExpansionPlanEntry(instanceType, normalizedExpansionName)
+		or nil
+	local queue = normalizedExpansionName ~= "" and (expansionEntry and expansionEntry.queue or {})
+		or BuildPlanQueue(plan)
 	if #queue == 0 then
-		PrintMessage(addon.GetDashboardBulkScanEmptyText(instanceType))
+		PrintMessage(GetDashboardBulkScanEmptyText(instanceType))
 		return
 	end
 
 	if not skipConfirm and type(StaticPopupDialogs) == "table" and type(StaticPopup_Show) == "function" then
-		StaticPopupDialogs.CODEXEXAMPLE_DASHBOARD_BULK_SCAN_CONFIRM = StaticPopupDialogs.CODEXEXAMPLE_DASHBOARD_BULK_SCAN_CONFIRM or {
-			text = "",
-			button1 = ACCEPT,
-			button2 = CANCEL,
-			OnAccept = function(dialog)
-				local payload = dialog and dialog.data or nil
-				if type(payload) ~= "table" then
-					return
-				end
-				DashboardBulkScan.StartDashboardBulkScan(true, payload.instanceType, payload.expansionName)
-			end,
-			timeout = 0,
-			whileDead = true,
-			hideOnEscape = true,
-			preferredIndex = STATICPOPUP_NUMDIALOGS,
-		}
+		StaticPopupDialogs.CODEXEXAMPLE_DASHBOARD_BULK_SCAN_CONFIRM = StaticPopupDialogs.CODEXEXAMPLE_DASHBOARD_BULK_SCAN_CONFIRM
+			or {
+				text = "",
+				button1 = ACCEPT,
+				button2 = CANCEL,
+				OnAccept = function(dialog)
+					local payload = dialog and dialog.data or nil
+					if type(payload) ~= "table" then
+						return
+					end
+					DashboardBulkScan.StartDashboardBulkScan(true, payload.instanceType, payload.expansionName)
+				end,
+				timeout = 0,
+				whileDead = true,
+				hideOnEscape = true,
+				preferredIndex = STATICPOPUP_NUMDIALOGS,
+			}
 		if normalizedExpansionName ~= "" then
 			StaticPopupDialogs.CODEXEXAMPLE_DASHBOARD_BULK_SCAN_CONFIRM.text = string.format(
-				Translate("DASHBOARD_BULK_SCAN_CONFIRM_EXPANSION", "%s会扫描资料片“%s”的 %d 个副本难度，并重建该资料片统计缓存。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？"),
-				instanceType == "party" and Translate("CONFIG_BULK_UPDATE_DUNGEON", "地下城") or Translate("CONFIG_BULK_UPDATE_RAID", "团本"),
+				Translate(
+					"DASHBOARD_BULK_SCAN_CONFIRM_EXPANSION",
+					"%s会扫描资料片“%s”的 %d 个副本难度，并重建该资料片统计缓存。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？"
+				),
+				instanceType == "party" and Translate("CONFIG_BULK_UPDATE_DUNGEON", "地下城")
+					or Translate("CONFIG_BULK_UPDATE_RAID", "团本"),
 				normalizedExpansionName,
 				#queue
 			)
 		else
 			StaticPopupDialogs.CODEXEXAMPLE_DASHBOARD_BULK_SCAN_CONFIRM.text = string.format(
-				Translate("DASHBOARD_BULK_SCAN_CONFIRM_ALL", "%s会扫描全部资料片的 %d 个副本难度，并重建整张统计缓存。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？"),
-				instanceType == "party" and Translate("CONFIG_BULK_UPDATE_DUNGEON", "地下城") or Translate("CONFIG_BULK_UPDATE_RAID", "团本"),
+				Translate(
+					"DASHBOARD_BULK_SCAN_CONFIRM_ALL",
+					"%s会扫描全部资料片的 %d 个副本难度，并重建整张统计缓存。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？"
+				),
+				instanceType == "party" and Translate("CONFIG_BULK_UPDATE_DUNGEON", "地下城")
+					or Translate("CONFIG_BULK_UPDATE_RAID", "团本"),
 				#queue
 			)
 		end

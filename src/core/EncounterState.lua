@@ -594,6 +594,12 @@ function EncounterState.GetEncounterTotalKillCount(selection, encounterName)
 	return total
 end
 
+function EncounterState.BuildBossKillCountViewModel(selection, encounterName)
+	return {
+		bossKillCount = EncounterState.GetEncounterTotalKillCount(selection, encounterName),
+	}
+end
+
 function EncounterState.MergeBossKillCache(state)
 	local db = GetDB()
 	local cacheKey = EncounterState.GetCurrentBossKillCacheKey()

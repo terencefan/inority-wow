@@ -7,7 +7,9 @@
 - [主配置面板](ui-config-panel.md)
   说明 `General / Classes / Loot Types` 三个视图、设置落点，以及“更新团本 / 更新地下城”按钮怎样驱动看板重扫。
 - [掉落面板](ui-loot-panel.md)
-  统一说明实例选择、EJ 扫描、`loot / sets` 页签、收集状态和“隐藏已收藏”链路。
+  统一说明实例选择、EJ 扫描、`loot / sets` 页签、`RefreshRequest / SelectionContext`、收集状态和“隐藏已收藏”链路。
+- [Loot Panel 子系统重构 spec](ui-loot-panel-subsystem-refactor-spec.md)
+  定义 loot panel 从 `RefreshLootPanel()` 驱动收敛到数据管线子系统的目标态、owner 和 contract；当前第一阶段实现已经落下 `RefreshRequest`、`SelectionContext`、面板级唯一状态区和 `manual_refresh / runtime_event` 行为边界。
 - [统计看板](ui-dashboard-panel.md)
   统一说明副本摘要页、职业套装页、PVP 套装页的分发和数据来源。
 - [调试面板](ui-debug-panel.md)

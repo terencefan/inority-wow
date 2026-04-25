@@ -37,6 +37,98 @@ end
 local function GetDB() return ReadDependency("getDB", nil) end
 local function GetLootPanel() return ReadDependency("getLootPanel", nil) end
 local function GetSettings() return ReadDependency("getSettings", {}) end
+local function GetLootPanelState() return ReadDependency("getLootPanelState", {}) end
+
+local VALID_REFRESH_REASONS = {
+	open = true,
+	selection_changed = true,
+	filter_changed = true,
+	tab_changed = true,
+	runtime_event = true,
+	manual_refresh = true,
+}
+
+local function NormalizeTabKey(tabKey)
+	if tabKey == "sets" then
+		return "sets"
+	end
+	return "loot"
+end
+
+local function BuildRefreshRequest(request)
+	local candidate = type(request) == "table" and request or {}
+	local reason = VALID_REFRESH_REASONS[candidate.reason] and candidate.reason or "runtime_event"
+	local refreshRequest = {
+		reason = reason,
+		invalidateData = candidate.invalidateData and true or false,
+		resetSession = candidate.resetSession and true or false,
+		resetScroll = candidate.resetScroll and true or false,
+		targetTab = candidate.targetTab ~= nil and NormalizeTabKey(candidate.targetTab) or nil,
+		rememberManualTab = candidate.rememberManualTab and true or false,
+		rememberManualSelection = candidate.rememberManualSelection and true or false,
+		selectionKey = candidate.selectionKey,
+		SelectionContext = candidate.SelectionContext,
+	}
+
+	if reason == "open" then
+		refreshRequest.invalidateData = true
+		refreshRequest.resetSession = true
+	elseif reason == "selection_changed" then
+		refreshRequest.invalidateData = true
+		refreshRequest.resetScroll = true
+	elseif reason == "manual_refresh" then
+		refreshRequest.invalidateData = true
+		refreshRequest.resetSession = true
+		refreshRequest.resetScroll = true
+	end
+
+	return refreshRequest
+end
+
+function LootPanelController.RequestLootPanelRefresh(request)
+	local state = GetLootPanelState()
+	local refreshRequest = BuildRefreshRequest(request)
+
+	if refreshRequest.reason == "open" then
+		CallDependency("PreferCurrentLootPanelSelectionOnOpen")
+		if state.lastManualTab == "loot" or state.lastManualTab == "sets" then
+			state.currentTab = state.lastManualTab
+		else
+			state.currentTab = NormalizeTabKey(state.currentTab)
+		end
+	elseif refreshRequest.reason == "selection_changed" then
+		if type(refreshRequest.selectionKey) == "string" and refreshRequest.selectionKey ~= "" then
+			state.selectedInstanceKey = refreshRequest.selectionKey
+			if refreshRequest.rememberManualSelection then
+				state.lastManualSelectionKey = refreshRequest.selectionKey
+			end
+		end
+		state.collapsed = {}
+		state.manualCollapsed = {}
+	elseif refreshRequest.reason == "tab_changed" and refreshRequest.targetTab then
+		state.currentTab = refreshRequest.targetTab
+		if refreshRequest.rememberManualTab then
+			state.lastManualTab = refreshRequest.targetTab
+		end
+	end
+
+	if refreshRequest.targetTab and refreshRequest.reason ~= "tab_changed" then
+		state.currentTab = refreshRequest.targetTab
+	end
+
+	if refreshRequest.invalidateData then
+		CallDependency("InvalidateLootDataCache")
+	end
+	if refreshRequest.resetSession then
+		CallDependency("ResetLootPanelSessionState", true)
+	end
+	if refreshRequest.resetScroll then
+		CallDependency("ResetLootPanelScrollPosition")
+	end
+
+	CallDependency("RefreshLootPanel", refreshRequest)
+	return refreshRequest
+end
 
 local function UpdateClassScopeButtonPresentation(lootPanel, isElvUIStyle)
 	local classScopeButton = lootPanel and lootPanel.classScopeButton
@@ -161,12 +253,16 @@ end
 function LootPanelController.SetLootPanelTab(tabKey)
 	local lootPanel = GetLootPanel()
 	if not lootPanel then return end
-	local state = dependencies.getLootPanelState and dependencies.getLootPanelState() or {}
-	state.currentTab = (tabKey == "sets") and "sets" or "loot"
+	local state = GetLootPanelState()
+	state.currentTab = NormalizeTabKey(tabKey)
 	lootPanel.lootTabButton:SetEnabled(state.currentTab ~= "loot")
 	lootPanel.setsTabButton:SetEnabled(state.currentTab ~= "sets")
-	CallDependency("ResetLootPanelScrollPosition")
-	CallDependency("RefreshLootPanel")
+	LootPanelController.RequestLootPanelRefresh({
+		reason = "tab_changed",
+		targetTab = state.currentTab,
+		resetScroll = true,
+		rememberManualTab = true,
+	})
 end
 
 function LootPanelController.UpdateLootPanelLayout()
@@ -281,9 +377,6 @@ function LootPanelController.InitializeLootPanel()
 	lootPanel.refreshButton.icon:SetTexture("Interface\\Buttons\\UI-RefreshButton")
 	lootPanel.refreshButton.feedbackToken = 0
 	lootPanel.refreshButton:SetScript("OnClick", function()
-		CallDependency("InvalidateLootDataCache")
-		CallDependency("ResetLootPanelSessionState", true)
-		CallDependency("ResetLootPanelScrollPosition")
 		local token = (lootPanel.refreshButton.feedbackToken or 0) + 1
 		lootPanel.refreshButton.feedbackToken = token
 		if lootPanel.refreshButton.icon then lootPanel.refreshButton.icon:SetRotation(math.rad(120)); lootPanel.refreshButton.icon:SetVertexColor(1,1,1,1) end
@@ -294,7 +387,7 @@ function LootPanelController.InitializeLootPanel()
 				if currentLootPanel.refreshButton.icon then currentLootPanel.refreshButton.icon:SetRotation(0); currentLootPanel.refreshButton.icon:SetVertexColor(0.95, 0.90, 0.72, 0.95) end
 			end)
 		end
-		CallDependency("RefreshLootPanel")
+		LootPanelController.RequestLootPanelRefresh({ reason = "manual_refresh" })
 	end)
 	lootPanel.refreshButton.icon:SetVertexColor(0.95, 0.90, 0.72, 0.95)
 	lootPanel.refreshButton.keepCustomIconColor = true
@@ -321,9 +414,7 @@ function LootPanelController.InitializeLootPanel()
 		state.classScopeMode = state.classScopeMode == "current" and "selected" or "current"
 		settings.lootClassScopeMode = state.classScopeMode
 		self:SetChecked(state.classScopeMode == "current")
-		CallDependency("InvalidateLootDataCache")
-		CallDependency("ResetLootPanelScrollPosition")
-		CallDependency("RefreshLootPanel")
+		LootPanelController.RequestLootPanelRefresh({ reason = "filter_changed", invalidateData = true, resetScroll = true })
 	end)
 	lootPanel.classScopeButton:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -455,12 +546,7 @@ function LootPanelController.ToggleLootPanel()
 	RecordLootPanelOpenDebug("before_show")
 	lootPanel:Show()
 	RecordLootPanelOpenDebug("after_show")
-	CallDependency("PreferCurrentLootPanelSelectionOnOpen")
-	RecordLootPanelOpenDebug("after_prefer_current")
-	CallDependency("InvalidateLootDataCache")
-	RecordLootPanelOpenDebug("after_invalidate_cache")
-	CallDependency("ResetLootPanelSessionState", true)
-	RecordLootPanelOpenDebug("after_reset_session")
-	CallDependency("RefreshLootPanel")
+	LootPanelController.RequestLootPanelRefresh({ reason = "open" })
+	RecordLootPanelOpenDebug("after_request_open")
 	RecordLootPanelOpenDebug("after_refresh")
 end

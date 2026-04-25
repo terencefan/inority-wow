@@ -61,8 +61,7 @@ RaidDashboard.Configure({
 		end
 		return nil
 	end,
-	refreshDashboardPanel = function()
-	end,
+	refreshDashboardPanel = function() end,
 	getExpansionInfoForInstance = function(selection)
 		return {
 			expansionName = "Test",
@@ -130,34 +129,62 @@ local function buildData()
 	}
 end
 
-assert(RaidDashboard.UpdateSnapshot({
-	instanceType = "raid",
-	instanceName = "Test Raid",
-	journalInstanceID = 1,
-	instanceOrder = 1,
-	difficultyID = 16,
-}, buildData(), {
-	classFiles = { "PRIEST" },
-}) == true, "expected initial snapshot write")
+assert(RaidDashboard.UpdateSnapshot(
+	{
+		instanceType = "raid",
+		instanceName = "Test Raid",
+		journalInstanceID = 1,
+		instanceOrder = 1,
+		difficultyID = 16,
+	},
+	buildData(),
+	{
+		classFiles = { "PRIEST" },
+	}
+) == true, "expected initial snapshot write")
 
 local built = RaidDashboard.BuildData()
 local instanceRow = built.rows and built.rows[2] or nil
 local difficultyRow = instanceRow and instanceRow.difficultyRows and instanceRow.difficultyRows[1] or nil
 assert(difficultyRow, "expected one difficulty row")
-assert((difficultyRow.total and difficultyRow.total.collectibleCollected or 0) == 0, "expected pre-event collectible count 0")
+assert(
+	(difficultyRow.total and difficultyRow.total.collectibleCollected or 0) == 0,
+	"expected pre-event collectible count 0"
+)
 
 sourceCollected = true
 assert(RaidDashboard.RefreshCollectionStates() == true, "expected bounded collection refresh to process current bucket")
 
 local refreshed = RaidDashboard.BuildData()
-local refreshedDifficultyRow = refreshed.rows and refreshed.rows[2] and refreshed.rows[2].difficultyRows and refreshed.rows[2].difficultyRows[1] or nil
+local refreshedDifficultyRow = refreshed.rows
+		and refreshed.rows[2]
+		and refreshed.rows[2].difficultyRows
+		and refreshed.rows[2].difficultyRows[1]
+	or nil
 assert(refreshedDifficultyRow, "expected refreshed difficulty row")
-assert((refreshedDifficultyRow.total and refreshedDifficultyRow.total.collectibleCollected or 0) == 1, "expected collectible total to update after reconcile")
-assert((refreshedDifficultyRow.byClass and refreshedDifficultyRow.byClass.PRIEST and refreshedDifficultyRow.byClass.PRIEST.collectibleCollected or 0) == 1, "expected class collectible total to update after reconcile")
+assert(
+	(refreshedDifficultyRow.total and refreshedDifficultyRow.total.collectibleCollected or 0) == 1,
+	"expected collectible total to update after reconcile"
+)
+assert(
+	(
+		refreshedDifficultyRow.byClass
+			and refreshedDifficultyRow.byClass.PRIEST
+			and refreshedDifficultyRow.byClass.PRIEST.collectibleCollected
+		or 0
+	) == 1,
+	"expected class collectible total to update after reconcile"
+)
 
 local manifestEntry = raidStore.scanManifest["raid::1::16"]
-assert(type(manifestEntry) == "table" and manifestEntry.state == "ready", "expected scan manifest entry for raid difficulty")
-assert(type(raidStore.membershipIndex.bySourceID[1001]) == "table", "expected membership index bySourceID entry")
+assert(
+	type(manifestEntry) == "table" and manifestEntry.state == "ready",
+	"expected scan manifest entry for raid difficulty"
+)
+assert(
+	type(raidStore.membershipIndex.byInstanceKey["raid::1"]) == "table",
+	"expected membership index byInstanceKey entry"
+)
 
 print("validated_dashboard_collection_refresh=true")
 print(string.format("collectible_total=%d", refreshedDifficultyRow.total.collectibleCollected or 0))

@@ -40,45 +40,20 @@ local function GetDB()
 	return type(dependencies.getDB) == "function" and dependencies.getDB() or nil
 end
 
+local function GetLog()
+	return dependencies.Log or addon.Log
+end
+
 local function AppendRuntimeErrorDebug(message, stack)
-	local db = GetDB()
-	if not db then
+	local log = GetLog()
+	if not log or type(log.Error) ~= "function" then
 		return
 	end
-
-	db.debugTemp = type(db.debugTemp) == "table" and db.debugTemp or {}
-	local errorDebug = db.debugTemp.runtimeErrorDebug
-	if type(errorDebug) ~= "table" then
-		errorDebug = {
-			entries = {},
-			truncated = false,
-		}
-		db.debugTemp.runtimeErrorDebug = errorDebug
-	end
-
-	errorDebug.entries = type(errorDebug.entries) == "table" and errorDebug.entries or {}
-	local entries = errorDebug.entries
-	local normalizedMessage = tostring(message or "")
-	local normalizedStack = tostring(stack or "")
-	local lastEntry = entries[#entries]
-	if lastEntry
-		and tostring(lastEntry.message or "") == normalizedMessage
-		and tostring(lastEntry.stack or "") == normalizedStack then
-		lastEntry.repeatCount = (tonumber(lastEntry.repeatCount) or 1) + 1
-		lastEntry.at = date and date("%H:%M:%S") or tostring(time and time() or "?")
-		return
-	end
-
-	entries[#entries + 1] = {
-		at = date and date("%H:%M:%S") or tostring(time and time() or "?"),
-		message = normalizedMessage,
-		stack = normalizedStack,
+	log.Error("runtime.error", "runtime_error", {
+		message = tostring(message or ""),
+		stack = tostring(stack or ""),
 		repeatCount = 1,
-	}
-	while #entries > 40 do
-		table.remove(entries, 1)
-		errorDebug.truncated = true
-	end
+	})
 end
 
 local function InstallRuntimeErrorHandler()
@@ -219,6 +194,22 @@ local function ScheduleAggregatedEventCountPrint(eventName)
 		local count = tonumber(currentState.count) or 0
 		currentState.count = 0
 		currentState.pending = false
+		local log = GetLog()
+		if log and type(log.Info) == "function" then
+			local normalizedScopeEvent = string.lower(normalizedEvent)
+			if normalizedScopeEvent == "get_item_info_received" then
+				normalizedScopeEvent = "get_item_info_received_aggregated"
+			else
+				normalizedScopeEvent = normalizedScopeEvent .. "_aggregated"
+			end
+			log.Info("runtime.events", normalizedScopeEvent, {
+				windowSeconds = 1,
+				eventCount = count,
+			})
+			if type(log.RecordAggregateWindowHit) == "function" then
+				log.RecordAggregateWindowHit()
+			end
+		end
 		PrintMessage(string.format("event: %s count=%d window=1s", normalizedEvent, count))
 	end
 
@@ -247,37 +238,25 @@ local function FormatEventChatMessage(event, arg1, arg2, arg3, arg4, arg5, addon
 end
 
 local function ResetStartupLifecycleDebug(reason)
-	local db = GetDB()
-	if not db then
+	local log = GetLog()
+	if not log or type(log.Info) ~= "function" then
 		return
 	end
-	db.debugTemp = type(db.debugTemp) == "table" and db.debugTemp or {}
-	db.debugTemp.startupLifecycleDebug = {
+	log.Info("runtime.events", "startup_lifecycle_reset", {
 		lastResetReason = tostring(reason or "unknown"),
-		entries = {},
-	}
+	})
 end
 
 local function AppendStartupLifecycleDebug(step, eventName, detail)
-	local db = GetDB()
-	if not db then
+	local log = GetLog()
+	if not log or type(log.Info) ~= "function" then
 		return
 	end
-	db.debugTemp = type(db.debugTemp) == "table" and db.debugTemp or {}
-	if type(db.debugTemp.startupLifecycleDebug) ~= "table" then
-		ResetStartupLifecycleDebug("implicit")
-	end
-	local startupDebug = db.debugTemp.startupLifecycleDebug
-	startupDebug.entries = type(startupDebug.entries) == "table" and startupDebug.entries or {}
-	startupDebug.entries[#startupDebug.entries + 1] = {
-		at = date and date("%H:%M:%S") or tostring(time and time() or "?"),
+	log.Info("runtime.events", "startup_lifecycle", {
 		step = tostring(step or "unknown"),
 		event = eventName and tostring(eventName) or nil,
 		detail = detail and tostring(detail) or nil,
-	}
-	while #startupDebug.entries > 60 do
-		table.remove(startupDebug.entries, 1)
-	end
+	})
 end
 
 local function GetDebugTimeMilliseconds()

@@ -25,13 +25,13 @@ API.UseMock({
 
 _G.C_EncounterJournal = {
 	GetNumLoot = function(encounterIndex)
-		if encounterIndex == 1 then
+		if encounterIndex == 9001 or encounterIndex == 1 then
 			return 1
 		end
 		return 0
 	end,
 	GetLootInfoByIndex = function(index, encounterIndex)
-		if index == 1 and encounterIndex == 1 then
+		if index == 1 and (encounterIndex == 9001 or encounterIndex == 1) then
 			return {
 				itemID = 700001,
 				encounterID = 9001,
