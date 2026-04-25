@@ -2,7 +2,7 @@
 
 ## 目的
 
-这份清单把 [runtime-lightweight-data-plan.md](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/docs/runtime-lightweight-data-plan.md) 落到当前代码文件。
+这份清单把 [runtime-lightweight-data-plan.md](runtime-lightweight-data-plan.md) 落到当前代码文件。
 
 目标不是“一次性重写”，而是按阶段收缩边界：
 
@@ -46,7 +46,7 @@ flowchart LR
 
 ### 文件改造
 
-#### 1. [RaidDashboardData.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/dashboard/raid/RaidDashboardData.lua)
+#### 1. [RaidDashboardData.lua](../../src/dashboard/raid/RaidDashboardData.lua)
 
 - [ ] 明确区分 `missing / partial / ready / stale`
 - [ ] `BuildData()` 只读取 `raidDashboardCache` 和对应 manifest
@@ -62,7 +62,7 @@ flowchart LR
   - [ ] `members.setPieces`
   - [ ] `members.collectibles`
 
-#### 2. [RaidDashboard.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/dashboard/raid/RaidDashboard.lua)
+#### 2. [RaidDashboard.lua](../../src/dashboard/raid/RaidDashboard.lua)
 
 - [ ] 增加 dashboard 空态渲染
 - [ ] 明确区分：
@@ -70,12 +70,12 @@ flowchart LR
   - [ ] `stale` -> “数据已过期，请重新扫描”
   - [ ] `partial` -> “当前只有局部数据，无法显示统计”
 
-#### 3. [DashboardPanelController.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/dashboard/DashboardPanelController.lua)
+#### 3. [DashboardPanelController.lua](../../src/dashboard/DashboardPanelController.lua)
 
 - [ ] 打开统计面板时只触发轻量 `BuildData()`
 - [ ] 禁止打开路径调用任何 bulk scan / rebuild / repair 逻辑
 
-#### 4. [CoreRuntime.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/runtime/CoreRuntime.lua)
+#### 4. [CoreRuntime.lua](../../src/runtime/CoreRuntime.lua)
 
 - [ ] 检查 `ToggleDashboardPanel()` 调用链
 - [ ] 删除或阻断任何“打开统计面板时顺手刷新重数据”的分支
@@ -98,7 +98,7 @@ flowchart LR
 
 ### 文件改造
 
-#### 1. [Storage.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/Storage.lua)
+#### 1. [Storage.lua](../../src/storage/Storage.lua)
 
 - [ ] 新增持久化容器：
   - [ ] `db.scanManifest`
@@ -107,7 +107,7 @@ flowchart LR
   - [ ] `kind`
   - [ ] `schemaVersion`
 
-#### 2. [StorageGateway.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/StorageGateway.lua)
+#### 2. [StorageGateway.lua](../../src/storage/StorageGateway.lua)
 
 - [ ] 增加 manifest 访问入口：
   - [ ] `GetScanManifest(instanceType)`
@@ -116,12 +116,12 @@ flowchart LR
 - [ ] manifest 访问需要显式区分 `summaryScopeKey`
 - [ ] 所有 dashboard 读取路径通过 manifest 判断 readiness
 
-#### 3. [DerivedSummaryStore.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/core/DerivedSummaryStore.lua)
+#### 3. [DerivedSummaryStore.lua](../../src/core/DerivedSummaryStore.lua)
 
 - [ ] 增加 readiness state 常量和 matcher
 - [ ] 不再只看 `rulesVersion`，还要看 `state`
 
-#### 4. [DashboardBulkScan.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/dashboard/bulk/DashboardBulkScan.lua)
+#### 4. [DashboardBulkScan.lua](../../src/dashboard/bulk/DashboardBulkScan.lua)
 
 - [ ] 每次 scan 完成时写 manifest
 - [ ] 标记：
@@ -152,7 +152,7 @@ flowchart LR
 
 ### 文件改造
 
-#### 1. [StorageGateway.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/StorageGateway.lua)
+#### 1. [StorageGateway.lua](../../src/storage/StorageGateway.lua)
 
 - [ ] 明确 `itemFacts` 反查索引的定位
 - [ ] 禁止读路径触发全局索引恢复
@@ -174,7 +174,7 @@ flowchart LR
 - [ ] `GetDashboardBucketKeysByAppearanceID(...)`
 - [ ] `GetDashboardBucketKeysByItemID(...)`
 
-#### 2. 新模块建议：[SelectionResolver.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/SelectionResolver.lua)
+#### 2. 新模块建议：[SelectionResolver.lua](../../src/loot/SelectionResolver.lua)
 
 - [ ] 新建 module，专门负责当前 selection 的局部补建
 - [ ] 输入 key 至少包括：
@@ -188,14 +188,14 @@ flowchart LR
   - [ ] selection summaries
   - [ ] `selectionSetMembership`
 
-#### 3. [LootDataController.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/LootDataController.lua)
+#### 3. [LootDataController.lua](../../src/loot/LootDataController.lua)
 
 - [ ] 把当前 `BuildCurrentInstanceLootSummary()` 的上游“局部补建”职责迁到 `SelectionResolver`
 - [ ] 自己只消费 resolver 的结果
 - [ ] 明确 `CurrentInstanceLootSummary.state`
 - [ ] 挂接 `selectionSetMembership`
 
-#### 4. [LootSets.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/sets/LootSets.lua)
+#### 4. [LootSets.lua](../../src/loot/sets/LootSets.lua)
 
 - [ ] 停止直接把 `itemFacts` 反查缺口当成全局恢复入口
 - [ ] 只读：
@@ -219,25 +219,25 @@ flowchart LR
 
 ### 文件改造
 
-#### 1. [Storage.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/Storage.lua)
+#### 1. [Storage.lua](../../src/storage/Storage.lua)
 
 - [ ] 为 `itemFacts` 字段定义所有权注释/契约
 - [ ] 明确哪些字段属于：
   - [ ] `runtime_patchable`
   - [ ] `scan_owned`
 
-#### 2. [StorageGateway.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/StorageGateway.lua)
+#### 2. [StorageGateway.lua](../../src/storage/StorageGateway.lua)
 
 - [ ] `UpsertItemFact()` 增加来源语义
 - [ ] runtime patch 路径禁止写入 `scan_owned` 字段
 - [ ] scan pipeline 路径允许全量写入
 
-#### 3. [SetDashboardBridge.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/core/SetDashboardBridge.lua)
+#### 3. [SetDashboardBridge.lua](../../src/core/SetDashboardBridge.lua)
 
 - [ ] 清理“fallback 命中后回写 facts”的策略
 - [ ] 只允许回写 runtime_patchable 字段
 
-#### 4. [CollectionState.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/core/CollectionState.lua)
+#### 4. [CollectionState.lua](../../src/core/CollectionState.lua)
 
 - [ ] 保持 collection resolution 只读 facts
 - [ ] 不承担 facts 修复职责
@@ -257,7 +257,7 @@ flowchart LR
 
 ### 文件改造
 
-#### 1. 新模块建议：[TransmogImpactResolver.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/core/TransmogImpactResolver.lua)
+#### 1. 新模块建议：[TransmogImpactResolver.lua](../../src/core/TransmogImpactResolver.lua)
 
 - [ ] 新建 module，负责把事件映射成最小失效粒度
 - [ ] 最小键建议：
@@ -271,7 +271,7 @@ flowchart LR
   - [ ] 精确 patch
   - [ ] 有界 reconcile
 
-#### 2. [CoreRuntime.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/runtime/CoreRuntime.lua)
+#### 2. [CoreRuntime.lua](../../src/runtime/CoreRuntime.lua)
 
 - [ ] 改造 `TRANSMOG_COLLECTION_UPDATED` 处理逻辑
 - [ ] 删除整页 invalidation / refresh fallback
@@ -282,7 +282,7 @@ flowchart LR
   - [ ] 如果 impact 不精确，进入 dashboard 有界 reconcile，而不是全表刷新
 - [ ] 所有 reconcile 通过 queue + budget 驱动，不允许单帧清空 dirty universe
 
-#### 3. [RaidDashboardData.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/dashboard/raid/RaidDashboardData.lua)
+#### 3. [RaidDashboardData.lua](../../src/dashboard/raid/RaidDashboardData.lua)
 
 - [ ] 把当前 row-level refresh 逻辑改成 bucket-level targeted refresh
 - [ ] 增加 dashboard member shape：
@@ -296,7 +296,7 @@ flowchart LR
 - [ ] 让 reconcile queue 按 `summaryScopeKey` 隔离
 - [ ] 不允许遍历整张 dashboard rows 做“全表修 collected state”
 
-#### 4. [LootDataController.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/LootDataController.lua)
+#### 4. [LootDataController.lua](../../src/loot/LootDataController.lua)
 
 - [ ] 当前页面打开时，只更新命中的 `selectionKey`
 - [ ] item info / collection change 只修局部 row
@@ -320,20 +320,20 @@ flowchart LR
 
 ### 文件改造
 
-#### 1. [Storage.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/Storage.lua)
+#### 1. [Storage.lua](../../src/storage/Storage.lua)
 
 - [ ] 引入新的顶层 `STORAGE_SCHEMA_VERSION`
 - [ ] schema 不匹配时，在加载阶段直接丢弃旧 storage 容器
 - [ ] 初始化新 schema 所需的空容器
 - [ ] 不做字段级迁移或兼容填充
 
-#### 2. [RaidDashboardData.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/dashboard/raid/RaidDashboardData.lua)
+#### 2. [RaidDashboardData.lua](../../src/dashboard/raid/RaidDashboardData.lua)
 
 - [ ] schema cutover 后只处理新 canonical shape
 - [ ] 打开路径不再承担旧 bucket 结构兼容
 - [ ] 没有新 schema snapshot 时，直接退化为“请扫描副本”
 
-#### 3. [LootDataController.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/LootDataController.lua)
+#### 3. [LootDataController.lua](../../src/loot/LootDataController.lua)
 
 - [ ] schema cutover 后只接受新 selection summary 结构
 - [ ] 没有新 schema selection 数据时，最多局部补当前 selection
@@ -355,20 +355,20 @@ flowchart LR
 
 ### 重点清理项
 
-#### 1. [StorageGateway.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/StorageGateway.lua)
+#### 1. [StorageGateway.lua](../../src/storage/StorageGateway.lua)
 
 - [ ] 删除或废弃任何“读路径智能恢复全局索引”的历史分支
 
-#### 2. [RaidDashboardData.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/dashboard/raid/RaidDashboardData.lua)
+#### 2. [RaidDashboardData.lua](../../src/dashboard/raid/RaidDashboardData.lua)
 
 - [ ] 删除“没有 snapshot 也尝试算一版”的历史容错思路
 - [ ] 删除 runtime 全行扫描式 collection refresh
 
-#### 3. [LootSets.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/sets/LootSets.lua)
+#### 3. [LootSets.lua](../../src/loot/sets/LootSets.lua)
 
 - [ ] 删除“通过 facts 缺口反推出全局 set/index”的路径
 
-#### 4. [README.md](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/README.md)
+#### 4. [README.md](../../README.md)
 
 - [ ] 在边界稳定后，更新架构图和数据流描述
 - [ ] 明确 scan pipeline / runtime maintenance 的分离
@@ -436,10 +436,10 @@ flowchart LR
 
 ### 现有测试需要保留并调整预期
 
-- [ ] [validate_item_fact_cold_start.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_item_fact_cold_start.lua)
-- [ ] [validate_dashboard_collection_refresh.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_dashboard_collection_refresh.lua)
-- [ ] [validate_dashboard_metric_views.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_dashboard_metric_views.lua)
-- [ ] [validate_lootdata_current_instance_summary.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_lootdata_current_instance_summary.lua)
+- [ ] [validate_item_fact_cold_start.lua](../../tools/validate_item_fact_cold_start.lua)
+- [ ] [validate_dashboard_collection_refresh.lua](../../tools/validate_dashboard_collection_refresh.lua)
+- [ ] [validate_dashboard_metric_views.lua](../../tools/validate_dashboard_metric_views.lua)
+- [ ] [validate_lootdata_current_instance_summary.lua](../../tools/validate_lootdata_current_instance_summary.lua)
 
 ---
 
@@ -490,3 +490,4 @@ flowchart LR
 - [ ] storage schema 不匹配时不会触发运行时迁移
 - [ ] scan pipeline 与 runtime maintenance 的职责在代码中已经分离
 - [ ] 相关 validator 已覆盖这些边界
+

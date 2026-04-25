@@ -20,7 +20,7 @@
 
 参考文档：
 
-- [transmog-data-storage-plan.md](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/docs/transmog-data-storage-plan.md)
+- [transmog-data-storage-plan.md](../data/data-transmog-storage-plan.md)
 
 ---
 
@@ -30,8 +30,8 @@
 
 相关文件：
 
-- [Storage.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/Storage.lua)
-- [StorageGateway.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/StorageGateway.lua)
+- [Storage.lua](../../src/storage/Storage.lua)
+- [StorageGateway.lua](../../src/storage/StorageGateway.lua)
 
 当前已经存在这些事实/摘要对象：
 
@@ -68,9 +68,9 @@
 
 已接入的典型消费者：
 
-- [CollectionState.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/core/CollectionState.lua)
-- [SetDashboardBridge.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/core/SetDashboardBridge.lua)
-- [LootSets.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/sets/LootSets.lua)
+- [CollectionState.lua](../../src/core/CollectionState.lua)
+- [SetDashboardBridge.lua](../../src/core/SetDashboardBridge.lua)
+- [LootSets.lua](../../src/loot/sets/LootSets.lua)
 
 ### 3. StorageGateway 里已经出现反查索引
 
@@ -94,10 +94,10 @@
 
 相关文件：
 
-- [LootDataController.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/LootDataController.lua)
-- [LootSets.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/sets/LootSets.lua)
-- [LootPanelRenderer.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/LootPanelRenderer.lua)
-- [DerivedSummaryStore.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/core/DerivedSummaryStore.lua)
+- [LootDataController.lua](../../src/loot/LootDataController.lua)
+- [LootSets.lua](../../src/loot/sets/LootSets.lua)
+- [LootPanelRenderer.lua](../../src/loot/LootPanelRenderer.lua)
+- [DerivedSummaryStore.lua](../../src/core/DerivedSummaryStore.lua)
 
 当前链路大致是：
 
@@ -115,8 +115,8 @@
 
 相关文件：
 
-- [RaidDashboardData.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/dashboard/raid/RaidDashboardData.lua)
-- [DerivedSummaryStore.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/core/DerivedSummaryStore.lua)
+- [RaidDashboardData.lua](../../src/dashboard/raid/RaidDashboardData.lua)
+- [DerivedSummaryStore.lua](../../src/core/DerivedSummaryStore.lua)
 
 当前已统一的内容主要是：
 
@@ -149,7 +149,7 @@
 
 这是目前最重要的现实问题之一。
 
-在 [StorageGateway.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/StorageGateway.lua) 里，`EnsureItemFactIndexes()` 现在为了避免冷启动卡死，已经不再在读路径上对历史 `itemFacts.entries` 做全表重建。
+在 [StorageGateway.lua](../../src/storage/StorageGateway.lua) 里，`EnsureItemFactIndexes()` 现在为了避免冷启动卡死，已经不再在读路径上对历史 `itemFacts.entries` 做全表重建。
 
 这直接带来一个事实：
 
@@ -360,22 +360,23 @@
 
 核心参考文件：
 
-- [transmog-data-storage-plan.md](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/docs/transmog-data-storage-plan.md)
-- [README.md](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/README.md)
-- [Storage.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/Storage.lua)
-- [StorageGateway.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/storage/StorageGateway.lua)
-- [DerivedSummaryStore.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/core/DerivedSummaryStore.lua)
-- [LootDataController.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/LootDataController.lua)
-- [LootSets.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/loot/sets/LootSets.lua)
-- [RaidDashboardData.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/src/dashboard/raid/RaidDashboardData.lua)
+- [transmog-data-storage-plan.md](../data/data-transmog-storage-plan.md)
+- [README.md](../../README.md)
+- [Storage.lua](../../src/storage/Storage.lua)
+- [StorageGateway.lua](../../src/storage/StorageGateway.lua)
+- [DerivedSummaryStore.lua](../../src/core/DerivedSummaryStore.lua)
+- [LootDataController.lua](../../src/loot/LootDataController.lua)
+- [LootSets.lua](../../src/loot/sets/LootSets.lua)
+- [RaidDashboardData.lua](../../src/dashboard/raid/RaidDashboardData.lua)
 
 相关回归测试：
 
-- [validate_item_fact_cold_start.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_item_fact_cold_start.lua)
-- [validate_item_fact_indexes.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_item_fact_indexes.lua)
-- [validate_item_fact_consumers.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_item_fact_consumers.lua)
-- [validate_setid_itemfact_persistence.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_setid_itemfact_persistence.lua)
-- [validate_lootdata_current_instance_summary.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_lootdata_current_instance_summary.lua)
-- [validate_current_instance_loot_summary.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_current_instance_loot_summary.lua)
-- [validate_derived_summary_store.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_derived_summary_store.lua)
-- [validate_dashboard_metric_views.lua](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/tools/validate_dashboard_metric_views.lua)
+- [validate_item_fact_cold_start.lua](../../tools/validate_item_fact_cold_start.lua)
+- [validate_item_fact_indexes.lua](../../tools/validate_item_fact_indexes.lua)
+- [validate_item_fact_consumers.lua](../../tools/validate_item_fact_consumers.lua)
+- [validate_setid_itemfact_persistence.lua](../../tools/validate_setid_itemfact_persistence.lua)
+- [validate_lootdata_current_instance_summary.lua](../../tools/validate_lootdata_current_instance_summary.lua)
+- [validate_current_instance_loot_summary.lua](../../tools/validate_current_instance_loot_summary.lua)
+- [validate_derived_summary_store.lua](../../tools/validate_derived_summary_store.lua)
+- [validate_dashboard_metric_views.lua](../../tools/validate_dashboard_metric_views.lua)
+
