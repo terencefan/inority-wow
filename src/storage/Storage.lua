@@ -14,6 +14,8 @@ local DASHBOARD_SUMMARY_CONTAINER_SCHEMA_VERSION = 1
 local DASHBOARD_SUMMARY_STORE_SCHEMA_VERSION = 1
 local DASHBOARD_MEMBERSHIP_INDEX_SCHEMA_VERSION = 1
 local DASHBOARD_RECONCILE_QUEUE_SCHEMA_VERSION = 1
+local RUNTIME_LOGS_SCHEMA_VERSION = 1
+local unpackResults = table.unpack or unpack
 
 local function BuildStorageMeta()
 	return {
@@ -53,37 +55,32 @@ local function GetDebugTimeMilliseconds()
 	return nil
 end
 
+local function GetRuntimeLog()
+	if addon and type(addon.UnifiedLogger) == "table" then
+		return addon.UnifiedLogger
+	end
+	return addon and addon.Log or nil
+end
+
 local function AppendStartupLifecycleDebug(db, step, detail, elapsedMs)
 	local settings = db and db.settings
 	local debugSections = settings and settings.debugLogSections
 	if not (type(debugSections) == "table" and debugSections.startupLifecycleDebug) then
 		return
 	end
-
-	db.debugTemp = type(db.debugTemp) == "table" and db.debugTemp or {}
-	local lifecycleDebug = db.debugTemp.startupLifecycleDebug
-	if type(lifecycleDebug) ~= "table" then
-		lifecycleDebug = {
-			lastResetReason = "ADDON_LOADED",
-			entryCount = 0,
-			entries = {},
-		}
-		db.debugTemp.startupLifecycleDebug = lifecycleDebug
+	local log = GetRuntimeLog()
+	if not log or type(log.Info) ~= "function" then
+		return
 	end
-
-	local entry = {
-		timestamp = date("%H:%M:%S"),
+	local fields = {
 		step = tostring(step or "storage_step"),
 		event = "ADDON_LOADED",
 		detail = detail and tostring(detail) or "-",
 	}
 	if elapsedMs ~= nil then
-		entry.elapsedMs = elapsedMs
+		fields.elapsedMs = elapsedMs
 	end
-
-	local entries = lifecycleDebug.entries
-	entries[#entries + 1] = entry
-	lifecycleDebug.entryCount = #entries
+	log.Info("runtime.events", "startup_lifecycle", fields)
 end
 
 local function MeasureStartupLifecycleStep(db, step, detail, fn)
@@ -97,7 +94,7 @@ local function MeasureStartupLifecycleStep(db, step, detail, fn)
 		end
 	end
 	AppendStartupLifecycleDebug(db, step, detail, elapsedMs)
-	return unpack(results)
+	return unpackResults(results)
 end
 
 local function BuildDefaultSelectedLootTypes()
@@ -201,6 +198,28 @@ local function NormalizeBooleanSet(values)
 	return normalized
 end
 
+function Storage.NormalizeRuntimeLogs(runtimeLogs)
+	runtimeLogs = type(runtimeLogs) == "table" and runtimeLogs or {}
+	runtimeLogs.version = RUNTIME_LOGS_SCHEMA_VERSION
+	runtimeLogs.layer = "operations"
+	runtimeLogs.kind = "runtime_logs"
+	runtimeLogs.persistenceEnabled = runtimeLogs.persistenceEnabled and true or false
+	runtimeLogs.lastError = runtimeLogs.lastError and tostring(runtimeLogs.lastError) or nil
+	runtimeLogs.sessions = type(runtimeLogs.sessions) == "table" and runtimeLogs.sessions or {}
+	for index = #runtimeLogs.sessions, 1, -1 do
+		local session = runtimeLogs.sessions[index]
+		if type(session) ~= "table" then
+			table.remove(runtimeLogs.sessions, index)
+		else
+			session.sessionID = tostring(session.sessionID or "")
+			session.startedAt = tonumber(session.startedAt) or 0
+			session.truncated = session.truncated and true or false
+			session.entries = type(session.entries) == "table" and session.entries or {}
+		end
+	end
+	return runtimeLogs
+end
+
 local function NormalizeSetPieceMember(memberKey, member)
 	if type(memberKey) ~= "string" then
 		return nil
@@ -272,8 +291,12 @@ local function NormalizeDashboardBucket(summaryScopeKey, bucketKey, bucket)
 		counts = {
 			setCollected = tonumber(bucket.counts and bucket.counts.setCollected) or tonumber(bucket.setCollected) or 0,
 			setTotal = tonumber(bucket.counts and bucket.counts.setTotal) or tonumber(bucket.setTotal) or 0,
-			collectibleCollected = tonumber(bucket.counts and bucket.counts.collectibleCollected) or tonumber(bucket.collectibleCollected) or 0,
-			collectibleTotal = tonumber(bucket.counts and bucket.counts.collectibleTotal) or tonumber(bucket.collectibleTotal) or 0,
+			collectibleCollected = tonumber(bucket.counts and bucket.counts.collectibleCollected) or tonumber(
+				bucket.collectibleCollected
+			) or 0,
+			collectibleTotal = tonumber(bucket.counts and bucket.counts.collectibleTotal) or tonumber(
+				bucket.collectibleTotal
+			) or 0,
 		},
 		members = {
 			setPieces = {},
@@ -357,7 +380,9 @@ local function NormalizeDashboardInstanceMeta(instanceKey, entry)
 				state = tostring(difficultyMeta.state or "ready"),
 				bucketKeys = {
 					total = tostring(difficultyMeta.bucketKeys and difficultyMeta.bucketKeys.total or ""),
-					byClass = type(difficultyMeta.bucketKeys and difficultyMeta.bucketKeys.byClass) == "table" and difficultyMeta.bucketKeys.byClass or {},
+					byClass = type(difficultyMeta.bucketKeys and difficultyMeta.bucketKeys.byClass) == "table"
+							and difficultyMeta.bucketKeys.byClass
+						or {},
 				},
 			}
 			if numericDifficultyID ~= difficultyID then
@@ -727,7 +752,9 @@ function Storage.InitializeDefaults(db, dbVersion)
 	db.minimapAngle = db.minimapAngle or 225
 	db.lootPanelPoint = db.lootPanelPoint or { point = "CENTER", relativePoint = "CENTER", x = 280, y = 0 }
 	db.lootPanelSize = db.lootPanelSize or { width = 420, height = 460 }
-	db.dashboardCollapsedExpansions = type(db.dashboardCollapsedExpansions) == "table" and db.dashboardCollapsedExpansions or {}
+	db.dashboardCollapsedExpansions = type(db.dashboardCollapsedExpansions) == "table"
+			and db.dashboardCollapsedExpansions
+		or {}
 	MeasureStartupLifecycleStep(db, "initialize_defaults_boss_kill_cache", "-", function()
 		db.bossKillCache = type(db.bossKillCache) == "table" and db.bossKillCache or {}
 		db.bossKillCacheMeta = type(db.bossKillCacheMeta) == "table" and db.bossKillCacheMeta or {}
@@ -772,10 +799,18 @@ function Storage.InitializeDefaults(db, dbVersion)
 		db.dashboardSummaries = db.dashboardSummaries
 		AppendStartupLifecycleDebug(db, "initialize_defaults_dashboard_summaries_skipped", "schema_current", 0)
 	else
-		db.dashboardSummaries = MeasureStartupLifecycleStep(db, "initialize_defaults_dashboard_summaries", "-", function()
-			return Storage.NormalizeDashboardSummaryContainer(db.dashboardSummaries)
-		end)
+		db.dashboardSummaries = MeasureStartupLifecycleStep(
+			db,
+			"initialize_defaults_dashboard_summaries",
+			"-",
+			function()
+				return Storage.NormalizeDashboardSummaryContainer(db.dashboardSummaries)
+			end
+		)
 	end
+	db.runtimeLogs = MeasureStartupLifecycleStep(db, "initialize_defaults_runtime_logs", "-", function()
+		return Storage.NormalizeRuntimeLogs(db.runtimeLogs)
+	end)
 	db.DBVersion = dbVersion
 	db.debugTemp = type(db.debugTemp) == "table" and db.debugTemp or {}
 

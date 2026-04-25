@@ -25,13 +25,22 @@
 
 掉落面板常规入口是小地图按钮右键，最终走到 `LootPanelController.ToggleLootPanel()`。
 
-真正打开一次面板的顺序：
+当前第一阶段实现里，真正打开一次面板的顺序已经收敛成：
 
 1. `InitializeLootPanel()`
 2. `lootPanel:Show()`
-3. `PreferCurrentLootPanelSelectionOnOpen()`
-4. `ResetLootPanelSessionState(true)`
-5. `RefreshLootPanel()`
+3. `LootPanelController.RequestLootPanelRefresh({ reason = "open" })`
+4. `PreferCurrentLootPanelSelectionOnOpen()`
+5. 恢复 `lastManualTab`
+6. `ResetLootPanelSessionState(true)`
+7. `RefreshLootPanel(refreshRequest)`
+
+打开链路当前冻结的 contract：
+
+- `RefreshRequest.reason = "open"` 会强制 `invalidateData + resetSession`
+- 默认 selection 优先级是“当前副本变化时优先当前副本，否则优先 `lastManualSelectionKey`，再回退到 current / fallback”
+- “当前副本变化”当前按 `instanceID + difficultyID` 判断
+- 如果恢复的上次 tab 是 `sets`，即使当前没有可用摘要，也仍然保留在 `sets`
 
 ## 3. 数据链路图
 
@@ -114,6 +123,45 @@ digraph LootRenderFlow {
 
 当前实例掉落数据缓存。它跟实例选择、职业范围和规则版本绑定，不直接缓存整张 UI。
 
+### 4.4 `SelectionContext`
+
+第一阶段重构后，掉落面板不再只靠散落状态拼装刷新输入，而是显式收拢到 `LootSelection.BuildSelectionContext()`。
+
+当前 `SelectionContext` 至少包含：
+
+- `selectionKey`
+- `selectedInstance`
+- `currentTab`
+- `classScopeMode`
+- `selectedClassIDs`
+- `selectedLootTypes`
+- `hideCollectedFlags`
+- `lastManualSelectionKey`
+- `lastManualTab`
+- `lastObservedCurrentInstance`
+
+这意味着 `selection / tab / class scope / loot type / hide collected` 已经开始共享同一份上下文 owner。
+
+### 4.5 `RefreshRequest`
+
+第一阶段实现里，`LootPanelController.RequestLootPanelRefresh()` 已经把主要刷新入口收口成显式 `RefreshRequest`。
+
+当前已冻结的 `reason`：
+
+- `open`
+- `selection_changed`
+- `filter_changed`
+- `tab_changed`
+- `runtime_event`
+- `manual_refresh`
+
+当前冻结的关键语义：
+
+- `manual_refresh` 必须重 collect，并重建 session baseline
+- `runtime_event` 默认不重建 session baseline
+- `selection_changed` 清 `collapsed / manualCollapsed`
+- `filter_changed` 默认只重派生；但 `class scope` 变化会升级成重 collect
+
 ## 6. 实例选择与采集
 
 `LootSelection.BuildLootPanelInstanceSelections()` 会：
@@ -192,6 +240,11 @@ digraph LootSelectionAndData {
 - 套装高亮
 - 职业图标
 
+当前第一阶段还额外收敛了两条 contract：
+
+- boss header 右侧数字现在优先消费 `BuildBossKillCountViewModel()`，继续表示“当前存档内所有已知角色 + 当前周期”的累计击杀次数
+- 当筛选导致某个 boss 组没有可见 item 时，组结构保留，不自动隐藏
+
 ## 9. `sets` 页签
 
 `sets` tab 不直接显示 boss 掉落列表，而是调用：
@@ -207,7 +260,28 @@ digraph LootSelectionAndData {
 
 所以它本质上是“当前实例相关套装摘要页”，不是 `loot` 页的另一种排版。
 
-## 10. 隐藏已收藏链路
+第一阶段 contract 还额外冻结了：
+
+- tab 恢复允许直接回到 `sets`
+- 即使当前 selection 下没有可用摘要，也不自动切回 `loot`
+- `sets` 页的空态解释保持独立，不复用 `loot` 页的“无可见掉落”语义
+
+## 10. 面板级状态区
+
+第一阶段实现已经引入 `PanelBannerViewModel` 骨架，把状态提示从 renderer 局部分支抬成面板级唯一状态区。
+
+当前已落地的 banner owner：
+
+- `no selected classes`
+- `error`
+- `partial`
+
+当前冻结但尚未完全做满的目标态语义：
+
+- `loot` 页全空时保留 boss 组结构，由状态区解释“当前筛选下无可见物品”
+- `sets` 页全空时同样保留组结构，但空态文案保持 `sets` 自己的语义
+
+## 11. 隐藏已收藏链路
 
 item 是否最终显示，主链路是：
 
@@ -224,7 +298,7 @@ item 是否最终显示，主链路是：
 - `hideCollectedTransmog / Mounts / Pets` 没有命中
 - `typeKey` 走错收藏品分支
 
-### 9.1 实际状态 vs 显示态
+### 11.1 实际状态 vs 显示态
 
 这里有两层状态：
 
@@ -233,7 +307,7 @@ item 是否最终显示，主链路是：
 - `GetLootItemDisplayCollectionState(item)`
   面板显示态，会叠加 session baseline
 
-### 9.2 过滤规则
+### 11.2 过滤规则
 
 `LootItemMatchesTypeFilter(item)` 的顺序是：
 
@@ -248,7 +322,7 @@ item 是否最终显示，主链路是：
    - 坐骑：`hideCollectedMounts`
    - 宠物：`hideCollectedPets`
 
-## 11. 首领击杀次数统计图
+## 12. 首领击杀次数统计图
 
 掉落面板里首领 header 旁边的击杀次数，以及相关 tooltip，走的是单独一条链：
 

@@ -12,6 +12,7 @@ Locale\enUS.lua
 Locale\zhCN.lua
 src\storage\Storage.lua
 src\storage\StorageGateway.lua
+src\runtime\UnifiedLogger.lua
 src\core\Compute.lua
 src\core\API.lua
 src\metadata\DifficultyRules.lua

@@ -527,6 +527,7 @@ end
 
 function DebugTools.CaptureEncounterDebugDump()
 	local api = dependencies.API or addon.API
+	local log = dependencies.Log or addon.Log
 	local compute = dependencies.Compute or addon.Compute
 	local getDB = dependencies.getDB
 	local db = getDB and getDB() or {}
@@ -573,8 +574,42 @@ function DebugTools.CaptureEncounterDebugDump()
 			db.debugTemp[key] = value
 		end,
 	})
-	dump.startupLifecycleDebug = db.debugTemp and db.debugTemp.startupLifecycleDebug or nil
-	dump.runtimeErrorDebug = db.debugTemp and db.debugTemp.runtimeErrorDebug or nil
+	local runtimeLogs = log and type(log.BuildExport) == "function" and log.BuildExport({
+		scopes = { "runtime.events", "runtime.error", "metadata.instance" },
+	}) or nil
+	if runtimeLogs then
+		runtimeLogs.agentExport = type(log.BuildAgentExportText) == "function" and log.BuildAgentExportText(runtimeLogs) or nil
+	end
+	dump.runtimeLogs = runtimeLogs
+	dump.startupLifecycleDebug = {
+		lastResetReason = "UnifiedLogger",
+		entryCount = 0,
+		entries = {},
+	}
+	dump.runtimeErrorDebug = {
+		entries = {},
+		truncated = runtimeLogs and runtimeLogs.summary and runtimeLogs.summary.truncated or false,
+	}
+	for _, entry in ipairs(runtimeLogs and runtimeLogs.logs or {}) do
+		if entry.scope == "runtime.events" and (entry.event == "startup_lifecycle" or entry.event == "startup_lifecycle_reset") then
+			local fields = entry.fields or {}
+			dump.startupLifecycleDebug.entries[#dump.startupLifecycleDebug.entries + 1] = {
+				at = date("%H:%M:%S", tonumber(entry.at) or time()),
+				step = tostring(fields.step or entry.event),
+				event = tostring(fields.event or entry.event),
+				detail = tostring(fields.detail or fields.lastResetReason or "-"),
+			}
+		elseif entry.scope == "runtime.error" then
+			local fields = entry.fields or {}
+			dump.runtimeErrorDebug.entries[#dump.runtimeErrorDebug.entries + 1] = {
+				at = date("%H:%M:%S", tonumber(entry.at) or time()),
+				message = tostring(fields.message or entry.event or ""),
+				stack = tostring(fields.stack or ""),
+				repeatCount = tonumber(fields.repeatCount) or 1,
+			}
+		end
+	end
+	dump.startupLifecycleDebug.entryCount = #(dump.startupLifecycleDebug.entries or {})
 	dump.bulkScanProfileDebug = db.debugTemp and db.debugTemp.bulkScanProfileDebug or nil
 	dump.setDashboardPreviewDebug = (previewDump and previewDump.setDashboardPreviewDebug)
 		or (db.debugTemp and db.debugTemp.setDashboardPreviewDebug)

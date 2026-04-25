@@ -192,30 +192,30 @@
 		</Frames>
 	</Frame>
 	<Frame name="MogTrackerDebugPanel" parent="UIParent" hidden="true">
-		<Size x="680" y="520"/>
+		<Size x="860" y="560"/>
 		<Anchors>
 			<Anchor point="CENTER"/>
 		</Anchors>
 		<Layers>
 			<Layer level="ARTWORK">
-				<FontString name="$parentTitle" inherits="GameFontNormalLarge" text="调试日志">
+				<FontString name="$parentTitle" inherits="GameFontNormalLarge" text="统一日志面板">
 					<Anchors>
 						<Anchor point="TOP" x="0" y="-16"/>
 					</Anchors>
 				</FontString>
-				<FontString name="$parentSubtitle" inherits="GameFontHighlightSmall" text="仅通过 /img debug ... 打开。">
+				<FontString name="$parentSubtitle" inherits="GameFontHighlightSmall" text="Unified Logger / Debug Export · 仅通过 /img debug ... 打开。">
 					<Anchors>
 						<Anchor point="TOP" relativeTo="$parentTitle" relativePoint="BOTTOM" x="0" y="-8"/>
 					</Anchors>
 				</FontString>
-				<FontString name="$parentSectionsHeader" inherits="GameFontHighlight" text="日志分段">
+				<FontString name="$parentSectionsHeader" inherits="GameFontHighlight" text="筛选与会话">
 					<Anchors>
 						<Anchor point="TOPLEFT" x="24" y="-62"/>
 					</Anchors>
 				</FontString>
-				<FontString name="$parentListHeader" inherits="GameFontNormal" text="Debug Output">
+				<FontString name="$parentListHeader" inherits="GameFontNormal" text="统一日志主区">
 					<Anchors>
-						<Anchor point="TOPLEFT" x="24" y="-182"/>
+						<Anchor point="TOPLEFT" x="250" y="-94"/>
 					</Anchors>
 				</FontString>
 				<FontString name="$parentFooter" inherits="GameFontDisableSmall" text="/img debug">
@@ -232,13 +232,13 @@
 				</Anchors>
 			</Button>
 			<ScrollFrame name="$parentScrollFrame" inherits="UIPanelScrollFrameTemplate">
-				<Size x="632" y="270"/>
+				<Size x="586" y="408"/>
 				<Anchors>
-					<Anchor point="TOPLEFT" x="24" y="-206"/>
+					<Anchor point="TOPLEFT" x="250" y="-118"/>
 				</Anchors>
 			</ScrollFrame>
 			<EditBox name="$parentScrollChild">
-				<Size x="610" y="270"/>
+				<Size x="564" y="408"/>
 				<Anchors>
 					<Anchor point="TOPLEFT"/>
 				</Anchors>
@@ -247,7 +247,31 @@
 			<Button name="$parentRefreshButton" inherits="UIPanelButtonTemplate" text="Collect Logs">
 				<Size x="96" y="24"/>
 				<Anchors>
-					<Anchor point="BOTTOMRIGHT" x="-24" y="20"/>
+					<Anchor point="TOPLEFT" x="250" y="-62"/>
+				</Anchors>
+			</Button>
+			<Button name="$parentRefreshViewButton" inherits="UIPanelButtonTemplate" text="Refresh View">
+				<Size x="96" y="24"/>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parentRefreshButton" relativePoint="RIGHT" x="8" y="0"/>
+				</Anchors>
+			</Button>
+			<Button name="$parentCopyJsonButton" inherits="UIPanelButtonTemplate" text="Copy JSON">
+				<Size x="92" y="24"/>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parentRefreshViewButton" relativePoint="RIGHT" x="8" y="0"/>
+				</Anchors>
+			</Button>
+			<Button name="$parentCopyAgentButton" inherits="UIPanelButtonTemplate" text="复制给 Agent">
+				<Size x="112" y="24"/>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parentCopyJsonButton" relativePoint="RIGHT" x="8" y="0"/>
+				</Anchors>
+			</Button>
+			<Button name="$parentExportButton" inherits="UIPanelButtonTemplate" text="导出当前结果">
+				<Size x="112" y="24"/>
+				<Anchors>
+					<Anchor point="LEFT" relativeTo="$parentCopyAgentButton" relativePoint="RIGHT" x="8" y="0"/>
 				</Anchors>
 			</Button>
 		</Frames>

@@ -14,8 +14,8 @@
 
 配套文档：
 
-- [runtime-lightweight-data-plan.md](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/docs/runtime-lightweight-data-plan.md)
-- [runtime-lightweight-refactor-checklist.md](/C:/World%20of%20Warcraft/_retail_/Interface/AddOns/MogTracker/docs/runtime-lightweight-refactor-checklist.md)
+- [runtime-lightweight-data-plan.md](runtime-lightweight-data-plan.md)
+- [runtime-lightweight-refactor-checklist.md](runtime-lightweight-refactor-checklist.md)
 
 Storage 前提：
 
@@ -624,3 +624,4 @@ itemFact = {
 - [ ] `itemFacts.setIDs` 归为 `scan_only`
 - [ ] storage schema 不匹配时直接 schema cutover，不做迁移
 - [ ] 当前 schema 下缺少 membership index 时直接 `stale`
+

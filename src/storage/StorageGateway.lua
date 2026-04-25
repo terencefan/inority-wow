@@ -95,6 +95,23 @@ function StorageGateway.GetSettings()
 	return db.settings
 end
 
+function StorageGateway.GetRuntimeLogs()
+	local db = GetDB()
+	if not db then
+		return nil
+	end
+	local normalize = dependencies.normalizeRuntimeLogs
+	if type(normalize) == "function" then
+		db.runtimeLogs = normalize(db.runtimeLogs)
+	else
+		db.runtimeLogs = type(db.runtimeLogs) == "table" and db.runtimeLogs or {
+			persistenceEnabled = false,
+			sessions = {},
+		}
+	end
+	return db.runtimeLogs
+end
+
 function StorageGateway.SetSettings(settings)
 	local db = GetDB()
 	if db then

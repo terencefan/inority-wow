@@ -26,6 +26,9 @@ function Shared.GetSelectableClasses()
 	for index, classFile in ipairs(classFiles) do
 		copy[index] = classFile
 	end
+	if addon.API and addon.API.CompareClassFiles then
+		table.sort(copy, addon.API.CompareClassFiles)
+	end
 	return copy
 end
 
@@ -78,18 +81,36 @@ function Shared.GetDifficultyColorCode(difficultyName, difficultyID)
 	difficultyName = string.lower(tostring(difficultyName or ""))
 	difficultyID = tonumber(difficultyID) or 0
 
-	if difficultyID == 17 or difficultyID == 7 or difficultyName:find("随机") or difficultyName:find("raid finder") then
+	if
+		difficultyID == 17
+		or difficultyID == 7
+		or difficultyName:find("随机")
+		or difficultyName:find("raid finder")
+	then
 		return (ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[2] and ITEM_QUALITY_COLORS[2].hex) or "|cff1eff00"
 	end
-	if difficultyID == 14 or difficultyID == 3 or difficultyID == 4 or difficultyID == 9
-		or difficultyName:find("普通") or difficultyName:find("10人") or difficultyName:find("25人") or difficultyName:find("40人") then
+	if
+		difficultyID == 14
+		or difficultyID == 3
+		or difficultyID == 4
+		or difficultyID == 9
+		or difficultyName:find("普通")
+		or difficultyName:find("10人")
+		or difficultyName:find("25人")
+		or difficultyName:find("40人")
+	then
 		return (ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[3] and ITEM_QUALITY_COLORS[3].hex) or "|cff0070dd"
 	end
 	if difficultyID == 15 or difficultyID == 5 or difficultyID == 6 or difficultyName:find("英雄") then
 		return (ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[4] and ITEM_QUALITY_COLORS[4].hex) or "|cffa335ee"
 	end
-	if difficultyID == 16 or difficultyID == 8 or difficultyID == 23
-		or difficultyName:find("史诗") or difficultyName:find("mythic") then
+	if
+		difficultyID == 16
+		or difficultyID == 8
+		or difficultyID == 23
+		or difficultyName:find("史诗")
+		or difficultyName:find("mythic")
+	then
 		return (ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[5] and ITEM_QUALITY_COLORS[5].hex) or "|cffff8000"
 	end
 
@@ -131,7 +152,9 @@ function Shared.GetExpansionInfoForInstance(selection)
 	return {
 		expansionName = expansionName,
 		expansionOrder = tonumber(info.expansionOrder) or Shared.GetExpansionOrder(expansionName),
-		instanceOrder = tonumber(info.instanceOrder) or tonumber(info.raidOrder) or tonumber(selection and selection.instanceOrder) or 999,
+		instanceOrder = tonumber(info.instanceOrder) or tonumber(info.raidOrder) or tonumber(
+			selection and selection.instanceOrder
+		) or 999,
 	}
 end
 
@@ -195,9 +218,15 @@ end
 
 function Shared.GetDashboardEmptyMessage()
 	if Shared.GetDashboardInstanceType() == "party" then
-		return Shared.Translate("DASHBOARD_EMPTY_DUNGEON", "还没有已扫描的地下城统计数据。\n请先扫描地下城。")
+		return Shared.Translate(
+			"DASHBOARD_EMPTY_DUNGEON",
+			"还没有已扫描的地下城统计数据。\n请先扫描地下城。"
+		)
 	end
-	return Shared.Translate("DASHBOARD_EMPTY", "还没有已扫描的团队副本统计数据。\n请先扫描副本。")
+	return Shared.Translate(
+		"DASHBOARD_EMPTY",
+		"还没有已扫描的团队副本统计数据。\n请先扫描副本。"
+	)
 end
 
 function Shared.DeriveLootTypeKey(item)

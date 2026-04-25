@@ -25,6 +25,14 @@ local function GetDB()
 	return nil
 end
 
+local function GetSettings()
+	if type(dependencies.getSettings) == "function" then
+		return dependencies.getSettings() or {}
+	end
+	local db = GetDB()
+	return (db and db.settings) or {}
+end
+
 local function GetLootPanelState()
 	if type(dependencies.getLootPanelState) == "function" then
 		return dependencies.getLootPanelState() or {}
@@ -91,6 +99,14 @@ local function RefreshLootPanel()
 	if type(dependencies.RefreshLootPanel) == "function" then
 		dependencies.RefreshLootPanel()
 	end
+end
+
+local function RequestLootPanelRefresh(request)
+	if type(dependencies.RequestLootPanelRefresh) == "function" then
+		return dependencies.RequestLootPanelRefresh(request)
+	end
+	RefreshLootPanel()
+	return request
 end
 
 local function InvalidateLootDataCache()
@@ -162,6 +178,39 @@ local function GetNormalizedExpansionName(name)
 	return addon.NormalizeExpansionDisplayName and addon.NormalizeExpansionDisplayName(name) or name
 end
 
+local function BuildCurrentInstanceIdentity()
+	local _, currentDebugInfo = GetCurrentJournalInstanceID()
+	return {
+		instanceID = currentDebugInfo and (tonumber(currentDebugInfo.instanceID) or 0) or 0,
+		difficultyID = currentDebugInfo and (tonumber(currentDebugInfo.difficultyID) or 0) or 0,
+	}
+end
+
+local function AreCurrentInstanceIdentitiesEqual(left, right)
+	left = type(left) == "table" and left or {}
+	right = type(right) == "table" and right or {}
+	return (tonumber(left.instanceID) or 0) == (tonumber(right.instanceID) or 0)
+		and (tonumber(left.difficultyID) or 0) == (tonumber(right.difficultyID) or 0)
+end
+
+local function FindSelectionByKey(selections, selectionKey)
+	for _, selection in ipairs(selections or {}) do
+		if LootSelection.BuildLootPanelSelectionKey(selection) == selectionKey then
+			return selection
+		end
+	end
+	return nil
+end
+
+local function GetFirstStableSelection(selections)
+	for _, selection in ipairs(selections or {}) do
+		if selection then
+			return selection
+		end
+	end
+	return nil
+end
+
 function LootSelection.BuildLootPanelSelectionKey(selection)
 	if not selection then
 		return "current"
@@ -208,6 +257,40 @@ function LootSelection.BuildLootPanelSelectionDeduplicationKey(selection)
 		return "current::" .. signature
 	end
 	return "selection::" .. signature
+end
+
+function LootSelection.BuildSelectionContext(overrides)
+	local lootPanelState = GetLootPanelState()
+	local settings = GetSettings()
+	local selectedInstance = overrides and overrides.selectedInstance or nil
+	if selectedInstance == nil then
+		selectedInstance = LootSelection.GetSelectedLootPanelInstance()
+	end
+
+	local selectedLootTypes = {}
+	for lootType, isSelected in pairs(settings.selectedLootTypes or {}) do
+		if isSelected then
+			selectedLootTypes[#selectedLootTypes + 1] = tostring(lootType)
+		end
+	end
+	table.sort(selectedLootTypes)
+
+	return {
+		selectionKey = LootSelection.BuildLootPanelSelectionKey(selectedInstance),
+		selectedInstance = selectedInstance,
+		currentTab = tostring(lootPanelState.currentTab or "loot"),
+		classScopeMode = tostring(lootPanelState.classScopeMode or "selected"),
+		selectedClassIDs = GetSelectedLootClassIDs(),
+		selectedLootTypes = selectedLootTypes,
+		hideCollectedFlags = {
+			hideCollectedTransmog = settings.hideCollectedTransmog and true or false,
+			hideCollectedMounts = settings.hideCollectedMounts and true or false,
+			hideCollectedPets = settings.hideCollectedPets and true or false,
+		},
+		lastManualSelectionKey = lootPanelState.lastManualSelectionKey,
+		lastManualTab = lootPanelState.lastManualTab,
+		lastObservedCurrentInstance = lootPanelState.lastObservedCurrentInstance,
+	}
 end
 
 function LootSelection.GetLootPanelInstanceExpansionInfo(selection)
@@ -323,12 +406,40 @@ end
 
 function LootSelection.PreferCurrentLootPanelSelectionOnOpen()
 	local lootPanelState = GetLootPanelState()
-	for _, selection in ipairs(LootSelection.BuildLootPanelInstanceSelections()) do
+	local selections = LootSelection.BuildLootPanelInstanceSelections()
+	local currentSelection = nil
+	for _, selection in ipairs(selections) do
 		local instanceType = tostring(selection and selection.instanceType or "")
 		if selection.isCurrent and instanceType ~= "" and instanceType ~= "none" then
-			lootPanelState.selectedInstanceKey = LootSelection.BuildLootPanelSelectionKey(selection)
-			return
+			currentSelection = selection
+			break
 		end
+	end
+
+	local currentIdentity = BuildCurrentInstanceIdentity()
+	local currentChanged = currentSelection and not AreCurrentInstanceIdentitiesEqual(lootPanelState.lastObservedCurrentInstance, currentIdentity)
+	local preferredSelection = nil
+
+	if currentChanged and currentSelection then
+		preferredSelection = currentSelection
+	end
+
+	if not preferredSelection and type(lootPanelState.lastManualSelectionKey) == "string" and lootPanelState.lastManualSelectionKey ~= "" then
+		preferredSelection = FindSelectionByKey(selections, lootPanelState.lastManualSelectionKey)
+	end
+
+	if not preferredSelection and currentSelection then
+		preferredSelection = currentSelection
+	end
+
+	if not preferredSelection then
+		preferredSelection = GetFirstStableSelection(selections)
+	end
+
+	lootPanelState.lastObservedCurrentInstance = currentIdentity
+	if preferredSelection then
+		lootPanelState.selectedInstanceKey = LootSelection.BuildLootPanelSelectionKey(preferredSelection)
+		return
 	end
 	lootPanelState.selectedInstanceKey = nil
 end
@@ -351,10 +462,12 @@ function LootSelection.BuildLootPanelInstanceMenu(button)
 	local function SelectInstance(selection)
 		local selectionKey = LootSelection.BuildLootPanelSelectionKey(selection)
 		lootPanelState.selectedInstanceKey = selectionKey
-		lootPanelState.collapsed = {}
-		lootPanelState.manualCollapsed = {}
-		ResetLootPanelScrollPosition()
-		RefreshLootPanel()
+		lootPanelState.lastManualSelectionKey = selectionKey
+		RequestLootPanelRefresh({
+			reason = "selection_changed",
+			selectionKey = selectionKey,
+			rememberManualSelection = true,
+		})
 		if CloseDropDownMenus then
 			CloseDropDownMenus()
 		end
@@ -501,10 +614,7 @@ function LootSelection.OpenLootPanelForDashboardSelection(selection)
 			and tonumber(candidate.difficultyID) == targetDifficultyID
 			and tostring(candidate.instanceName or "") == targetInstanceName then
 			lootPanelState.selectedInstanceKey = LootSelection.BuildLootPanelSelectionKey(candidate)
-			lootPanelState.collapsed = {}
-			lootPanelState.manualCollapsed = {}
-			ResetLootPanelSessionState(true)
-			ResetLootPanelScrollPosition()
+			lootPanelState.lastManualSelectionKey = lootPanelState.selectedInstanceKey
 			SetLootPanelTab("loot")
 			local lootPanel = GetLootPanel()
 			if lootPanel then
@@ -513,7 +623,11 @@ function LootSelection.OpenLootPanelForDashboardSelection(selection)
 					lootPanel:Raise()
 				end
 			end
-			RefreshLootPanel()
+			RequestLootPanelRefresh({
+				reason = "selection_changed",
+				selectionKey = lootPanelState.selectedInstanceKey,
+				rememberManualSelection = true,
+			})
 			return true
 		end
 	end

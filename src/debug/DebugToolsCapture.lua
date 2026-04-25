@@ -23,6 +23,62 @@ local IsSectionEnabled = DebugTools.IsSectionEnabled
 local HasAnySectionEnabled = DebugTools.HasAnySectionEnabled
 local EncodeJsonValue = DebugTools.EncodeJsonValue
 
+local function FormatLogPreviewTime(at)
+	local timestamp = tonumber(at)
+	if timestamp and date then
+		return date("%H:%M:%S", timestamp)
+	end
+	return tostring(at or "?")
+end
+
+local function BuildFieldsPreview(fields)
+	local encoded = EncodeJsonValue(fields or {})
+	if #encoded > 180 then
+		return string.sub(encoded, 1, 177) .. "..."
+	end
+	return encoded
+end
+
+function DebugTools.FormatUnifiedLogExport(export)
+	if type(export) ~= "table" or type(export.logs) ~= "table" then
+		return Translate("DEBUG_EMPTY", "No unified logs yet.\nOpen /img debug and click \"Collect Logs\".")
+	end
+
+	local session = export.session or {}
+	local filters = export.filters or {}
+	local summary = export.summary or {}
+	local lines = {
+		"== Unified Log Panel ==",
+		string.format("exportVersion = %s", tostring(export.exportVersion or "")),
+		string.format("generatedAt = %s", tostring(export.generatedAt or "")),
+		string.format("sessionID = %s", tostring(session.sessionID or "")),
+		string.format("persistenceEnabled = %s", tostring(session.persistenceEnabled and true or false)),
+		string.format("truncated = %s", tostring(summary.truncated and true or false)),
+		string.format("levels = %s", table.concat(filters.levels or {}, ", ")),
+		string.format("scopes = %s", table.concat(filters.scopes or {}, ", ")),
+		string.format("totalLogs = %s", tostring(summary.totalLogs or #(export.logs or {}))),
+		"",
+		"time | level | scope | event | fields",
+	}
+
+	for _, entry in ipairs(export.logs or {}) do
+		lines[#lines + 1] = string.format(
+			"[%s] %s | %s | %s",
+			FormatLogPreviewTime(entry.at),
+			tostring(entry.level or "info"),
+			tostring(entry.scope or "runtime.events"),
+			tostring(entry.event or "unknown_event")
+		)
+		lines[#lines + 1] = string.format("  fields = %s", BuildFieldsPreview(entry.fields))
+	end
+
+	if #(export.logs or {}) == 0 then
+		lines[#lines + 1] = "(no logs matched the current level / scope / session filters)"
+	end
+
+	return table.concat(lines, "\n")
+end
+
 function DebugTools.FormatLootDebugInfo(debugInfo)
 	if not debugInfo then
 		return ""
@@ -55,6 +111,7 @@ function DebugTools.FormatDebugDump(dump)
 
 	local renderLockoutProgress = dependencies.renderLockoutProgress
 	local lines = {}
+	local runtimeLogs = dump.runtimeLogs or {}
 	local startupLifecycleDebug = dump.startupLifecycleDebug or {}
 	local runtimeErrorDebug = dump.runtimeErrorDebug or {}
 	local rawInstances = dump.rawSavedInstanceInfo and dump.rawSavedInstanceInfo.instances or {}
@@ -78,6 +135,17 @@ function DebugTools.FormatDebugDump(dump)
 
 	lines[#lines + 1] = Translate("DEBUG_COPY_HINT", "Tip: click \"Collect Logs\" to auto-select the text, then press Ctrl+C to copy.")
 	lines[#lines + 1] = ""
+	if runtimeLogs.exportVersion and (IsSectionEnabled("startupLifecycleDebug") or IsSectionEnabled("runtimeErrorDebug")) then
+		lines[#lines + 1] = "== Runtime Logs Export =="
+		lines[#lines + 1] = string.format("exportVersion = %s", tostring(runtimeLogs.exportVersion))
+		lines[#lines + 1] = string.format("generatedAt = %s", tostring(runtimeLogs.generatedAt))
+		lines[#lines + 1] = string.format("sessionID = %s", tostring(runtimeLogs.session and runtimeLogs.session.sessionID or ""))
+		lines[#lines + 1] = string.format("persistenceEnabled = %s", tostring(runtimeLogs.session and runtimeLogs.session.persistenceEnabled and true or false))
+		lines[#lines + 1] = string.format("truncated = %s", tostring(runtimeLogs.summary and runtimeLogs.summary.truncated and true or false))
+		lines[#lines + 1] = string.format("Copy JSON = %s", tostring(runtimeLogs.exportVersion))
+		lines[#lines + 1] = string.format("agentExportHeader = %s", tostring(runtimeLogs.agentExport and "[MogTracker Agent Log Export v1]" or ""))
+		lines[#lines + 1] = ""
+	end
 	if IsSectionEnabled("startupLifecycleDebug") then
 		local startupEntries = startupLifecycleDebug.entries or {}
 		lines[#lines + 1] = "== Startup Lifecycle Debug =="

@@ -95,6 +95,21 @@ function LootDataController.Configure(config)
 	LootDataController._dependencies = dependencies
 end
 
+function LootDataController.BuildRefreshContractState(request)
+	local refreshRequest = type(request) == "table" and request or {}
+	local reason = tostring(refreshRequest.reason or "runtime_event")
+	local classScopeModeChanged = refreshRequest.classScopeModeChanged and true or false
+	return {
+		reason = reason,
+		shouldResetSessionBaseline = reason == "manual_refresh",
+		shouldInvalidateCollect = reason == "manual_refresh"
+			or reason == "selection_changed"
+			or (reason == "filter_changed" and classScopeModeChanged),
+		shouldClearCollapseState = reason == "selection_changed",
+		shouldPreserveCollapseState = reason == "filter_changed" or reason == "runtime_event",
+	}
+end
+
 local function T(key, fallback)
 	local translate = dependencies.T or addon.T
 	if translate then

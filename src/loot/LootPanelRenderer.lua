@@ -70,6 +70,7 @@ local function BuildCurrentInstanceLootSummary(data, selectedInstance) return Re
 local function BuildCurrentEncounterKillMap() return ReadDependency("BuildCurrentEncounterKillMap", { byName = {}, byNormalizedName = {}, progressCount = 0 }) end
 local function IsEncounterKilledByName(state, encounterName) return ReadDependency("IsEncounterKilledByName", false, state, encounterName) end
 local function GetEncounterTotalKillCount(selectedInstance, encounterName) return ReadDependency("GetEncounterTotalKillCount", 0, selectedInstance, encounterName) end
+local function BuildBossKillCountViewModel(selectedInstance, encounterName) return ReadDependency("BuildBossKillCountViewModel", { bossKillCount = GetEncounterTotalKillCount(selectedInstance, encounterName) }, selectedInstance, encounterName) end
 local function GetEncounterCollapseCacheEntry(encounterName) return ReadDependency("GetEncounterCollapseCacheEntry", nil, encounterName) end
 local function ToggleLootEncounterCollapsed(encounterID, encounterName) CallDependency("ToggleLootEncounterCollapsed", encounterID, encounterName) end
 local function EnsureLootItemRow(parentFrame, row, index) return ReadDependency("EnsureLootItemRow", nil, parentFrame, row, index) end
@@ -346,9 +347,10 @@ local function HideUnusedItemRows(row, lastVisibleIndex)
 	end
 end
 
-local function RenderNoSelectedClassesState(lootPanel, rows, contentWidth, headerRowStep)
-	local yOffset = -4
-	local row = EnsurePanelRow(lootPanel, rows, 1, contentWidth, false)
+local function RenderNoSelectedClassesState(lootPanel, rows, contentWidth, headerRowStep, startRowIndex, startYOffset)
+	local rowIndex = tonumber(startRowIndex) or 1
+	local yOffset = startYOffset or -4
+	local row = EnsurePanelRow(lootPanel, rows, rowIndex, contentWidth, false)
 	SetDebugVisibility(lootPanel, false)
 	LayoutScrollFrame(lootPanel, false)
 	row.header:ClearAllPoints()
@@ -361,14 +363,71 @@ local function RenderNoSelectedClassesState(lootPanel, rows, contentWidth, heade
 	row.header:SetScript("OnClick", nil)
 	row.header:Show()
 	row.bodyFrame:Hide()
-	HideTrailingRows(rows, 1)
+	HideTrailingRows(rows, rowIndex)
 	lootPanel.content:SetHeight(math.max(1, -((yOffset - headerRowStep)) + 4))
 	if lootPanel.scrollFrame.SetVerticalScroll then
 		lootPanel.scrollFrame:SetVerticalScroll(0)
 	end
 end
 
-local function RenderErrorBranch(lootPanel, rows, contentWidth, headerRowStep, data)
+local function BuildPanelBannerViewModel(args)
+	local currentTab = tostring(args and args.currentTab or "loot")
+	local data = type(args and args.data) == "table" and args.data or {}
+	local noSelectedClasses = args and args.noSelectedClasses and true or false
+	local allLootGroupsEmpty = args and args.allLootGroupsEmpty and true or false
+	local allSetGroupsEmpty = args and args.allSetGroupsEmpty and true or false
+	local setSummary = type(args and args.setSummary) == "table" and args.setSummary or nil
+
+	if noSelectedClasses then
+		return {
+			state = "empty",
+			title = T("LOOT_PANEL_STATUS", "状态"),
+			message = T("LOOT_NO_CLASS_FILTER", "请先在主面板的职业过滤里选择至少一个职业。"),
+		}
+	end
+	if data.error and not IsUnknownInstanceError(data) then
+		return {
+			state = "error",
+			title = T("LOOT_PANEL_STATUS", "状态"),
+			message = tostring(data.error or ""),
+		}
+	end
+	if type(data) == "table" and data.missingItemData then
+		return {
+			state = "partial",
+			title = T("LOOT_PANEL_STATUS", "状态"),
+			message = T("LOOT_PARTIAL_ITEM_DATA", "当前掉落数据仍在补全中，面板会继续尝试刷新。"),
+		}
+	end
+	return nil
+end
+
+local function RenderPanelBanner(row, contentWidth, headerRowStep, bannerViewModel)
+	if not bannerViewModel then
+		return 0
+	end
+	row.header:ClearAllPoints()
+	row.header:SetPoint("TOPLEFT", 0, -4)
+	UpdateEncounterHeaderVisuals(row.header, false, false)
+	row.header.text:SetText(bannerViewModel.title or T("LOOT_PANEL_STATUS", "状态"))
+	row.header.countText:SetText("")
+	row.header.countText:Hide()
+	row.header:Show()
+	row.header:SetScript("OnClick", nil)
+	row.header:SetScript("OnEnter", nil)
+	row.header:SetScript("OnLeave", nil)
+	row.body = row.body or row.header:GetParent():CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	row.body:SetWidth(contentWidth)
+	row.body:SetJustifyH("LEFT")
+	row.body:ClearAllPoints()
+	row.body:SetPoint("TOPLEFT", row.header, "BOTTOMLEFT", 0, -2)
+	row.body:SetText(tostring(bannerViewModel.message or ""))
+	row.body:Show()
+	row.bodyFrame:Hide()
+	return headerRowStep + row.body:GetStringHeight() + 8
+end
+
+local function RenderErrorBranch(lootPanel, rows, contentWidth, headerRowStep, data, startRowIndex, startYOffset)
 	if IsUnknownInstanceError(data) then
 		SetDebugVisibility(lootPanel, false)
 		if lootPanel.debugEditBox then
@@ -382,8 +441,9 @@ local function RenderErrorBranch(lootPanel, rows, contentWidth, headerRowStep, d
 		return 0, -4
 	end
 
-	local row = EnsurePanelRow(lootPanel, rows, 1, contentWidth, true)
-	local yOffset = -4
+	local rowIndex = tonumber(startRowIndex) or 1
+	local row = EnsurePanelRow(lootPanel, rows, rowIndex, contentWidth, true)
+	local yOffset = startYOffset or -4
 	row.header:ClearAllPoints()
 	row.header:SetPoint("TOPLEFT", 0, yOffset)
 	UpdateEncounterHeaderVisuals(row.header, false, false)
@@ -404,7 +464,7 @@ local function RenderErrorBranch(lootPanel, rows, contentWidth, headerRowStep, d
 	lootPanel.debugEditBox:SetText(debugText)
 	lootPanel.debugEditBox:SetCursorPosition(0)
 	yOffset = yOffset - row.body:GetStringHeight() - 8
-	return 1, yOffset
+	return rowIndex, yOffset
 end
 
 local function RenderSetMessageRow(row, contentWidth, message, itemRowHeight)
@@ -515,14 +575,14 @@ local function RenderSetGroupRow(row, contentWidth, group, itemRowHeight, itemRo
 	return row.bodyFrame:GetHeight()
 end
 
-local function RenderSetsBranch(lootPanel, rows, contentWidth, headerRowStep, itemRowHeight, itemRowStep, groupGap, data)
+local function RenderSetsBranch(lootPanel, rows, contentWidth, headerRowStep, itemRowHeight, itemRowStep, groupGap, data, startRowIndex, startYOffset, setSummaryOverride)
 	lootPanel.debugEditBox:SetText("")
-	local setSummary = LootPanelRenderer.BuildCurrentInstanceSetSummary(data)
-	local yOffset = -4
-	local rowIndex = 0
+	local setSummary = setSummaryOverride or LootPanelRenderer.BuildCurrentInstanceSetSummary(data)
+	local yOffset = startYOffset or -4
+	local rowIndex = tonumber(startRowIndex) or 0
 
 	if setSummary.message then
-		rowIndex = 1
+		rowIndex = rowIndex + 1
 		local row = EnsurePanelRow(lootPanel, rows, rowIndex, contentWidth, false)
 		row.header:ClearAllPoints()
 		row.header:SetPoint("TOPLEFT", 0, yOffset)
@@ -552,6 +612,15 @@ local function RenderSetsBranch(lootPanel, rows, contentWidth, headerRowStep, it
 	end
 
 	return rowIndex, yOffset
+end
+
+local function AreAllSetGroupsEmpty(setSummary)
+	for _, group in ipairs((setSummary and setSummary.classGroups) or {}) do
+		if type(group.sets) == "table" and #group.sets > 0 then
+			return false
+		end
+	end
+	return #((setSummary and setSummary.classGroups) or {}) > 0
 end
 
 function LootPanelRenderer.ResolveEncounterCollapsedState(lootPanelState, encounter, lootState, cachedCollapsed, autoCollapsed)
@@ -698,10 +767,10 @@ local function ShowEncounterCountTooltip(anchor, encounterName, totalKillCount, 
 	GameTooltip:Show()
 end
 
-local function RenderLootBranch(lootPanel, rows, contentWidth, headerRowStep, itemRowHeight, itemRowStep, groupGap, encounters, lootPanelState, selectedInstance, encounterKillState, progressCount)
+local function RenderLootBranch(lootPanel, rows, contentWidth, headerRowStep, itemRowHeight, itemRowStep, groupGap, encounters, lootPanelState, selectedInstance, encounterKillState, progressCount, startRowIndex, startYOffset)
 	lootPanel.debugEditBox:SetText("")
-	local yOffset = -4
-	local rowIndex = 0
+	local yOffset = startYOffset or -4
+	local rowIndex = tonumber(startRowIndex) or 0
 
 	for _, encounter in ipairs(encounters or {}) do
 		rowIndex = rowIndex + 1
@@ -710,7 +779,8 @@ local function RenderLootBranch(lootPanel, rows, contentWidth, headerRowStep, it
 		local lootState = GetEncounterLootDisplayState(encounter)
 		local encounterExhausted = IsEncounterExhaustedForCurrentFilter(lootState)
 		local encounterKilled = IsEncounterKilledByName(encounterKillState, encounterName)
-		local totalKillCount = GetEncounterTotalKillCount(selectedInstance, encounterName)
+		local bossKillCount = BuildBossKillCountViewModel(selectedInstance, encounterName)
+		local totalKillCount = tonumber(bossKillCount and bossKillCount.bossKillCount) or GetEncounterTotalKillCount(selectedInstance, encounterName)
 		local autoCollapsed = GetEncounterAutoCollapsed(encounter, encounterName, lootState, encounterKillState, progressCount, encounterKilled)
 		local cachedCollapsed = GetEncounterCollapseCacheEntry(encounterName)
 		local isCollapsed = LootPanelRenderer.ResolveEncounterCollapsedState(lootPanelState, encounter, lootState, cachedCollapsed, autoCollapsed)
@@ -764,6 +834,18 @@ local function RenderLootBranch(lootPanel, rows, contentWidth, headerRowStep, it
 	end
 
 	return rowIndex, yOffset
+end
+
+local function AreAllLootGroupsEmpty(encounters)
+	local sawEncounter = false
+	for _, encounter in ipairs(encounters or {}) do
+		sawEncounter = true
+		local lootState = GetEncounterLootDisplayState(encounter)
+		if type(lootState.visibleLoot) == "table" and #lootState.visibleLoot > 0 then
+			return false
+		end
+	end
+	return sawEncounter
 end
 
 local function ScheduleMissingItemRefresh(data)
@@ -942,7 +1024,21 @@ function LootPanelRenderer.RefreshLootPanel()
 	markPhase("resolve_selection", string.format("noSelectedClasses=%s", tostring(noSelectedClasses)))
 
 	if noSelectedClasses then
-		RenderNoSelectedClassesState(lootPanel, rows, contentWidth, headerRowStep)
+		local bannerViewModel = BuildPanelBannerViewModel({
+			currentTab = currentTab,
+			noSelectedClasses = true,
+		})
+		if bannerViewModel then
+			local bannerRow = EnsurePanelRow(lootPanel, rows, 1, contentWidth, true)
+			RenderPanelBanner(bannerRow, contentWidth, headerRowStep, bannerViewModel)
+			HideTrailingRows(rows, 1)
+			lootPanel.content:SetHeight(math.max(1, headerRowStep + (bannerRow.body and bannerRow.body:GetStringHeight() or 0) + 16))
+			if lootPanel.scrollFrame.SetVerticalScroll then
+				lootPanel.scrollFrame:SetVerticalScroll(0)
+			end
+		else
+			RenderNoSelectedClassesState(lootPanel, rows, contentWidth, headerRowStep, 1, -4)
+		end
 		markPhase("render_empty_state")
 		finishRender("no_selected_classes", nil)
 		return
@@ -975,13 +1071,37 @@ function LootPanelRenderer.RefreshLootPanel()
 	end
 
 	local rowIndex, yOffset = 0, -4
+	local setSummary = nil
+	if currentTab == "sets" and not data.error then
+		setSummary = LootPanelRenderer.BuildCurrentInstanceSetSummary(data)
+	end
+	local bannerViewModel = BuildPanelBannerViewModel({
+		currentTab = currentTab,
+		data = data,
+		noSelectedClasses = noSelectedClasses,
+		setSummary = setSummary,
+		allLootGroupsEmpty = false,
+		allSetGroupsEmpty = false,
+	})
+
+	if bannerViewModel then
+		local bannerRow = EnsurePanelRow(lootPanel, rows, 1, contentWidth, true)
+		local bannerHeight = RenderPanelBanner(bannerRow, contentWidth, headerRowStep, bannerViewModel)
+		rowIndex = 1
+		yOffset = yOffset - bannerHeight - groupGap
+	end
+
 	if data.error then
-		rowIndex, yOffset = RenderErrorBranch(lootPanel, rows, contentWidth, headerRowStep, data)
+		if not bannerViewModel then
+			rowIndex, yOffset = RenderErrorBranch(lootPanel, rows, contentWidth, headerRowStep, data, rowIndex, yOffset)
+		end
 		markPhase("render_error_state")
 	elseif currentTab == "sets" then
-		rowIndex, yOffset = RenderSetsBranch(lootPanel, rows, contentWidth, headerRowStep, itemRowHeight, itemRowStep, groupGap, data)
+		local renderedRows, renderedYOffset = RenderSetsBranch(lootPanel, rows, contentWidth, headerRowStep, itemRowHeight, itemRowStep, groupGap, data, rowIndex, yOffset, setSummary)
+		rowIndex = math.max(rowIndex, renderedRows)
+		yOffset = renderedYOffset
 	else
-		rowIndex, yOffset = RenderLootBranch(
+		local renderedRows, renderedYOffset = RenderLootBranch(
 			lootPanel,
 			rows,
 			contentWidth,
@@ -993,8 +1113,12 @@ function LootPanelRenderer.RefreshLootPanel()
 			lootPanelState,
 			selectedInstance,
 			encounterKillState,
-			progressCount
+			progressCount,
+			rowIndex,
+			yOffset
 		)
+		rowIndex = math.max(rowIndex, renderedRows)
+		yOffset = renderedYOffset
 	end
 
 	if data.error then

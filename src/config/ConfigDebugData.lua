@@ -4,6 +4,8 @@ local ConfigDebugData = addon.ConfigDebugData or {}
 addon.ConfigDebugData = ConfigDebugData
 
 local EXPIRED_LOCKOUT_GRACE_MINUTES = 7 * 24 * 60
+local DEFAULT_LOG_LEVELS = { "trace", "debug", "info", "warn", "error" }
+local DEFAULT_LOG_SCOPES = { "runtime.events", "runtime.error", "metadata.instance" }
 
 local dependencies = ConfigDebugData._dependencies or {}
 
@@ -72,6 +74,193 @@ local function ApplyElvUISkin()
 	end
 end
 
+local function EncodeJsonValue(value)
+	local encoder = addon.DebugTools and addon.DebugTools.EncodeJsonValue
+	if type(encoder) == "function" then
+		return encoder(value)
+	end
+	return tostring(value)
+end
+
+local function BuildAgentExportText(export)
+	local logger = addon.Log or addon.UnifiedLogger
+	if logger and type(logger.BuildAgentExportText) == "function" then
+		return logger.BuildAgentExportText(export)
+	end
+	return EncodeJsonValue(export)
+end
+
+local function ShallowCopy(source)
+	local copy = {}
+	for key, value in pairs(type(source) == "table" and source or {}) do
+		copy[key] = value
+	end
+	return copy
+end
+
+local function EnsureUnifiedLogFilters(panel)
+	panel.unifiedLogFilters = panel.unifiedLogFilters or {
+		levels = {},
+		scopes = {},
+		sessionEnabled = true,
+		viewMode = "preview",
+	}
+	for _, level in ipairs(DEFAULT_LOG_LEVELS) do
+		if panel.unifiedLogFilters.levels[level] == nil then
+			panel.unifiedLogFilters.levels[level] = true
+		end
+	end
+	for _, scope in ipairs(DEFAULT_LOG_SCOPES) do
+		if panel.unifiedLogFilters.scopes[scope] == nil then
+			panel.unifiedLogFilters.scopes[scope] = true
+		end
+	end
+	return panel.unifiedLogFilters
+end
+
+local function BuildAvailableScopes(runtimeLogs)
+	local seen = {}
+	local scopes = {}
+	for _, scope in ipairs(DEFAULT_LOG_SCOPES) do
+		seen[scope] = true
+		scopes[#scopes + 1] = scope
+	end
+	for _, entry in ipairs(runtimeLogs and runtimeLogs.logs or {}) do
+		local scope = tostring(entry and entry.scope or "")
+		if scope ~= "" and not seen[scope] then
+			seen[scope] = true
+			scopes[#scopes + 1] = scope
+		end
+	end
+	table.sort(scopes)
+	return scopes
+end
+
+local function BuildFilteredRuntimeExport(runtimeLogs, filters)
+	if type(runtimeLogs) ~= "table" then
+		return nil
+	end
+
+	local selectedLevels = {}
+	local selectedScopes = {}
+	local filteredLogs = {}
+	local hasSession = filters.sessionEnabled and true or false
+
+	for _, level in ipairs(DEFAULT_LOG_LEVELS) do
+		if filters.levels[level] then
+			selectedLevels[#selectedLevels + 1] = level
+		end
+	end
+
+	for _, scope in ipairs(BuildAvailableScopes(runtimeLogs)) do
+		if filters.scopes[scope] then
+			selectedScopes[#selectedScopes + 1] = scope
+		end
+	end
+
+	local allowLevel = {}
+	local allowScope = {}
+	for _, level in ipairs(selectedLevels) do
+		allowLevel[level] = true
+	end
+	for _, scope in ipairs(selectedScopes) do
+		allowScope[scope] = true
+	end
+
+	for _, entry in ipairs(runtimeLogs.logs or {}) do
+		if hasSession
+			and allowLevel[tostring(entry.level or "")]
+			and allowScope[tostring(entry.scope or "")] then
+			filteredLogs[#filteredLogs + 1] = entry
+		end
+	end
+
+	return {
+		exportVersion = runtimeLogs.exportVersion,
+		generatedAt = runtimeLogs.generatedAt,
+		session = ShallowCopy(runtimeLogs.session or {}),
+		filters = {
+			levels = selectedLevels,
+			scopes = selectedScopes,
+		},
+		logs = filteredLogs,
+		summary = {
+			totalLogs = #filteredLogs,
+			truncated = runtimeLogs.summary and runtimeLogs.summary.truncated and true or false,
+			bufferOverwriteCount = runtimeLogs.summary and runtimeLogs.summary.bufferOverwriteCount or 0,
+			persistenceTruncationCount = runtimeLogs.summary and runtimeLogs.summary.persistenceTruncationCount or 0,
+			aggregateWindowHits = runtimeLogs.summary and runtimeLogs.summary.aggregateWindowHits or 0,
+			droppedCount = runtimeLogs.summary and runtimeLogs.summary.droppedCount or 0,
+		},
+	}
+end
+
+local function BuildPanelText(export, viewMode)
+	viewMode = tostring(viewMode or "preview")
+	if viewMode == "json" or viewMode == "export" then
+		return EncodeJsonValue(export or {})
+	end
+	if viewMode == "agent" then
+		return BuildAgentExportText(export or {
+			exportVersion = 1,
+			generatedAt = time and time() or 0,
+			session = {},
+			filters = { levels = {}, scopes = {} },
+			logs = {},
+			summary = { totalLogs = 0, truncated = false },
+		})
+	end
+	local formatter = addon.DebugTools and addon.DebugTools.FormatUnifiedLogExport
+	if type(formatter) == "function" then
+		return formatter(export)
+	end
+	return EncodeJsonValue(export or {})
+end
+
+local function EnsureFilterLabel(panel, key, text, point, relativeTo, relativePoint, x, y)
+	panel.unifiedFilterLabels = panel.unifiedFilterLabels or {}
+	local label = panel.unifiedFilterLabels[key]
+	if not label then
+		label = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+		panel.unifiedFilterLabels[key] = label
+	end
+	label:ClearAllPoints()
+	label:SetPoint(point, relativeTo or panel, relativePoint or point, x or 0, y or 0)
+	label:SetText(text)
+	label:Show()
+	return label
+end
+
+local function EnsureSessionInfoText(panel)
+	panel.sessionInfoText = panel.sessionInfoText or panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+	panel.sessionInfoText:SetWidth(198)
+	panel.sessionInfoText:SetJustifyH("LEFT")
+	panel.sessionInfoText:SetJustifyV("TOP")
+	panel.sessionInfoText:SetSpacing(2)
+	panel.sessionInfoText:ClearAllPoints()
+	panel.sessionInfoText:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -334)
+	panel.sessionInfoText:Show()
+	return panel.sessionInfoText
+end
+
+local function HighlightPanelText()
+	if MogTrackerDebugPanelScrollChild then
+		MogTrackerDebugPanelScrollChild:SetFocus()
+		MogTrackerDebugPanelScrollChild:HighlightText()
+	end
+end
+
+local function SetPanelViewMode(mode)
+	local panel = GetDebugPanel()
+	if not panel then
+		return
+	end
+	local filters = EnsureUnifiedLogFilters(panel)
+	filters.viewMode = mode
+	ConfigDebugData.RefreshPanelText()
+	HighlightPanelText()
+end
+
 local function GetExpansionForLockout(lockout)
 	return type(dependencies.GetExpansionForLockout) == "function" and dependencies.GetExpansionForLockout(lockout) or "Other"
 end
@@ -98,6 +287,9 @@ function ConfigDebugData.CaptureAndShowDebugDump()
 	end
 	local debugDump = addon.DebugTools and addon.DebugTools.CaptureEncounterDebugDump and addon.DebugTools.CaptureEncounterDebugDump() or nil
 	SetLastDebugDump(debugDump)
+	if panel then
+		EnsureUnifiedLogFilters(panel).viewMode = "preview"
+	end
 	ConfigDebugData.RefreshPanelText()
 	if panel then
 		panel:Show()
@@ -129,18 +321,23 @@ function ConfigDebugData.InitializeDebugPanel()
 	end
 
 	ApplyDefaultFrameStyle(panel)
-	MogTrackerDebugPanelTitle:SetText(T("DEBUG_PANEL_TITLE", "调试日志"))
-	MogTrackerDebugPanelSubtitle:SetText(T("DEBUG_PANEL_SUBTITLE", "只能通过 /img debug ... 打开。"))
-	MogTrackerDebugPanelSectionsHeader:SetText(T("DEBUG_SECTION_HEADER", "日志分段"))
-	MogTrackerDebugPanelListHeader:SetText(T("DEBUG_HEADER", "Debug Output"))
+	panel:SetSize(860, 560)
+	MogTrackerDebugPanelTitle:SetText(T("DEBUG_PANEL_TITLE", "统一日志面板"))
+	MogTrackerDebugPanelSubtitle:SetText(T("DEBUG_PANEL_SUBTITLE", "Unified Logger / Debug Export · 只能通过 /img debug ... 打开。"))
+	MogTrackerDebugPanelSectionsHeader:SetText(T("DEBUG_SECTION_HEADER", "筛选与会话"))
+	MogTrackerDebugPanelListHeader:SetText(T("DEBUG_HEADER", "统一日志主区"))
 	local addonVersion = GetAddonMetadata(dependencies.addonName, "Version") or "0.0.0"
-	MogTrackerDebugPanelFooter:SetText(string.format("%s · v%s", T("DEBUG_PANEL_FOOTER", "/img debug"), tostring(addonVersion)))
+	MogTrackerDebugPanelFooter:SetText(string.format("%s · v%s", T("DEBUG_PANEL_FOOTER", "/img debug · Unified Log Panel"), tostring(addonVersion)))
 	MogTrackerDebugPanelRefreshButton:SetText(T("BUTTON_COLLECT_DEBUG", "Collect Logs"))
+	MogTrackerDebugPanelRefreshViewButton:SetText(T("BUTTON_REFRESH_VIEW", "Refresh View"))
+	MogTrackerDebugPanelCopyJsonButton:SetText(T("BUTTON_COPY_JSON", "Copy JSON"))
+	MogTrackerDebugPanelCopyAgentButton:SetText(T("BUTTON_COPY_AGENT", "复制给 Agent"))
+	MogTrackerDebugPanelExportButton:SetText(T("BUTTON_EXPORT_CURRENT", "导出当前结果"))
 
 	MogTrackerDebugPanelScrollChild:SetMultiLine(true)
 	MogTrackerDebugPanelScrollChild:SetAutoFocus(false)
 	MogTrackerDebugPanelScrollChild:SetFontObject(GameFontHighlightSmall)
-	MogTrackerDebugPanelScrollChild:SetWidth(610)
+	MogTrackerDebugPanelScrollChild:SetWidth(564)
 	MogTrackerDebugPanelScrollChild:SetTextInsets(4, 4, 4, 4)
 	MogTrackerDebugPanelScrollChild:EnableMouse(true)
 	MogTrackerDebugPanelScrollChild:SetMaxLetters(0)
@@ -151,6 +348,21 @@ function ConfigDebugData.InitializeDebugPanel()
 	MogTrackerDebugPanelRefreshButton:SetScript("OnClick", function()
 		ConfigDebugData.CaptureAndShowDebugDump()
 	end)
+	MogTrackerDebugPanelRefreshViewButton:SetScript("OnClick", function()
+		SetPanelViewMode("preview")
+	end)
+	MogTrackerDebugPanelCopyJsonButton:SetScript("OnClick", function()
+		SetPanelViewMode("json")
+		PrintMessage(T("MESSAGE_JSON_READY", "Structured JSON export prepared. Press Ctrl+C to copy."))
+	end)
+	MogTrackerDebugPanelCopyAgentButton:SetScript("OnClick", function()
+		SetPanelViewMode("agent")
+		PrintMessage(T("MESSAGE_AGENT_READY", "Agent export prepared. Press Ctrl+C to copy."))
+	end)
+	MogTrackerDebugPanelExportButton:SetScript("OnClick", function()
+		SetPanelViewMode("export")
+		PrintMessage(T("MESSAGE_EXPORT_READY", "Current filtered export prepared. Press Ctrl+C to copy."))
+	end)
 
 	panel:EnableMouse(true)
 	panel:SetMovable(true)
@@ -158,61 +370,20 @@ function ConfigDebugData.InitializeDebugPanel()
 	panel:SetScript("OnDragStart", function(self) self:StartMoving() end)
 	panel:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
 
-	local layout = ConfigDebugData.GetDebugLogSectionLayout()
-	MogTrackerDebugPanelListHeader:ClearAllPoints()
-	MogTrackerDebugPanelListHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, layout.listHeaderOffset)
-	MogTrackerDebugPanelRefreshButton:ClearAllPoints()
-	MogTrackerDebugPanelRefreshButton:SetPoint("RIGHT", panel, "TOPRIGHT", -24, layout.listHeaderOffset + 2)
-	MogTrackerDebugPanelScrollFrame:ClearAllPoints()
-	MogTrackerDebugPanelScrollFrame:SetSize(632, layout.scrollHeight)
-	MogTrackerDebugPanelScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, layout.scrollTopOffset)
-
 	panel.initialized = true
 	ApplyElvUISkin()
 	ConfigDebugData.UpdateDebugLogSectionUI(GetDB() and GetDB().settings or {})
+	ConfigDebugData.RefreshPanelText()
 	return panel
 end
 
 function ConfigDebugData.GetDebugLogSectionLayout()
-	local definitions = {
-		{ key = "bulkScanQueueDebug", label = "Bulk Scan Queue Debug" },
-		{ key = "dashboardSetPieceDebug", label = "Dashboard Set Piece Metric Debug" },
-		{ key = "dashboardSnapshotDebug", label = "Dashboard Snapshot Debug" },
-		{ key = "dashboardSnapshotWriteDebug", label = "Dashboard Snapshot Write Debug" },
-		{ key = "currentLootDebug", label = "Current Loot Encounter Debug" },
-		{ key = "dungeonDashboardDebug", label = "Dungeon Dashboard Debug" },
-		{ key = "lootApiRawDebug", label = "Loot API Raw Debug" },
-		{ key = "lootPanelRegressionRawDebug", label = "Loot Panel Regression Raw" },
-		{ key = "collectionStateDebug", label = "Loot Collection State Debug" },
-		{ key = "lootPanelOpenDebug", label = "Loot Panel Open Debug" },
-		{ key = "lootPanelRenderTimingDebug", label = "Loot Panel Render Timing Debug" },
-		{ key = "lootPanelSelectionDebug", label = "Loot Panel Selection Debug" },
-		{ key = "minimapClickDebug", label = "Minimap Click Debug" },
-		{ key = "minimapTooltipDebug", label = "Minimap Tooltip Debug" },
-		{ key = "normalizedLockouts", label = "Normalized Lockouts" },
-		{ key = "pvpSetDebug", label = "PVP Set Debug" },
-		{ key = "rawSavedInstanceInfo", label = "Raw GetSavedInstanceInfo" },
-		{ key = "runtimeErrorDebug", label = "Runtime Error Debug" },
-		{ key = "selectedDifficultyProbe", label = "Selected Loot Panel Instance Difficulty Probe" },
-		{ key = "setCategoryDebug", label = "Set Category Debug" },
-		{ key = "setDashboardPreviewDebug", label = "Set Dashboard Preview Debug" },
-		{ key = "setSummaryDebug", label = "Loot Set Summary Debug" },
-		{ key = "startupLifecycleDebug", label = "Startup Lifecycle Debug" },
-	}
-	local columns = 3
-	local rowHeight = 24
-	local rows = math.max(1, math.ceil(#definitions / columns))
-	local buttonsTopOffset = -86
-	local buttonsBottomOffset = math.abs(buttonsTopOffset) + ((rows - 1) * rowHeight) + 24
-	local actionRowHeight = 34
 	return {
-		definitions = definitions,
-		columns = columns,
-		columnWidth = 206,
-		rowHeight = rowHeight,
-		listHeaderOffset = -(buttonsBottomOffset + 12),
-		scrollTopOffset = -(buttonsBottomOffset + 34),
-		scrollHeight = math.max(120, 460 - math.abs(-(buttonsBottomOffset + 34)) - actionRowHeight),
+		leftColumnX = 24,
+		rightColumnX = 250,
+		levelTopY = -114,
+		scopeTopY = -212,
+		sessionTopY = -308,
 	}
 end
 
@@ -340,10 +511,13 @@ end
 function ConfigDebugData.RefreshPanelText()
 	local panel = GetDebugPanel()
 	if not panel then return end
-	local debugFormatter = addon.DebugTools and addon.DebugTools.FormatDebugDump
-	local text = debugFormatter and debugFormatter(GetLastDebugDump() or (GetDB() and GetDB().debugTemp)) or ""
+	local dump = GetLastDebugDump() or {}
+	local filters = EnsureUnifiedLogFilters(panel)
+	local export = BuildFilteredRuntimeExport(dump.runtimeLogs, filters)
+	local text = BuildPanelText(export, filters.viewMode)
 	MogTrackerDebugPanelScrollChild:SetText(text)
 	MogTrackerDebugPanelScrollChild:SetCursorPosition(0)
+	ConfigDebugData.UpdateDebugLogSectionUI(GetDB() and GetDB().settings or {})
 end
 
 function ConfigDebugData.UpdateDebugLogSectionUI(settings)
@@ -351,34 +525,101 @@ function ConfigDebugData.UpdateDebugLogSectionUI(settings)
 	if not panel then return end
 	settings = settings or {}
 	settings.debugLogSections = settings.debugLogSections or {}
-	panel.debugLogSectionButtons = panel.debugLogSectionButtons or {}
+	local dump = GetLastDebugDump() or {}
+	local filters = EnsureUnifiedLogFilters(panel)
+	local runtimeLogs = dump.runtimeLogs or {}
 	local layout = ConfigDebugData.GetDebugLogSectionLayout()
-	for index, definition in ipairs(layout.definitions) do
-		local button = panel.debugLogSectionButtons[index]
+	local scopes = BuildAvailableScopes(runtimeLogs)
+	local export = BuildFilteredRuntimeExport(runtimeLogs, filters)
+
+	EnsureFilterLabel(panel, "level", T("DEBUG_LEVEL_HEADER", "Level"), "TOPLEFT", panel, "TOPLEFT", layout.leftColumnX, -92)
+	EnsureFilterLabel(panel, "scope", T("DEBUG_SCOPE_HEADER", "Scope"), "TOPLEFT", panel, "TOPLEFT", layout.leftColumnX, -190)
+	EnsureFilterLabel(panel, "session", T("DEBUG_SESSION_HEADER", "Session"), "TOPLEFT", panel, "TOPLEFT", layout.leftColumnX, -286)
+
+	panel.levelButtons = panel.levelButtons or {}
+	for index, level in ipairs(DEFAULT_LOG_LEVELS) do
+		local button = panel.levelButtons[index]
 		if not button then
 			button = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
 			button:SetSize(24, 24)
 			button.text = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 			button.text:SetPoint("LEFT", button, "RIGHT", 2, 0)
-			panel.debugLogSectionButtons[index] = button
+			panel.levelButtons[index] = button
 		end
-		local columnIndex = (index - 1) % layout.columns
-		local rowIndex = math.floor((index - 1) / layout.columns)
+		local columnIndex = (index - 1) % 2
+		local rowIndex = math.floor((index - 1) / 2)
 		button:ClearAllPoints()
-		button:SetPoint("TOPLEFT", panel, "TOPLEFT", 24 + (columnIndex * layout.columnWidth), -86 - (rowIndex * layout.rowHeight))
-		button.text:SetText(definition.label)
-		button.text:SetWidth(layout.columnWidth - 26)
+		button:SetPoint("TOPLEFT", panel, "TOPLEFT", layout.leftColumnX + (columnIndex * 92), layout.levelTopY - (rowIndex * 24))
+		button.text:SetText(level)
+		button.text:SetWidth(64)
 		button.text:SetJustifyH("LEFT")
-		button:SetChecked(settings.debugLogSections[definition.key] and true or false)
+		button:SetChecked(filters.levels[level] and true or false)
 		button:SetScript("OnClick", function(self)
-			settings.debugLogSections[definition.key] = self:GetChecked() and true or false
+			filters.levels[level] = self:GetChecked() and true or false
+			filters.viewMode = "preview"
 			ConfigDebugData.RefreshPanelText()
 		end)
 		button:Show()
-		if button.text then button.text:Show() end
+		button.text:Show()
 	end
-	for index = #layout.definitions + 1, #(panel.debugLogSectionButtons or {}) do
-		panel.debugLogSectionButtons[index]:Hide()
-		if panel.debugLogSectionButtons[index].text then panel.debugLogSectionButtons[index].text:Hide() end
+
+	panel.scopeButtons = panel.scopeButtons or {}
+	for index, scope in ipairs(scopes) do
+		local button = panel.scopeButtons[index]
+		if not button then
+			button = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+			button:SetSize(24, 24)
+			button.text = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			button.text:SetPoint("LEFT", button, "RIGHT", 2, 0)
+			panel.scopeButtons[index] = button
+		end
+		button:ClearAllPoints()
+		button:SetPoint("TOPLEFT", panel, "TOPLEFT", layout.leftColumnX, layout.scopeTopY - ((index - 1) * 22))
+		button.text:SetText(scope)
+		button.text:SetWidth(174)
+		button.text:SetJustifyH("LEFT")
+		button:SetChecked(filters.scopes[scope] and true or false)
+		button:SetScript("OnClick", function(self)
+			filters.scopes[scope] = self:GetChecked() and true or false
+			filters.viewMode = "preview"
+			ConfigDebugData.RefreshPanelText()
+		end)
+		button:Show()
+		button.text:Show()
 	end
+	for index = #scopes + 1, #(panel.scopeButtons or {}) do
+		panel.scopeButtons[index]:Hide()
+		if panel.scopeButtons[index].text then
+			panel.scopeButtons[index].text:Hide()
+		end
+	end
+
+	panel.sessionButton = panel.sessionButton or CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+	if not panel.sessionButton.text then
+		panel.sessionButton.text = panel.sessionButton:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		panel.sessionButton.text:SetPoint("LEFT", panel.sessionButton, "RIGHT", 2, 0)
+	end
+	panel.sessionButton:SetSize(24, 24)
+	panel.sessionButton:ClearAllPoints()
+	panel.sessionButton:SetPoint("TOPLEFT", panel, "TOPLEFT", layout.leftColumnX, layout.sessionTopY)
+	panel.sessionButton.text:SetWidth(172)
+	panel.sessionButton.text:SetJustifyH("LEFT")
+	panel.sessionButton.text:SetText(T("DEBUG_SESSION_CURRENT", "Current Session"))
+	panel.sessionButton:SetChecked(filters.sessionEnabled and true or false)
+	panel.sessionButton:SetScript("OnClick", function(self)
+		filters.sessionEnabled = self:GetChecked() and true or false
+		filters.viewMode = "preview"
+		ConfigDebugData.RefreshPanelText()
+	end)
+	panel.sessionButton:Show()
+	panel.sessionButton.text:Show()
+
+	local sessionInfo = EnsureSessionInfoText(panel)
+	sessionInfo:SetText(string.format(
+		"sessionID = %s\npersistenceEnabled = %s\ntotalLogs = %s\ntruncated = %s",
+		tostring(export and export.session and export.session.sessionID or ""),
+		tostring(export and export.session and export.session.persistenceEnabled and true or false),
+		tostring(export and export.summary and export.summary.totalLogs or 0),
+		tostring(export and export.summary and export.summary.truncated and true or false)
+	))
 end
