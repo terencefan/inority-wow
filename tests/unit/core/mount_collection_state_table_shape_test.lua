@@ -49,21 +49,15 @@ _G.C_MountJournal = {
 	end,
 }
 
-assert(
-	LootFilterController.GetMountCollectionState({
-		itemID = 12345,
-		typeKey = "MOUNT",
-	}) == "collected",
-	"expected mount collection state to normalize table-shaped GetMountInfoByID results"
-)
+assert(LootFilterController.GetMountCollectionState({
+	itemID = 12345,
+	typeKey = "MOUNT",
+}) == "collected", "expected mount collection state to normalize table-shaped GetMountInfoByID results")
 
-assert(
-	CollectionState.LootItemMatchesTypeFilter({
-		itemID = 12345,
-		typeKey = "MOUNT",
-	}) == false,
-	"expected collected mount to hide when mount journal returns table-shaped mount info"
-)
+assert(CollectionState.LootItemMatchesTypeFilter({
+	itemID = 12345,
+	typeKey = "MOUNT",
+}) == false, "expected collected mount to hide when mount journal returns table-shaped mount info")
 
 _G.C_MountJournal = originalMountJournal
 

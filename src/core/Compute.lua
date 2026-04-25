@@ -114,27 +114,30 @@ end
 
 function Compute.BuildTooltipMatrix(charactersByKey, settings, maxCharacters, options)
 	options = type(options) == "table" and options or {}
-	local getSortedCharacters = type(options.getSortedCharacters) == "function" and options.getSortedCharacters or function(characters)
-		local entries = {}
-		for key, info in pairs(characters or {}) do
-			entries[#entries + 1] = {
-				key = key,
-				info = info,
-			}
+	local getSortedCharacters = type(options.getSortedCharacters) == "function" and options.getSortedCharacters
+		or function(characters)
+			local entries = {}
+			for key, info in pairs(characters or {}) do
+				entries[#entries + 1] = {
+					key = key,
+					info = info,
+				}
+			end
+			table.sort(entries, function(a, b)
+				local aUpdated = tonumber(a.info and a.info.lastUpdated) or 0
+				local bUpdated = tonumber(b.info and b.info.lastUpdated) or 0
+				return aUpdated > bUpdated
+			end)
+			return entries
 		end
-		table.sort(entries, function(a, b)
-			local aUpdated = tonumber(a.info and a.info.lastUpdated) or 0
-			local bUpdated = tonumber(b.info and b.info.lastUpdated) or 0
-			return aUpdated > bUpdated
-		end)
-		return entries
-	end
-	local getExpansionForLockout = type(options.getExpansionForLockout) == "function" and options.getExpansionForLockout or function()
-		return "Other"
-	end
-	local getExpansionOrder = type(options.getExpansionOrder) == "function" and options.getExpansionOrder or function()
-		return 999
-	end
+	local getExpansionForLockout = type(options.getExpansionForLockout) == "function" and options.getExpansionForLockout
+		or function()
+			return "Other"
+		end
+	local getExpansionOrder = type(options.getExpansionOrder) == "function" and options.getExpansionOrder
+		or function()
+			return 999
+		end
 	local visibleCharacters = {}
 	local instanceMap = {}
 	local tooltipRows = {}

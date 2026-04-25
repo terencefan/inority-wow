@@ -309,8 +309,7 @@ local function RefreshBulkScanButtons(dashboardPanel)
 	if dashboardPanel.scanRaidButton then
 		dashboardPanel.scanRaidButton:SetEnabled(not isActive)
 		dashboardPanel.scanRaidButton:SetText(
-			isActive and activeType == "raid"
-				and T("DASHBOARD_SCAN_RAID_RUNNING", "扫描团队副本中...")
+			isActive and activeType == "raid" and T("DASHBOARD_SCAN_RAID_RUNNING", "扫描团队副本中...")
 				or T("DASHBOARD_SCAN_RAID", "扫描团队副本")
 		)
 		dashboardPanel.scanRaidButton:SetShown(not usesCompactBottomLayout)
@@ -319,8 +318,7 @@ local function RefreshBulkScanButtons(dashboardPanel)
 	if dashboardPanel.scanDungeonButton then
 		dashboardPanel.scanDungeonButton:SetEnabled(not isActive)
 		dashboardPanel.scanDungeonButton:SetText(
-			isActive and activeType == "party"
-				and T("DASHBOARD_SCAN_DUNGEON_RUNNING", "扫描地下城中...")
+			isActive and activeType == "party" and T("DASHBOARD_SCAN_DUNGEON_RUNNING", "扫描地下城中...")
 				or T("DASHBOARD_SCAN_DUNGEON", "扫描地下城")
 		)
 		dashboardPanel.scanDungeonButton:SetShown(not usesCompactBottomLayout)
@@ -357,11 +355,26 @@ function DashboardPanelController.RefreshDashboardPanel()
 	end
 	if dashboardPanel.subtitle then
 		if IsPvpDashboardView(activeView) then
-			dashboardPanel.subtitle:SetText(T("DASHBOARD_SUBTITLE_PVP", "独立的 PVP 套装页面；打开时直接按资料片分组统计赛季套装进度，列为职业。"))
+			dashboardPanel.subtitle:SetText(
+				T(
+					"DASHBOARD_SUBTITLE_PVP",
+					"独立的 PVP 套装页面；打开时直接按资料片分组统计赛季套装进度，列为职业。"
+				)
+			)
 		elseif IsClassSetDashboardView(activeView) then
-			dashboardPanel.subtitle:SetText(T("DASHBOARD_SUBTITLE_CLASS_SETS", "独立的职业套装页面；只统计团本 T 系列，并按资料片分组折叠展示职业进度。"))
+			dashboardPanel.subtitle:SetText(
+				T(
+					"DASHBOARD_SUBTITLE_CLASS_SETS",
+					"独立的职业套装页面；只统计团本 T 系列，并按资料片分组折叠展示职业进度。"
+				)
+			)
 		else
-			dashboardPanel.subtitle:SetText(T("DASHBOARD_SUBTITLE_UNIFIED", "在团本套装、地下城套装、团本散件、地下城散件四个视图之间切换；仅显示已缓存的副本统计。"))
+			dashboardPanel.subtitle:SetText(
+				T(
+					"DASHBOARD_SUBTITLE_UNIFIED",
+					"在团本套装、地下城套装、团本散件、地下城散件四个视图之间切换；仅显示已缓存的副本统计。"
+				)
+			)
 		end
 	end
 	if dashboardPanel.viewButtons then
@@ -401,19 +414,61 @@ function DashboardPanelController.ShowDashboardInfoTooltip(owner)
 	GameTooltip:ClearLines()
 	if IsPvpDashboardView(activeView) then
 		GameTooltip:AddLine(T("TRACK_HEADER_PVP", "PVP 套装看板"), 1, 0.82, 0)
-		GameTooltip:AddLine(T("DASHBOARD_TOOLTIP_PVP", "当前视图是独立的 PVP 套装页面。打开时直接按资料片查看候选者、争斗者、角斗士、精锐、荣誉等赛季套装进度。"), 1, 1, 1, true)
+		GameTooltip:AddLine(
+			T(
+				"DASHBOARD_TOOLTIP_PVP",
+				"当前视图是独立的 PVP 套装页面。打开时直接按资料片查看候选者、争斗者、角斗士、精锐、荣誉等赛季套装进度。"
+			),
+			1,
+			1,
+			1,
+			true
+		)
 	elseif IsClassSetDashboardView(activeView) then
 		GameTooltip:AddLine(T("TRACK_HEADER_CLASS_SETS", "职业套装进度看板"), 1, 0.82, 0)
-		GameTooltip:AddLine(T("DASHBOARD_TOOLTIP_CLASS_SETS", "当前视图只统计团本 T 系列职业套装，并按资料片分组折叠展示职业列进度。"), 1, 1, 1, true)
+		GameTooltip:AddLine(
+			T(
+				"DASHBOARD_TOOLTIP_CLASS_SETS",
+				"当前视图只统计团本 T 系列职业套装，并按资料片分组折叠展示职业列进度。"
+			),
+			1,
+			1,
+			1,
+			true
+		)
 	elseif activeView.metricMode == "collectibles" then
 		GameTooltip:AddLine(T("TRACK_HEADER_UNIFIED", "幻化统计看板"), 1, 0.82, 0)
-		GameTooltip:AddLine(T("DASHBOARD_TOOLTIP_COLLECTIBLES", "当前视图统计散件收集进度。点击底部按钮可在团本/地下城与套装/散件视图之间切换。"), 1, 1, 1, true)
+		GameTooltip:AddLine(
+			T(
+				"DASHBOARD_TOOLTIP_COLLECTIBLES",
+				"当前视图统计散件收集进度。点击底部按钮可在团本/地下城与套装/散件视图之间切换。"
+			),
+			1,
+			1,
+			1,
+			true
+		)
 	else
 		GameTooltip:AddLine(T("TRACK_HEADER_UNIFIED", "幻化统计看板"), 1, 0.82, 0)
-		GameTooltip:AddLine(T("DASHBOARD_TOOLTIP_SETS", "当前视图主格子的数字统计当前副本快照里命中的套装掉落件数，不是整套外观总进度；鼠标移到格子上时，下方才会显示对应套装的整套完成度。"), 1, 1, 1, true)
+		GameTooltip:AddLine(
+			T(
+				"DASHBOARD_TOOLTIP_SETS",
+				"当前视图主格子的数字统计当前副本快照里命中的套装掉落件数，不是整套外观总进度；鼠标移到格子上时，下方才会显示对应套装的整套完成度。"
+			),
+			1,
+			1,
+			1,
+			true
+		)
 	end
 	GameTooltip:AddLine(" ")
-	GameTooltip:AddLine(string.format("%s: %s", T("DASHBOARD_CURRENT_VIEW", "当前视图"), T(activeView.label, activeView.label)), 0.90, 0.90, 0.90, true)
+	GameTooltip:AddLine(
+		string.format("%s: %s", T("DASHBOARD_CURRENT_VIEW", "当前视图"), T(activeView.label, activeView.label)),
+		0.90,
+		0.90,
+		0.90,
+		true
+	)
 	GameTooltip:Show()
 end
 
@@ -443,7 +498,13 @@ function DashboardPanelController.InitializeDashboardPanel()
 	end
 
 	dashboardPanel:SetSize(math.max(620, tonumber(size.width) or 760), math.max(420, tonumber(size.height) or 520))
-	dashboardPanel:SetPoint(point.point or "CENTER", UIParent, point.relativePoint or "CENTER", tonumber(point.x) or 60, tonumber(point.y) or 0)
+	dashboardPanel:SetPoint(
+		point.point or "CENTER",
+		UIParent,
+		point.relativePoint or "CENTER",
+		tonumber(point.x) or 60,
+		tonumber(point.y) or 0
+	)
 	dashboardPanel:SetFrameStrata("DIALOG")
 	if dashboardPanel.SetToplevel then
 		dashboardPanel:SetToplevel(true)
@@ -469,7 +530,9 @@ function DashboardPanelController.InitializeDashboardPanel()
 		dashboardPanel:SetMaxResize(1200, 900)
 	end
 	dashboardPanel:RegisterForDrag("LeftButton")
-	dashboardPanel:SetScript("OnDragStart", function(self) self:StartMoving() end)
+	dashboardPanel:SetScript("OnDragStart", function(self)
+		self:StartMoving()
+	end)
 	dashboardPanel:SetScript("OnDragStop", function(self)
 		self:StopMovingOrSizing()
 		local p, _, rp, x, y = self:GetPoint(1)
@@ -529,9 +592,15 @@ function DashboardPanelController.InitializeDashboardPanel()
 	dashboardPanel.refreshButton.keepCustomIconColor = true
 	dashboardPanel.refreshButton:SetPoint("RIGHT", dashboardPanel.closeButton, "LEFT", -4, 0)
 	dashboardPanel.refreshButton:SetScript("OnClick", function()
-		if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then addon.RaidDashboard.InvalidateCache() end
-		if addon.SetDashboard and addon.SetDashboard.InvalidateCache then addon.SetDashboard.InvalidateCache() end
-		if addon.PvpDashboard and addon.PvpDashboard.InvalidateCache then addon.PvpDashboard.InvalidateCache() end
+		if addon.RaidDashboard and addon.RaidDashboard.InvalidateCache then
+			addon.RaidDashboard.InvalidateCache()
+		end
+		if addon.SetDashboard and addon.SetDashboard.InvalidateCache then
+			addon.SetDashboard.InvalidateCache()
+		end
+		if addon.PvpDashboard and addon.PvpDashboard.InvalidateCache then
+			addon.PvpDashboard.InvalidateCache()
+		end
 		DashboardPanelController.RefreshDashboardPanel()
 	end)
 	SetLootHeaderButtonVisualState(dashboardPanel.refreshButton, "normal")
@@ -545,8 +614,12 @@ function DashboardPanelController.InitializeDashboardPanel()
 	dashboardPanel.infoButton.icon:SetTexture("Interface\\FriendsFrame\\InformationIcon")
 	SetLootHeaderButtonVisualState(dashboardPanel.infoButton, "normal")
 	dashboardPanel.infoButton:SetPoint("LEFT", dashboardPanel, "TOPLEFT", 10, -16)
-	dashboardPanel.infoButton:SetScript("OnEnter", function(self) DashboardPanelController.ShowDashboardInfoTooltip(self) end)
-	dashboardPanel.infoButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	dashboardPanel.infoButton:SetScript("OnEnter", function(self)
+		DashboardPanelController.ShowDashboardInfoTooltip(self)
+	end)
+	dashboardPanel.infoButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
 
 	dashboardPanel.title = dashboardPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	dashboardPanel.title:SetPoint("LEFT", dashboardPanel.infoButton, "RIGHT", 6, 0)
@@ -558,7 +631,12 @@ function DashboardPanelController.InitializeDashboardPanel()
 	dashboardPanel.subtitle:SetPoint("TOPLEFT", dashboardPanel, "TOPLEFT", 12, -28)
 	dashboardPanel.subtitle:SetPoint("TOPRIGHT", dashboardPanel, "TOPRIGHT", -16, -28)
 	dashboardPanel.subtitle:SetJustifyH("LEFT")
-	dashboardPanel.subtitle:SetText(T("DASHBOARD_SUBTITLE_UNIFIED", "在团本套装、地下城套装、团本散件、地下城散件四个视图之间切换；仅显示已缓存的副本统计。"))
+	dashboardPanel.subtitle:SetText(
+		T(
+			"DASHBOARD_SUBTITLE_UNIFIED",
+			"在团本套装、地下城套装、团本散件、地下城散件四个视图之间切换；仅显示已缓存的副本统计。"
+		)
+	)
 	dashboardPanel.subtitle:Hide()
 	dashboardPanel.dashboardViewKey = dashboardPanel.dashboardViewKey or "raid_sets"
 	EnsureDashboardViewState(dashboardPanel)
@@ -585,8 +663,12 @@ function DashboardPanelController.InitializeDashboardPanel()
 		GameTooltip:AddLine(addon.GetDashboardBulkScanHintText("raid"), 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
-	dashboardPanel.scanRaidButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	dashboardPanel.scanRaidButton:SetScript("OnClick", function() StartDashboardBulkScan("raid") end)
+	dashboardPanel.scanRaidButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	dashboardPanel.scanRaidButton:SetScript("OnClick", function()
+		StartDashboardBulkScan("raid")
+	end)
 	dashboardPanel.raidRowDivider = dashboardPanel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	dashboardPanel.raidRowDivider:SetText("|")
 
@@ -600,8 +682,12 @@ function DashboardPanelController.InitializeDashboardPanel()
 		GameTooltip:AddLine(addon.GetDashboardBulkScanHintText("party"), 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
-	dashboardPanel.scanDungeonButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	dashboardPanel.scanDungeonButton:SetScript("OnClick", function() StartDashboardBulkScan("party") end)
+	dashboardPanel.scanDungeonButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	dashboardPanel.scanDungeonButton:SetScript("OnClick", function()
+		StartDashboardBulkScan("party")
+	end)
 	dashboardPanel.dungeonRowDivider = dashboardPanel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	dashboardPanel.dungeonRowDivider:SetText("|")
 
@@ -612,10 +698,21 @@ function DashboardPanelController.InitializeDashboardPanel()
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:ClearLines()
 		GameTooltip:AddLine(T("DASHBOARD_SCAN_PVP", "扫描 PVP 套装"), 1, 0.82, 0)
-		GameTooltip:AddLine(T("DASHBOARD_SCAN_PVP_HINT", "该按钮已停用；PVP 套装页会在打开时直接生成当前客户端可读取的赛季套装进度。"), 1, 1, 1, true)
+		GameTooltip:AddLine(
+			T(
+				"DASHBOARD_SCAN_PVP_HINT",
+				"该按钮已停用；PVP 套装页会在打开时直接生成当前客户端可读取的赛季套装进度。"
+			),
+			1,
+			1,
+			1,
+			true
+		)
 		GameTooltip:Show()
 	end)
-	dashboardPanel.scanPvpButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	dashboardPanel.scanPvpButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
 	dashboardPanel.scanPvpButton:SetScript("OnClick", function() end)
 
 	dashboardPanel.scrollFrame = CreateFrame("ScrollFrame", nil, dashboardPanel, "UIPanelScrollFrameTemplate")
@@ -630,10 +727,18 @@ function DashboardPanelController.InitializeDashboardPanel()
 	dashboardPanel.resizeButton.texture:SetAllPoints()
 	UpdateResizeButtonTexture(dashboardPanel.resizeButton, "normal")
 	dashboardPanel.resizeButton:RegisterForDrag("LeftButton")
-	dashboardPanel.resizeButton:SetScript("OnEnter", function(self) UpdateResizeButtonTexture(self, "hover") end)
-	dashboardPanel.resizeButton:SetScript("OnLeave", function(self) UpdateResizeButtonTexture(self, "normal") end)
-	dashboardPanel.resizeButton:SetScript("OnMouseDown", function(self) UpdateResizeButtonTexture(self, "down") end)
-	dashboardPanel.resizeButton:SetScript("OnMouseUp", function(self) UpdateResizeButtonTexture(self, self:IsMouseOver() and "hover" or "normal") end)
+	dashboardPanel.resizeButton:SetScript("OnEnter", function(self)
+		UpdateResizeButtonTexture(self, "hover")
+	end)
+	dashboardPanel.resizeButton:SetScript("OnLeave", function(self)
+		UpdateResizeButtonTexture(self, "normal")
+	end)
+	dashboardPanel.resizeButton:SetScript("OnMouseDown", function(self)
+		UpdateResizeButtonTexture(self, "down")
+	end)
+	dashboardPanel.resizeButton:SetScript("OnMouseUp", function(self)
+		UpdateResizeButtonTexture(self, self:IsMouseOver() and "hover" or "normal")
+	end)
 	dashboardPanel.resizeButton:SetScript("OnDragStart", function(self)
 		self.isSizing = true
 		UpdateResizeButtonTexture(self, "down")

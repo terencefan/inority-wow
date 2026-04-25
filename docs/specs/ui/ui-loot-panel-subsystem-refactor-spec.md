@@ -616,6 +616,49 @@ flowchart TD
 - `manual_refresh`
   - 必须重 collect + reset session baseline
 
+### 收藏态过滤 contract
+
+> 已收藏/未收藏过滤属于统一 filter context 的一部分，默认是派生层语义，不应反向污染 collect owner。
+
+本次 spec 明确把收藏态过滤收敛到 `SelectionContext.hideCollectedFlags`，而不是继续散落在 `LootFilterController`、`CollectionState` 和 presenter 的局部分支里。
+
+建议语义：
+
+| 字段名 | 字段描述 |
+| --- | --- |
+| `hideCollectedFlags.transmog` | 是否隐藏已收藏幻化 |
+| `hideCollectedFlags.mount` | 是否隐藏已收藏坐骑 |
+| `hideCollectedFlags.pet` | 是否隐藏已收藏宠物 |
+| `collectionFilterMode` | 当前仍以“隐藏已收藏”布尔语义为主，不在本次扩展成三态模式 |
+
+明确边界：
+
+- 当前 spec 只覆盖“隐藏已收藏”语义，不新增“仅看已收藏”或“仅看未收藏”这种新产品模式
+- 收藏态过滤默认属于 `filter_changed`
+- 收藏态过滤本身默认**不改变 collect scope**，因此只触发 `re-derive + re-present`
+- 只有像 `class scope` 这种会改变 collect 输入边界的 filter，才允许升级为重 collect
+
+对 `loot / sets` 两页的约束：
+
+- `loot` 页必须按收藏态过滤裁剪 item rows，但保留 boss 组结构
+- `sets` 页也必须消费同一组 `hideCollectedFlags`，但仍按套装摘要语义输出，不复用 `loot` 页的行级解释
+- 如果收藏态过滤导致某个组下当前可见项为 0，沿用本 spec 已定义的规则：保留组结构，由面板级唯一状态区解释
+
+owner 划分要求：
+
+- `CollectionState` 负责提供单个 item/source 的收藏态事实
+- `视图模型派生器` 负责把收藏态事实与 `hideCollectedFlags` 组合成最终可见性
+- `呈现器` 只消费已经派生好的 `isVisible / isCollected / highlightState` 结果，不自己判断“该不该隐藏”
+
+这意味着后续 contract 应至少显式提供：
+
+| 字段名 | 字段描述 |
+| --- | --- |
+| `itemRow.isCollected` | 当前物品是否已收藏 |
+| `itemRow.isVisible` | 在当前 `SelectionContext` 下是否应显示 |
+| `itemRow.hiddenReason` | 被过滤隐藏时的原因，例如 `collected_transmog` / `collected_mount` / `collected_pet` |
+| `groupView.allRowsFiltered` | 当前组是否因过滤导致所有 row 不可见 |
+
 ### 数据模型或存储变更
 
 > 本次重点不是改 SavedVariables 结构，而是定义运行时内存 contract。
@@ -750,12 +793,17 @@ flowchart TD
   - 已开始承接面板级唯一状态区 owner
 - `EncounterState.BuildBossKillCountViewModel()`
   - 已把 boss kill count 从 presenter 内联拼装提升成显式桥接输入
+- `CollectionState.BuildLootItemFilterState()` + `LootDataController.BuildCurrentInstanceLootSummary()`
+  - 已把 `hideCollectedFlags` 收进派生层，显式产出 `isCollected / isVisible / hiddenReason / allRowsFiltered`
+- `LootSets.BuildCurrentInstanceSetSummary()`
+  - 已改为消费 `visibleRows / visibleSourcesBySetID`，不再按 raw rows 直接构建 sets 摘要
 
 当前尚未完全做满：
 
 - `PanelBannerViewModel` 还没有把 `loot / sets` 的全空组解释全部做成统一入口
 - `zeroLootRetrySuggested` 仍未完全从 renderer 内部调度迁移到 coordinator
 - presenter 仍未完全只吃最终 `PanelViewModel`
+- `CollectionState.GetEncounterLootDisplayState()` 仍作为兼容函数保留在桥接层，还没有完全从代码面消失
 
 ### 架构复盘
 

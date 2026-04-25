@@ -39,8 +39,14 @@ RaidDashboard.Configure({
 
 local built = RaidDashboard.BuildData()
 assert(type(built.rows) == "table" and #built.rows == 2, "expected planned expansion rows without stored snapshots")
-assert(built.rows[1].type == "expansion" and built.rows[1].expansionName == "军团再临", "expected first planned expansion row")
-assert(built.rows[2].type == "expansion" and built.rows[2].expansionName == "德拉诺之王", "expected second planned expansion row")
+assert(
+	built.rows[1].type == "expansion" and built.rows[1].expansionName == "军团再临",
+	"expected first planned expansion row"
+)
+assert(
+	built.rows[2].type == "expansion" and built.rows[2].expansionName == "德拉诺之王",
+	"expected second planned expansion row"
+)
 assert(type(built.rows[1].scanPlan) == "table", "expected scan plan metadata on expansion row")
 
 print("validated_dashboard_planned_expansion_rows=true")

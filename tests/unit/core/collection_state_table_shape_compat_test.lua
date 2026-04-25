@@ -46,14 +46,11 @@ _G.C_TransmogCollection = {
 	end,
 }
 
-assert(
-	CollectionState.LootItemMatchesTypeFilter({
-		itemID = 3003,
-		sourceID = 3003,
-		typeKey = "CLOTH",
-	}) == false,
-	"expected collected transmog to hide when GetSourceInfo uses collected/isValidForPlayer fields"
-)
+assert(CollectionState.LootItemMatchesTypeFilter({
+	itemID = 3003,
+	sourceID = 3003,
+	typeKey = "CLOTH",
+}) == false, "expected collected transmog to hide when GetSourceInfo uses collected/isValidForPlayer fields")
 
 _G.C_TransmogCollection = {
 	GetAppearanceInfoBySource = function(sourceID)
@@ -72,20 +69,17 @@ _G.C_TransmogCollection = {
 }
 
 local state = CollectionState.GetLootItemCollectionState({
-		itemID = 4004,
-		sourceID = 4004,
-		typeKey = "CLOTH",
+	itemID = 4004,
+	sourceID = 4004,
+	typeKey = "CLOTH",
 })
 assert(state == "collected", "expected appearance info table collected field to normalize to collected state")
 
-assert(
-	CollectionState.LootItemMatchesTypeFilter({
-		itemID = 4004,
-		sourceID = 4004,
-		typeKey = "CLOTH",
-	}) == false,
-	"expected collected transmog to hide when GetAppearanceInfoBySource uses collected/usable fields"
-)
+assert(CollectionState.LootItemMatchesTypeFilter({
+	itemID = 4004,
+	sourceID = 4004,
+	typeKey = "CLOTH",
+}) == false, "expected collected transmog to hide when GetAppearanceInfoBySource uses collected/usable fields")
 
 _G.C_TransmogCollection = originalTransmogCollection
 

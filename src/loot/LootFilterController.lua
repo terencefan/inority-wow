@@ -258,10 +258,13 @@ function LootFilterController.BuildLootTypeFilterMenu(button)
 end
 
 function LootFilterController.GetSelectedLootClassIDs()
-	local classFiles = type(dependencies.GetSelectedLootClassFiles) == "function" and dependencies.GetSelectedLootClassFiles() or {}
+	local classFiles = type(dependencies.GetSelectedLootClassFiles) == "function"
+			and dependencies.GetSelectedLootClassFiles()
+		or {}
 	local classIDs = {}
 	for _, classFile in ipairs(classFiles) do
-		local classID = type(dependencies.GetClassIDByFile) == "function" and dependencies.GetClassIDByFile(classFile) or nil
+		local classID = type(dependencies.GetClassIDByFile) == "function" and dependencies.GetClassIDByFile(classFile)
+			or nil
 		if classID then
 			classIDs[#classIDs + 1] = classID
 		end

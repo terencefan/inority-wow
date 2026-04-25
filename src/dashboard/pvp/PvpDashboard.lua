@@ -297,9 +297,7 @@ function PvpDashboard.BuildData()
 	local classFiles = GetPvpDashboardClassFiles()
 	local classSignature = table.concat(classFiles, ",")
 	local cache = PvpDashboard.cache
-	if cache
-		and cache.version == PVP_DASHBOARD_RULES_VERSION
-		and cache.classSignature == classSignature then
+	if cache and cache.version == PVP_DASHBOARD_RULES_VERSION and cache.classSignature == classSignature then
 		return cache.data
 	end
 
@@ -328,7 +326,8 @@ function PvpDashboard.BuildData()
 				trackKey = trackKey,
 			}
 			local expansionID = tonumber(setInfo.expansionID) or 0
-			local expansionName = EXPANSION_NAMES[expansionID] or string.format("%s %d", Translate("PVP_DASHBOARD_EXPANSION", "资料片"), expansionID)
+			local expansionName = EXPANSION_NAMES[expansionID]
+				or string.format("%s %d", Translate("PVP_DASHBOARD_EXPANSION", "资料片"), expansionID)
 			local expansionEntry = expansionsByID[expansionID]
 			if not expansionEntry then
 				expansionEntry = {
@@ -347,7 +346,8 @@ function PvpDashboard.BuildData()
 			local seasonKey = string.format("%s::%s", tostring(expansionID), tostring(setInfo.label or "Unknown"))
 			local rowInfo = expansionEntry.rowsByKey[seasonKey]
 			if not rowInfo then
-				local seasonStartLocal, seasonEndLocal, seasonStartGlobal, seasonEndGlobal = ParseSeasonRange(setInfo.label, expansionID)
+				local seasonStartLocal, seasonEndLocal, seasonStartGlobal, seasonEndGlobal =
+					ParseSeasonRange(setInfo.label, expansionID)
 				rowInfo = {
 					key = seasonKey,
 					label = tostring(setInfo.label or Translate("PVP_DASHBOARD_UNKNOWN_SEASON", "未知赛季")),
@@ -431,7 +431,9 @@ function PvpDashboard.BuildData()
 	local data = {
 		classFiles = classFiles,
 		expansions = expansions,
-		message = (matchedSetCount == 0 or #expansions == 0) and Translate("PVP_DASHBOARD_EMPTY", "未找到可统计的 PVP 套装。") or nil,
+		message = (matchedSetCount == 0 or #expansions == 0)
+				and Translate("PVP_DASHBOARD_EMPTY", "未找到可统计的 PVP 套装。")
+			or nil,
 	}
 
 	PvpDashboard.cache = {
@@ -537,7 +539,16 @@ local function ShowMetricTooltip(self)
 	GameTooltip:ClearLines()
 	GameTooltip:AddLine(tostring(tooltipData.title or Translate("PVP_DASHBOARD_TITLE", "PVP 幻化统计")), 1, 0.82, 0)
 	GameTooltip:AddLine(string.format("散件进度: %s", GetMetricText(tooltipData.bucket)), 1, 1, 1)
-	GameTooltip:AddLine(string.format("整套完成: %d/%d", tonumber(tooltipData.bucket and tooltipData.bucket.completedSets) or 0, tonumber(tooltipData.bucket and tooltipData.bucket.totalSets) or 0), 1, 1, 1)
+	GameTooltip:AddLine(
+		string.format(
+			"整套完成: %d/%d",
+			tonumber(tooltipData.bucket and tooltipData.bucket.completedSets) or 0,
+			tonumber(tooltipData.bucket and tooltipData.bucket.totalSets) or 0
+		),
+		1,
+		1,
+		1
+	)
 	local trackSummary = BuildTooltipTrackSummary(tooltipData.bucket and tooltipData.bucket.trackCounts or nil)
 	if trackSummary ~= "" then
 		GameTooltip:AddLine(trackSummary, 0.78, 0.82, 0.94, true)
@@ -593,14 +604,19 @@ function PvpDashboard.RenderContent(owner, content, scrollFrame)
 		expansions = {},
 	}
 
-	local contentWidth = math.max(520, tonumber(scrollFrame and scrollFrame:GetWidth()) or tonumber(content:GetWidth()) or 680)
+	local contentWidth =
+		math.max(520, tonumber(scrollFrame and scrollFrame:GetWidth()) or tonumber(content:GetWidth()) or 680)
 	local classFiles = data.classFiles or {}
 	local compact = #classFiles >= 10
 	local fixedColumns = math.max(1, #classFiles + 1)
 	local tierColumnWidth = compact and 42 or 56
-	local firstColumnWidth = compact and math.max(120, math.floor(contentWidth * 0.22)) or math.max(164, math.floor(contentWidth * 0.24))
+	local firstColumnWidth = compact and math.max(120, math.floor(contentWidth * 0.22))
+		or math.max(164, math.floor(contentWidth * 0.24))
 	local difficultyColumnWidth = compact and 52 or 74
-	local cellWidth = math.max(compact and 34 or 44, math.floor((contentWidth - tierColumnWidth - firstColumnWidth - difficultyColumnWidth) / fixedColumns))
+	local cellWidth = math.max(
+		compact and 34 or 44,
+		math.floor((contentWidth - tierColumnWidth - firstColumnWidth - difficultyColumnWidth) / fixedColumns)
+	)
 	local classColumnWidth = cellWidth
 	local totalColumnWidth = cellWidth
 	local usedWidth = tierColumnWidth + firstColumnWidth + difficultyColumnWidth + (cellWidth * fixedColumns)
@@ -647,7 +663,8 @@ function PvpDashboard.RenderContent(owner, content, scrollFrame)
 
 	local cellLeft = tierColumnWidth + firstColumnWidth + difficultyColumnWidth
 	for index, classFile in ipairs(classFiles) do
-		headerRow.cells[index] = headerRow.cells[index] or headerRow:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		headerRow.cells[index] = headerRow.cells[index]
+			or headerRow:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		local cell = headerRow.cells[index]
 		cell:ClearAllPoints()
 		cell:SetPoint("LEFT", headerRow, "LEFT", cellLeft, 0)
@@ -664,7 +681,8 @@ function PvpDashboard.RenderContent(owner, content, scrollFrame)
 		cell:Show()
 		cellLeft = cellLeft + classColumnWidth
 	end
-	headerRow.cells[#classFiles + 1] = headerRow.cells[#classFiles + 1] or headerRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	headerRow.cells[#classFiles + 1] = headerRow.cells[#classFiles + 1]
+		or headerRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	local totalHeader = headerRow.cells[#classFiles + 1]
 	totalHeader:ClearAllPoints()
 	totalHeader:SetPoint("LEFT", headerRow, "LEFT", cellLeft, 0)
@@ -690,7 +708,10 @@ function PvpDashboard.RenderContent(owner, content, scrollFrame)
 		expansionRow.tierLabel:Hide()
 		expansionRow.collectionIcon:ClearAllPoints()
 		expansionRow.collectionIcon:SetPoint("LEFT", expansionRow, "LEFT", 2, 0)
-		expansionRow.collectionIcon:SetTexture(IsExpansionCollapsed(expansionEntry.expansionName) and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+		expansionRow.collectionIcon:SetTexture(
+			IsExpansionCollapsed(expansionEntry.expansionName) and "Interface\\Buttons\\UI-PlusButton-Up"
+				or "Interface\\Buttons\\UI-MinusButton-Up"
+		)
 		expansionRow.collectionIcon:Show()
 		expansionRow.label:ClearAllPoints()
 		expansionRow.label:SetPoint("LEFT", expansionRow.collectionIcon, "RIGHT", 4, 0)
@@ -726,7 +747,11 @@ function PvpDashboard.RenderContent(owner, content, scrollFrame)
 				classColumnWidth,
 				20,
 				bucket,
-				string.format("%s - %s", tostring(expansionEntry.expansionName or "Other"), tostring(GetClassDisplayName(classFile)))
+				string.format(
+					"%s - %s",
+					tostring(expansionEntry.expansionName or "Other"),
+					tostring(GetClassDisplayName(classFile))
+				)
 			)
 			cellLeft = cellLeft + classColumnWidth
 		end
@@ -804,7 +829,13 @@ function PvpDashboard.RenderContent(owner, content, scrollFrame)
 					subRow:Show()
 					subRow:EnableMouse(true)
 					subRow:ClearAllPoints()
-					subRow:SetPoint("TOPLEFT", seasonRow, "TOPLEFT", tierColumnWidth + firstColumnWidth, -((subIndex - 1) * subRowHeight))
+					subRow:SetPoint(
+						"TOPLEFT",
+						seasonRow,
+						"TOPLEFT",
+						tierColumnWidth + firstColumnWidth,
+						-((subIndex - 1) * subRowHeight)
+					)
 					subRow:SetSize(usedWidth - tierColumnWidth - firstColumnWidth, subRowHeight)
 					subRow.difficultyLabel:Show()
 					subRow.difficultyLabel:ClearAllPoints()
@@ -838,7 +869,12 @@ function PvpDashboard.RenderContent(owner, content, scrollFrame)
 							classColumnWidth,
 							subRowHeight,
 							bucket,
-							string.format("%s - %s - %s", tostring(rowInfo.displayLabel or rowInfo.label or "Season"), tostring(trackRow.displayLabel or trackRow.trackKey or "-"), tostring(GetClassDisplayName(classFile)))
+							string.format(
+								"%s - %s - %s",
+								tostring(rowInfo.displayLabel or rowInfo.label or "Season"),
+								tostring(trackRow.displayLabel or trackRow.trackKey or "-"),
+								tostring(GetClassDisplayName(classFile))
+							)
 						)
 						cellLeft = cellLeft + classColumnWidth
 					end
@@ -850,7 +886,11 @@ function PvpDashboard.RenderContent(owner, content, scrollFrame)
 						totalColumnWidth,
 						subRowHeight,
 						trackRow.total,
-						string.format("%s - %s", tostring(rowInfo.displayLabel or rowInfo.label or "Season"), tostring(trackRow.displayLabel or trackRow.trackKey or "-"))
+						string.format(
+							"%s - %s",
+							tostring(rowInfo.displayLabel or rowInfo.label or "Season"),
+							tostring(trackRow.displayLabel or trackRow.trackKey or "-")
+						)
 					)
 					for index = #classFiles + 2, #(subRow.cells or {}) do
 						subRow.cells[index]:Hide()

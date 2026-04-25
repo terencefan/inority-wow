@@ -49,14 +49,11 @@ _G.C_TransmogCollection = {
 	end,
 }
 
-assert(
-	CollectionState.LootItemMatchesTypeFilter({
-		itemID = 1001,
-		sourceID = 1001,
-		typeKey = "CLOTH",
-	}) == false,
-	"expected collected transmog to hide when modern GetSourceInfo marks it collected"
-)
+assert(CollectionState.LootItemMatchesTypeFilter({
+	itemID = 1001,
+	sourceID = 1001,
+	typeKey = "CLOTH",
+}) == false, "expected collected transmog to hide when modern GetSourceInfo marks it collected")
 
 _G.C_TransmogCollection = {
 	GetAppearanceSourceInfo = function(sourceID)
@@ -73,14 +70,11 @@ _G.C_TransmogCollection = {
 	end,
 }
 
-assert(
-	CollectionState.LootItemMatchesTypeFilter({
-		itemID = 2002,
-		sourceID = 2002,
-		typeKey = "CLOTH",
-	}) == false,
-	"expected collected transmog to hide when legacy multi-return source info marks it collected"
-)
+assert(CollectionState.LootItemMatchesTypeFilter({
+	itemID = 2002,
+	sourceID = 2002,
+	typeKey = "CLOTH",
+}) == false, "expected collected transmog to hide when legacy multi-return source info marks it collected")
 
 _G.C_TransmogCollection = originalTransmogCollection
 

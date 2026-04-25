@@ -48,31 +48,32 @@ flowchart TD
     W --> X["BuildCurrentEncounterKillMap()"]
     X --> Y{"当前 Tab"}
 
-    Y -- loot --> Z["按首领分组渲染"]
-    Z --> AA["GetEncounterLootDisplayState()"]
-    AA --> AB["计算 visibleLoot / fullyCollected"]
-    AB --> AC["GetEncounterAutoCollapsed()"]
-    AC --> AD["渲染首领 header"]
-    AD --> AE["逐行创建 item row"]
+    Y -- loot --> Z["BuildCurrentInstanceLootSummary(data)"]
+    Z --> AA["派生 encounter.filteredLoot / visibleLoot / allRowsFiltered"]
+    AA --> AB["GetEncounterAutoCollapsed()"]
+    AB --> AC["渲染首领 header"]
+    AC --> AD["逐行创建 item row"]
+    AD --> AE["消费 row.isVisible / hiddenReason / isCollected"]
     AE --> AF["UpdateLootItemCollectionState()"]
     AF --> AG["UpdateLootItemAcquiredHighlight()"]
     AG --> AH["UpdateLootItemSetHighlight()"]
     AH --> AI["UpdateLootItemClassIcons()"]
 
     Y -- sets --> AJ["BuildCurrentInstanceSetSummary(data)"]
-    AJ --> AK["按职业分组渲染套装"]
-    AK --> AL["渲染 set row"]
-    AL --> AM["渲染 missing piece row"]
-    AM --> AN["UpdateSetCompletionRowVisual()"]
+    AJ --> AK["消费 visibleRows / visibleSourcesBySetID"]
+    AK --> AL["按职业分组渲染套装"]
+    AL --> AM["渲染 set row"]
+    AM --> AN["渲染 missing piece row"]
+    AN --> AO["UpdateSetCompletionRowVisual()"]
 
-    Y -- error --> AO["PanelBannerViewModel: error"]
+    Y -- error --> AP["PanelBannerViewModel: error"]
 
-    AI --> AP["设置 content 高度和滚动区域"]
-    AN --> AP
-    AO --> AP
-    AP --> AQ{"data.missingItemData?"}
-    AQ -- 是 --> AR["C_Timer.After(0.3, callback)"]
-    AQ -- 否 --> AT["结束"]
+    AI --> AQ["设置 content 高度和滚动区域"]
+    AO --> AQ
+    AP --> AQ
+    AQ --> AR{"data.missingItemData?"}
+    AR -- 是 --> AS["C_Timer.After(0.3, callback)"]
+    AR -- 否 --> AT["结束"]
 
     AU["用户点击副本下拉"] --> AV["LootSelection.BuildLootPanelInstanceMenu()"]
     AV --> AW["资料片 -> 副本 -> 难度菜单树"]
@@ -107,6 +108,8 @@ flowchart TD
 - `SelectionContext` 显式持有 `lastManualSelectionKey / lastManualTab / lastObservedCurrentInstance`
 - `manual_refresh` 是强刷新；`runtime_event` 默认是弱刷新
 - 面板级唯一状态区已经开始由 `PanelBannerViewModel` 承担
+- 收藏态过滤 owner 已从 `CollectionState.GetEncounterLootDisplayState()` 迁到 `BuildCurrentInstanceLootSummary()` 的派生结果
+- `sets` 页已经改为消费 `visibleRows / visibleSourcesBySetID`，不再按 raw rows 直接建摘要
 - `loot / sets` 两页都保持组结构稳定，空态解释由当前页签语义决定
 
 ## Cache Lifecycle

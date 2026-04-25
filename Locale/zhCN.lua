@@ -9,7 +9,8 @@ local L = addon.L
 
 L.ADDON_TITLE = "幻化追踪"
 L.ADDON_SUBTITLE = ""
-L.CONFIG_DESCRIPTION = "追踪当前副本的掉落、套装与收藏状态。\n汇总角色的副本进度、首领击杀与职业筛选。\n帮助你快速判断哪些幻化还没拿到、还能去哪里刷。"
+L.CONFIG_DESCRIPTION =
+	"追踪当前副本的掉落、套装与收藏状态。\n汇总角色的副本进度、首领击杀与职业筛选。\n帮助你快速判断哪些幻化还没拿到、还能去哪里刷。"
 L.PANEL_FOOTER = "MogTracker · Vibe Coder: 风之小祈 (Inority)"
 L.NAV_SECTIONS = "导航"
 L.NAV_GENERAL = "通用"
@@ -24,8 +25,10 @@ L.CONFIG_FILTERS_HEADER = "追踪筛选"
 L.CONFIG_LOOT_HEADER = "掉落显示"
 L.TRACK_HEADER = "团队副本幻化统计看板"
 L.TRACK_HEADER_DUNGEON = "地下城幻化统计看板"
-L.DASHBOARD_SUBTITLE = "仅显示已缓存的团队副本。使用下方按钮切换统计指标。职业筛选只影响列顺序；当你打开某个团队本时，该副本的缓存会同步更新所有职业。部分幻化套装部位可能对应多个副本掉落来源，因此统计会按来源累计，不完全等同于唯一部位数。"
-L.DASHBOARD_SUBTITLE_DUNGEON = "仅显示已缓存的地下城。使用下方按钮切换统计指标。职业筛选只影响列顺序；当你打开某个地下城时，该副本的缓存会同步更新所有职业。"
+L.DASHBOARD_SUBTITLE =
+	"仅显示已缓存的团队副本。使用下方按钮切换统计指标。职业筛选只影响列顺序；当你打开某个团队本时，该副本的缓存会同步更新所有职业。部分幻化套装部位可能对应多个副本掉落来源，因此统计会按来源累计，不完全等同于唯一部位数。"
+L.DASHBOARD_SUBTITLE_DUNGEON =
+	"仅显示已缓存的地下城。使用下方按钮切换统计指标。职业筛选只影响列顺序；当你打开某个地下城时，该副本的缓存会同步更新所有职业。"
 L.DASHBOARD_SETS = "套装散件"
 L.DASHBOARD_ALL_ITEMS = "所有散件"
 L.CLASS_FILTER_HEADER = "职业过滤"
@@ -43,24 +46,34 @@ L.DASHBOARD_TOOLTIP_MULTI_SET_NOTE = "该统计会把多个命中的套装累计
 L.LOOT_SET_DISPLAY_COUNT_SUFFIX = "%d件"
 L.DASHBOARD_PARTIAL_ERRORS = "部分副本采集失败"
 L.DASHBOARD_NO_CLASS_FILTER = "请先在主面板的职业过滤里选择至少一个职业。"
-L.DASHBOARD_EMPTY = "还没有已缓存的团队副本数据。\n先打开任意团队本掉落面板，已经计算过的副本才会出现在这里。"
-L.DASHBOARD_EMPTY_DUNGEON = "还没有已缓存的地下城数据。\n先打开任意地下城掉落面板，已经计算过的副本才会出现在这里。"
+L.DASHBOARD_EMPTY =
+	"还没有已缓存的团队副本数据。\n先打开任意团队本掉落面板，已经计算过的副本才会出现在这里。"
+L.DASHBOARD_EMPTY_DUNGEON =
+	"还没有已缓存的地下城数据。\n先打开任意地下城掉落面板，已经计算过的副本才会出现在这里。"
 L.DASHBOARD_BUTTON_BULK_SCAN = "全量更新"
-L.DASHBOARD_BULK_SCAN_STARTED = "开始更新团队副本统计：%d 个副本难度（扫描全部可用难度，并预计算收集信息）。"
+L.DASHBOARD_BULK_SCAN_STARTED =
+	"开始更新团队副本统计：%d 个副本难度（扫描全部可用难度，并预计算收集信息）。"
 L.DASHBOARD_BULK_SCAN_PROGRESS = "团队副本统计扫描进度：%d/%d %s (%s)"
 L.DASHBOARD_BULK_SCAN_COMPLETE = "团队副本统计扫描完成：%d 个副本。"
 L.DASHBOARD_BULK_SCAN_EMPTY = "没有可扫描的团队副本。"
-L.DASHBOARD_BULK_SCAN_HINT = "逐个扫描每个团队副本的所有可用难度，并预计算收集状态与套装进度，耗时较长。建议在主城内、非战斗、角色空闲时执行。"
-L.DASHBOARD_BULK_SCAN_CONFIRM = "全量更新会逐个团队副本扫描所有可用难度，并预计算收集状态与套装进度。整体耗时较长，并可能在扫描过程中产生卡顿。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？"
+L.DASHBOARD_BULK_SCAN_HINT =
+	"逐个扫描每个团队副本的所有可用难度，并预计算收集状态与套装进度，耗时较长。建议在主城内、非战斗、角色空闲时执行。"
+L.DASHBOARD_BULK_SCAN_CONFIRM =
+	"全量更新会逐个团队副本扫描所有可用难度，并预计算收集状态与套装进度。整体耗时较长，并可能在扫描过程中产生卡顿。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？"
 L.DASHBOARD_BULK_SCAN_PROGRESS_DUNGEON = "地下城统计扫描进度：%d/%d %s (%s)"
 L.DASHBOARD_BULK_SCAN_COMPLETE_DUNGEON = "地下城统计扫描完成：%d 个副本。"
 L.DASHBOARD_BULK_SCAN_EMPTY_DUNGEON = "没有可扫描的地下城。"
-L.DASHBOARD_BULK_SCAN_HINT_DUNGEON = "逐个扫描每个地下城的所有可用难度，并预计算收集状态与套装进度，耗时较长。建议在主城内、非战斗、角色空闲时执行。"
-L.DASHBOARD_BULK_SCAN_CONFIRM_DUNGEON = "全量更新会逐个地下城扫描所有可用难度，并预计算收集状态与套装进度。整体耗时较长，并可能在扫描过程中产生卡顿。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？"
-L.DASHBOARD_TOOLTIP_SET_PIECE_SCOPE_NOTE = "这里的数字只统计当前副本快照里命中的套装掉落件数，不等同于整套外观总进度。"
+L.DASHBOARD_BULK_SCAN_HINT_DUNGEON =
+	"逐个扫描每个地下城的所有可用难度，并预计算收集状态与套装进度，耗时较长。建议在主城内、非战斗、角色空闲时执行。"
+L.DASHBOARD_BULK_SCAN_CONFIRM_DUNGEON =
+	"全量更新会逐个地下城扫描所有可用难度，并预计算收集状态与套装进度。整体耗时较长，并可能在扫描过程中产生卡顿。\n\n建议在主城内、非战斗、角色空闲时执行。\n\n是否继续？"
+L.DASHBOARD_TOOLTIP_SET_PIECE_SCOPE_NOTE =
+	"这里的数字只统计当前副本快照里命中的套装掉落件数，不等同于整套外观总进度。"
 L.DASHBOARD_TOOLTIP_SET_PIECE_PROGRESS = "当前副本掉落套装件数"
-L.DASHBOARD_TOOLTIP_SET_COLLECTION_NOTE = "下方显示这些掉落物对应套装的整套收集进度，所以可能和套装页里的 8/9、9/9 不同。"
-L.DASHBOARD_TOOLTIP_SET_TOTAL_NOTE = "下方显示总计涉及套装的整套收集进度，所以可能和上面的掉落件数不同。"
+L.DASHBOARD_TOOLTIP_SET_COLLECTION_NOTE =
+	"下方显示这些掉落物对应套装的整套收集进度，所以可能和套装页里的 8/9、9/9 不同。"
+L.DASHBOARD_TOOLTIP_SET_TOTAL_NOTE =
+	"下方显示总计涉及套装的整套收集进度，所以可能和上面的掉落件数不同。"
 L.DEBUG_HEADER = "调试输出"
 L.DEBUG_SECTION_HEADER = "日志分段"
 L.DEBUG_SECTION_RAW_INSTANCES = "原始副本锁定"
@@ -162,4 +175,3 @@ L.LOOT_SET_PROGRESS = "%d/%d"
 L.LOOT_NO_ITEMS = "  没有符合当前过滤条件的掉落。"
 L.LOOT_DEBUG_SELECTED = "调试信息已全选，按 Ctrl+C 复制。"
 L.LOOT_MENU_UNAVAILABLE = "当前客户端没有可用的下拉菜单接口。"
-

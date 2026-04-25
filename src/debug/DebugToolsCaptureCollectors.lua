@@ -4,18 +4,18 @@ local DebugTools = addon.DebugTools or {}
 addon.DebugTools = DebugTools
 
 local dependencies = setmetatable({}, {
-    __index = function(_, key)
-        local current = DebugTools._dependencies or {}
-        return current[key]
-    end,
+	__index = function(_, key)
+		local current = DebugTools._dependencies or {}
+		return current[key]
+	end,
 })
 
 local function Translate(key, fallback)
-    local translate = dependencies.T or addon.T
-    if translate then
-        return translate(key, fallback)
-    end
-    return fallback or key
+	local translate = dependencies.T or addon.T
+	if translate then
+		return translate(key, fallback)
+	end
+	return fallback or key
 end
 
 local NormalizeDebugName = DebugTools.NormalizeDebugName
@@ -137,8 +137,12 @@ function DebugTools.CaptureSetCategoryDebugDump(query)
 				include = haystack:find(queryLower, 1, true) ~= nil
 			end
 			if include then
-				local classification = setCategories and setCategories.ClassifyTransmogSet and setCategories.ClassifyTransmogSet(setInfo, classificationContext) or nil
-				local matchHits = classification and classification.matchHits or CollectSetKeywordHits(setInfo, setCategoryDebug.keywords)
+				local classification = setCategories
+						and setCategories.ClassifyTransmogSet
+						and setCategories.ClassifyTransmogSet(setInfo, classificationContext)
+					or nil
+				local matchHits = classification and classification.matchHits
+					or CollectSetKeywordHits(setInfo, setCategoryDebug.keywords)
 				local category = classification and classification.category or "other"
 				local reason = classification and classification.reason or "no_match"
 
@@ -217,7 +221,8 @@ function DebugTools.CaptureSetDashboardPreviewDump()
 						expansionID = tonumber(expansionEntry.expansionID) or 0,
 						expansionName = tostring(expansionEntry.expansionName or "Other"),
 						total = {
-							collectedPieces = tonumber(expansionEntry.total and expansionEntry.total.collectedPieces) or 0,
+							collectedPieces = tonumber(expansionEntry.total and expansionEntry.total.collectedPieces)
+								or 0,
 							totalPieces = tonumber(expansionEntry.total and expansionEntry.total.totalPieces) or 0,
 							completedSets = tonumber(expansionEntry.total and expansionEntry.total.completedSets) or 0,
 							totalSets = tonumber(expansionEntry.total and expansionEntry.total.totalSets) or 0,
@@ -307,11 +312,15 @@ function DebugTools.CaptureSetDashboardPreviewDump()
 						local bestDifficultyID = -1
 						for difficultyID, difficultyEntry in pairs(entry.difficultyData or {}) do
 							if type(difficultyEntry) == "table" then
-								local displayOrder = getRaidDifficultyDisplayOrder and getRaidDifficultyDisplayOrder(difficultyID) or 999
+								local displayOrder = getRaidDifficultyDisplayOrder
+										and getRaidDifficultyDisplayOrder(difficultyID)
+									or 999
 								local numericDifficultyID = tonumber(difficultyID) or 0
-								if not bestDifficultyEntry
+								if
+									not bestDifficultyEntry
 									or displayOrder > bestDisplayOrder
-									or (displayOrder == bestDisplayOrder and numericDifficultyID > bestDifficultyID) then
+									or (displayOrder == bestDisplayOrder and numericDifficultyID > bestDifficultyID)
+								then
 									bestDifficultyEntry = difficultyEntry
 									bestDisplayOrder = displayOrder
 									bestDifficultyID = numericDifficultyID
@@ -336,7 +345,14 @@ function DebugTools.CaptureSetDashboardPreviewDump()
 							local setPieceWithSetIDCount = 0
 							local setIDLookup = {}
 							local setIDs = {}
-							for _, pieceInfo in pairs(bestDifficultyEntry and bestDifficultyEntry.total and bestDifficultyEntry.total.setPieces or {}) do
+							for _, pieceInfo in
+								pairs(
+									bestDifficultyEntry
+											and bestDifficultyEntry.total
+											and bestDifficultyEntry.total.setPieces
+										or {}
+								)
+							do
 								rawSetPieceCount = rawSetPieceCount + 1
 								local pieceSetIDs = pieceInfo and pieceInfo.setIDs or nil
 								if type(pieceSetIDs) == "table" and #pieceSetIDs > 0 then
@@ -453,7 +469,9 @@ function DebugTools.CaptureDungeonDashboardDebugDump(instanceQuery, forcedInstan
 	end
 
 	debugInfo.expansionInfo = getExpansionInfoForInstance and getExpansionInfoForInstance(selectedInstance) or nil
-	debugInfo.lockout = getCurrentCharacterLockoutForSelection and getCurrentCharacterLockoutForSelection(selectedInstance) or nil
+	debugInfo.lockout = getCurrentCharacterLockoutForSelection
+			and getCurrentCharacterLockoutForSelection(selectedInstance)
+		or nil
 
 	local storedCache = getDashboardStoredCache and getDashboardStoredCache(dashboardInstanceType) or nil
 	local cacheEntries = storedCache and storedCache.entries or {}
@@ -464,9 +482,11 @@ function DebugTools.CaptureDungeonDashboardDebugDump(instanceQuery, forcedInstan
 			difficultyKeys[#difficultyKeys + 1] = tostring(difficultyKey)
 		end
 		table.sort(difficultyKeys)
-		if tostring(entry.instanceType or "") == dashboardInstanceType
+		if
+			tostring(entry.instanceType or "") == dashboardInstanceType
 			and tostring(entry.instanceName or "") == tostring(selectedInstance.instanceName or "")
-			and tonumber(entry.journalInstanceID) == tonumber(selectedInstance.journalInstanceID) then
+			and tonumber(entry.journalInstanceID) == tonumber(selectedInstance.journalInstanceID)
+		then
 			debugInfo.cacheEntry = {
 				instanceKey = entry.instanceKey,
 				instanceName = entry.instanceName,
@@ -480,10 +500,14 @@ function DebugTools.CaptureDungeonDashboardDebugDump(instanceQuery, forcedInstan
 		end
 		if tostring(entry.instanceType or "") == dashboardInstanceType then
 			local normalizedEntryName = NormalizeDebugName(entry.instanceName)
-			if normalizedSelectedName ~= ""
-				and (normalizedEntryName == normalizedSelectedName
+			if
+				normalizedSelectedName ~= ""
+				and (
+					normalizedEntryName == normalizedSelectedName
 					or normalizedEntryName:find(normalizedSelectedName, 1, true)
-					or normalizedSelectedName:find(normalizedEntryName, 1, true)) then
+					or normalizedSelectedName:find(normalizedEntryName, 1, true)
+				)
+			then
 				debugInfo.cacheCandidates[#debugInfo.cacheCandidates + 1] = {
 					instanceName = entry.instanceName,
 					journalInstanceID = tonumber(entry.journalInstanceID) or 0,
@@ -494,11 +518,15 @@ function DebugTools.CaptureDungeonDashboardDebugDump(instanceQuery, forcedInstan
 		end
 	end
 
-	local data = getDashboardDataForType and getDashboardDataForType(dashboardInstanceType) or getDashboardData and getDashboardData() or nil
+	local data = getDashboardDataForType and getDashboardDataForType(dashboardInstanceType)
+		or getDashboardData and getDashboardData()
+		or nil
 	for _, rowInfo in ipairs(data and data.rows or {}) do
-		if rowInfo.type == "instance"
+		if
+			rowInfo.type == "instance"
 			and tostring(rowInfo.instanceType or "") == dashboardInstanceType
-			and tostring(rowInfo.instanceName or "") == tostring(selectedInstance.instanceName or "") then
+			and tostring(rowInfo.instanceName or "") == tostring(selectedInstance.instanceName or "")
+		then
 			local row = {
 				instanceName = rowInfo.instanceName,
 				expansionName = rowInfo.expansionName,
@@ -514,7 +542,8 @@ function DebugTools.CaptureDungeonDashboardDebugDump(instanceQuery, forcedInstan
 					encounters = tonumber(difficultyRow.encounters) or 0,
 					setCollected = difficultyRow.total and tonumber(difficultyRow.total.setCollected) or 0,
 					setTotal = difficultyRow.total and tonumber(difficultyRow.total.setTotal) or 0,
-					collectibleCollected = difficultyRow.total and tonumber(difficultyRow.total.collectibleCollected) or 0,
+					collectibleCollected = difficultyRow.total and tonumber(difficultyRow.total.collectibleCollected)
+						or 0,
 					collectibleTotal = difficultyRow.total and tonumber(difficultyRow.total.collectibleTotal) or 0,
 				}
 			end
@@ -574,11 +603,15 @@ function DebugTools.CaptureEncounterDebugDump()
 			db.debugTemp[key] = value
 		end,
 	})
-	local runtimeLogs = log and type(log.BuildExport) == "function" and log.BuildExport({
-		scopes = { "runtime.events", "runtime.error", "metadata.instance" },
-	}) or nil
+	local runtimeLogs = log
+			and type(log.BuildExport) == "function"
+			and log.BuildExport({
+				scopes = { "runtime.events", "runtime.error", "metadata.instance" },
+			})
+		or nil
 	if runtimeLogs then
-		runtimeLogs.agentExport = type(log.BuildAgentExportText) == "function" and log.BuildAgentExportText(runtimeLogs) or nil
+		runtimeLogs.agentExport = type(log.BuildAgentExportText) == "function" and log.BuildAgentExportText(runtimeLogs)
+			or nil
 	end
 	dump.runtimeLogs = runtimeLogs
 	dump.startupLifecycleDebug = {
@@ -591,7 +624,10 @@ function DebugTools.CaptureEncounterDebugDump()
 		truncated = runtimeLogs and runtimeLogs.summary and runtimeLogs.summary.truncated or false,
 	}
 	for _, entry in ipairs(runtimeLogs and runtimeLogs.logs or {}) do
-		if entry.scope == "runtime.events" and (entry.event == "startup_lifecycle" or entry.event == "startup_lifecycle_reset") then
+		if
+			entry.scope == "runtime.events"
+			and (entry.event == "startup_lifecycle" or entry.event == "startup_lifecycle_reset")
+		then
 			local fields = entry.fields or {}
 			dump.startupLifecycleDebug.entries[#dump.startupLifecycleDebug.entries + 1] = {
 				at = date("%H:%M:%S", tonumber(entry.at) or time()),
@@ -666,13 +702,13 @@ function DebugTools.CaptureEncounterDebugDump()
 		local currentDebugInfo = data and data.debugInfo or nil
 		local targetInstanceName = tostring(
 			(selectedInstance and selectedInstance.instanceName)
-			or (currentDebugInfo and currentDebugInfo.instanceName)
-			or ""
+				or (currentDebugInfo and currentDebugInfo.instanceName)
+				or ""
 		)
 		local targetJournalInstanceID = tonumber(
 			(selectedInstance and selectedInstance.journalInstanceID)
-			or (currentDebugInfo and currentDebugInfo.journalInstanceID)
-			or 0
+				or (currentDebugInfo and currentDebugInfo.journalInstanceID)
+				or 0
 		) or 0
 		local normalizedTargetName = NormalizeDebugName(targetInstanceName)
 		local raidQueueSelections = getDashboardBulkScanSelections and getDashboardBulkScanSelections("raid") or {}
@@ -681,13 +717,13 @@ function DebugTools.CaptureEncounterDebugDump()
 		bulkScanQueueDebug.targetJournalInstanceID = targetJournalInstanceID > 0 and targetJournalInstanceID or nil
 		bulkScanQueueDebug.targetDifficultyID = tonumber(
 			(selectedInstance and selectedInstance.difficultyID)
-			or (currentDebugInfo and currentDebugInfo.difficultyID)
-			or 0
+				or (currentDebugInfo and currentDebugInfo.difficultyID)
+				or 0
 		) or 0
 		bulkScanQueueDebug.targetDifficultyName = tostring(
 			(selectedInstance and selectedInstance.difficultyName)
-			or (currentDebugInfo and currentDebugInfo.difficultyName)
-			or ""
+				or (currentDebugInfo and currentDebugInfo.difficultyName)
+				or ""
 		)
 		bulkScanQueueDebug.selectionTreeCount = #(selectionCandidates or {})
 		bulkScanQueueDebug.raidQueueCount = #(raidQueueSelections or {})
@@ -709,7 +745,11 @@ function DebugTools.CaptureEncounterDebugDump()
 			local EJ_IsValidInstanceDifficulty = _G.EJ_IsValidInstanceDifficulty
 			for _, difficultyID in ipairs(difficultyCandidates) do
 				local valid
-				if C_EncounterJournal and C_EncounterJournal.IsValidInstanceDifficulty and targetJournalInstanceID > 0 then
+				if
+					C_EncounterJournal
+					and C_EncounterJournal.IsValidInstanceDifficulty
+					and targetJournalInstanceID > 0
+				then
 					valid = C_EncounterJournal.IsValidInstanceDifficulty(targetJournalInstanceID, difficultyID)
 				elseif EJ_IsValidInstanceDifficulty then
 					valid = EJ_IsValidInstanceDifficulty(difficultyID)
@@ -718,7 +758,9 @@ function DebugTools.CaptureEncounterDebugDump()
 				end
 				bulkScanQueueDebug.rawDifficultyCandidates[#bulkScanQueueDebug.rawDifficultyCandidates + 1] = {
 					difficultyID = tonumber(difficultyID) or 0,
-					difficultyName = tostring((difficultyRules.GetDifficultyName and difficultyRules.GetDifficultyName(difficultyID)) or ""),
+					difficultyName = tostring(
+						(difficultyRules.GetDifficultyName and difficultyRules.GetDifficultyName(difficultyID)) or ""
+					),
 					ejValid = valid == nil and nil or (valid and true or false),
 				}
 			end
@@ -764,11 +806,12 @@ function DebugTools.CaptureEncounterDebugDump()
 	end
 	if compute and compute.BuildTooltipMatrix and getSortedCharacters then
 		local maxCharacters = tonumber(tooltipSettings.maxCharacters) or 10
-		local visibleCharacters, tooltipRows = compute.BuildTooltipMatrix(db.characters or {}, tooltipSettings, maxCharacters, {
-			getSortedCharacters = getSortedCharacters,
-			getExpansionForLockout = getExpansionForLockout,
-			getExpansionOrder = getExpansionOrder,
-		})
+		local visibleCharacters, tooltipRows =
+			compute.BuildTooltipMatrix(db.characters or {}, tooltipSettings, maxCharacters, {
+				getSortedCharacters = getSortedCharacters,
+				getExpansionForLockout = getExpansionForLockout,
+				getExpansionOrder = getExpansionOrder,
+			})
 		local filteredVisibleCharacters = {}
 		for _, entry in ipairs(visibleCharacters or {}) do
 			local hasAnyData = false
@@ -853,7 +896,10 @@ function DebugTools.CaptureEncounterDebugDump()
 					tostring(rowInfo.name or "Unknown"),
 					tostring(tonumber(difficultyInfo.difficultyID) or 0)
 				)
-				local matchedLockout = currentEntry and currentEntry.lockoutLookup and currentEntry.lockoutLookup[lookupKey] or nil
+				local matchedLockout = currentEntry
+						and currentEntry.lockoutLookup
+						and currentEntry.lockoutLookup[lookupKey]
+					or nil
 				minimapTooltipDebug.tooltipRows[#minimapTooltipDebug.tooltipRows + 1] = {
 					rowIndex = rowIndex,
 					instanceName = rowInfo.name,
@@ -873,7 +919,8 @@ function DebugTools.CaptureEncounterDebugDump()
 	end
 	local lootApiRawDebug = nil
 	local lootPanelRegressionRawDebug = nil
-	local needsRawLootRegressionData = IsSectionEnabled("lootApiRawDebug") or IsSectionEnabled("lootPanelRegressionRawDebug")
+	local needsRawLootRegressionData = IsSectionEnabled("lootApiRawDebug")
+		or IsSectionEnabled("lootPanelRegressionRawDebug")
 	if needsRawLootRegressionData and api and api.CollectCurrentInstanceLootData and selectedInstance then
 		local rawData = api.CollectCurrentInstanceLootData({
 			T = Translate,
@@ -931,7 +978,8 @@ function DebugTools.CaptureEncounterDebugDump()
 				local totalsByEncounterID = {}
 				local itemsByEncounterID = {}
 				for _, encounterEntry in ipairs(rawRun and rawRun.encounters or {}) do
-					totalsByEncounterID[tonumber(encounterEntry.encounterID) or 0] = tonumber(encounterEntry.totalLoot) or 0
+					totalsByEncounterID[tonumber(encounterEntry.encounterID) or 0] = tonumber(encounterEntry.totalLoot)
+						or 0
 				end
 				for _, rawItem in ipairs(rawRun and rawRun.items or {}) do
 					local encounterID = tonumber(rawItem and rawItem.encounterID) or 0
@@ -1058,13 +1106,18 @@ function DebugTools.CaptureEncounterDebugDump()
 						if type(appearances) == "table" then
 							for _, appearance in ipairs(appearances) do
 								local sourceID = tonumber(appearance and appearance.sourceID) or 0
-								local sourceInfo = getAppearanceSourceDisplayInfo and getAppearanceSourceDisplayInfo(sourceID) or nil
+								local sourceInfo = getAppearanceSourceDisplayInfo
+										and getAppearanceSourceDisplayInfo(sourceID)
+									or nil
 								appearanceEntries[#appearanceEntries + 1] = {
 									sourceID = sourceID,
 									name = appearance and appearance.name or nil,
 									slot = appearance and appearance.slot or nil,
 									slotName = appearance and appearance.slotName or nil,
-									collected = appearance and (appearance.collected or appearance.appearanceIsCollected) and true or false,
+									collected = appearance
+											and (appearance.collected or appearance.appearanceIsCollected)
+											and true
+										or false,
 									itemLink = sourceInfo and sourceInfo.link or nil,
 									equipLoc = sourceInfo and sourceInfo.equipLoc or nil,
 									icon = sourceInfo and sourceInfo.icon or nil,
@@ -1181,13 +1234,15 @@ function DebugTools.CaptureEncounterDebugDump()
 				end
 				for _, setID in ipairs(setIDs) do
 					itemDebug.setIDs[#itemDebug.setIDs + 1] = tostring(setID)
-					local setInfo = C_TransmogSets and C_TransmogSets.GetSetInfo and C_TransmogSets.GetSetInfo(setID) or nil
+					local setInfo = C_TransmogSets and C_TransmogSets.GetSetInfo and C_TransmogSets.GetSetInfo(setID)
+						or nil
 					if setInfo and shouldCountSetLabel(selectedInstance and selectedInstance.instanceName, setInfo) then
 						itemDebug.matchedAnySet = true
 						for _, classFile in ipairs(dashboardSetPieceDebug.classFiles or {}) do
 							if eligibleMap[classFile] and not byClassPieces[classFile][itemDebug.setPieceKey] then
 								byClassPieces[classFile][itemDebug.setPieceKey] = {
-									collected = collectionDebug.state == "collected" or collectionDebug.state == "newly_collected",
+									collected = collectionDebug.state == "collected"
+										or collectionDebug.state == "newly_collected",
 								}
 								itemDebug.countedForClasses[#itemDebug.countedForClasses + 1] = classFile
 							end
@@ -1259,7 +1314,9 @@ function DebugTools.CaptureEncounterDebugDump()
 			matchedEntryRulesVersion = nil,
 			matchedEntryCollectSameAppearance = nil,
 			selectedJournalInstanceID = selectedInstance.journalInstanceID,
-			selectedRaidKey = tostring(selectedInstance.journalInstanceID or "") .. "::" .. tostring(selectedInstance.instanceName or ""),
+			selectedRaidKey = tostring(selectedInstance.journalInstanceID or "") .. "::" .. tostring(
+				selectedInstance.instanceName or ""
+			),
 			selectedTierTag = getRaidTierTag and getRaidTierTag(selectedInstance) or "",
 			difficultyID = selectedInstance.difficultyID,
 			difficultyName = selectedInstance.difficultyName,
@@ -1284,8 +1341,11 @@ function DebugTools.CaptureEncounterDebugDump()
 			local matchedEntry = entries[dashboardSnapshotDebug.selectedRaidKey]
 			if type(matchedEntry) ~= "table" then
 				for _, entry in pairs(entries) do
-					if tonumber(entry and entry.journalInstanceID) == tonumber(selectedInstance.journalInstanceID)
-						and tostring(entry and entry.instanceName or "") == tostring(selectedInstance.instanceName or "") then
+					if
+						tonumber(entry and entry.journalInstanceID) == tonumber(selectedInstance.journalInstanceID)
+						and tostring(entry and entry.instanceName or "")
+							== tostring(selectedInstance.instanceName or "")
+					then
 						matchedEntry = entry
 						break
 					end
@@ -1302,7 +1362,9 @@ function DebugTools.CaptureEncounterDebugDump()
 				dashboardSnapshotDebug.matchedEntryRulesVersion = matchedEntry.rulesVersion
 				dashboardSnapshotDebug.matchedEntryCollectSameAppearance = matchedEntry.collectSameAppearance
 				dashboardSnapshotDebug.matchedEntryTierTag = getRaidTierTag and getRaidTierTag(matchedEntry) or ""
-				local difficultyEntry = type(matchedEntry.difficultyData) == "table" and matchedEntry.difficultyData[tonumber(selectedInstance.difficultyID) or 0] or nil
+				local difficultyEntry = type(matchedEntry.difficultyData) == "table"
+						and matchedEntry.difficultyData[tonumber(selectedInstance.difficultyID) or 0]
+					or nil
 				if type(difficultyEntry) == "table" then
 					dashboardSnapshotDebug.difficultyEntryFound = true
 					for classFile, classBucket in pairs(difficultyEntry.byClass or {}) do
@@ -1326,7 +1388,10 @@ function DebugTools.CaptureEncounterDebugDump()
 						table.sort(classRow.setPieceKeys)
 						for setID in pairs((classBucket and classBucket.setIDs) or {}) do
 							classRow.setIDs[#classRow.setIDs + 1] = tostring(setID)
-							local setInfo = C_TransmogSets and C_TransmogSets.GetSetInfo and C_TransmogSets.GetSetInfo(setID) or nil
+							local setInfo = C_TransmogSets
+									and C_TransmogSets.GetSetInfo
+									and C_TransmogSets.GetSetInfo(setID)
+								or nil
 							local collected, total = getSetProgress and getSetProgress(setID) or 0, 0
 							classRow.sets[#classRow.sets + 1] = {
 								setID = setID,
@@ -1345,22 +1410,30 @@ function DebugTools.CaptureEncounterDebugDump()
 					table.sort(dashboardSnapshotDebug.byClass, addon.API.CompareClassFiles)
 
 					for _, pieceInfo in pairs((difficultyEntry.total and difficultyEntry.total.setPieces) or {}) do
-						dashboardSnapshotDebug.total.setPieceTotal = (dashboardSnapshotDebug.total.setPieceTotal or 0) + 1
+						dashboardSnapshotDebug.total.setPieceTotal = (dashboardSnapshotDebug.total.setPieceTotal or 0)
+							+ 1
 						if pieceInfo and pieceInfo.collected then
-							dashboardSnapshotDebug.total.setPieceCollected = (dashboardSnapshotDebug.total.setPieceCollected or 0) + 1
+							dashboardSnapshotDebug.total.setPieceCollected = (
+								dashboardSnapshotDebug.total.setPieceCollected or 0
+							) + 1
 						end
 					end
 					dashboardSnapshotDebug.total.rawSetPieceCount = 0
 					dashboardSnapshotDebug.total.setPieceKeys = {}
 					for pieceKey in pairs((difficultyEntry.total and difficultyEntry.total.setPieces) or {}) do
-						dashboardSnapshotDebug.total.rawSetPieceCount = dashboardSnapshotDebug.total.rawSetPieceCount + 1
-						dashboardSnapshotDebug.total.setPieceKeys[#dashboardSnapshotDebug.total.setPieceKeys + 1] = tostring(pieceKey)
+						dashboardSnapshotDebug.total.rawSetPieceCount = dashboardSnapshotDebug.total.rawSetPieceCount
+							+ 1
+						dashboardSnapshotDebug.total.setPieceKeys[#dashboardSnapshotDebug.total.setPieceKeys + 1] =
+							tostring(pieceKey)
 					end
 					table.sort(dashboardSnapshotDebug.total.setPieceKeys)
 
 					for setID in pairs((difficultyEntry.total and difficultyEntry.total.setIDs) or {}) do
 						dashboardSnapshotDebug.total.setIDs[#dashboardSnapshotDebug.total.setIDs + 1] = tostring(setID)
-						local setInfo = C_TransmogSets and C_TransmogSets.GetSetInfo and C_TransmogSets.GetSetInfo(setID) or nil
+						local setInfo = C_TransmogSets
+								and C_TransmogSets.GetSetInfo
+								and C_TransmogSets.GetSetInfo(setID)
+							or nil
 						local collected, total = getSetProgress and getSetProgress(setID) or 0, 0
 						dashboardSnapshotDebug.total.sets[#dashboardSnapshotDebug.total.sets + 1] = {
 							setID = setID,
@@ -1389,7 +1462,9 @@ function DebugTools.CaptureEncounterDebugDump()
 	dump.dashboardSnapshotWriteDebug = db.debugTemp.dashboardSnapshotWriteDebug
 	db.debugTemp.dashboardSnapshotWriteDebug = dump.dashboardSnapshotWriteDebug
 	db.debugMocks = type(db.debugMocks) == "table" and db.debugMocks or {}
-	db.debugMocks.lootApiBySelection = type(db.debugMocks.lootApiBySelection) == "table" and db.debugMocks.lootApiBySelection or {}
+	db.debugMocks.lootApiBySelection = type(db.debugMocks.lootApiBySelection) == "table"
+			and db.debugMocks.lootApiBySelection
+		or {}
 	if selectedInstance and lootApiRawDebug then
 		local selectionKey = string.format(
 			"%s::%s::%s",
@@ -1429,9 +1504,15 @@ function DebugTools.CaptureAndShowDebugDump()
 		focusDebugOutput()
 	end
 	if printMessage then
-		printMessage(string.format(Translate("MESSAGE_DEBUG_CAPTURED", "Debug logs collected and selected (%d instances). Press Ctrl+C to copy."), #dump.lastEncounterDump.instances))
+		printMessage(
+			string.format(
+				Translate(
+					"MESSAGE_DEBUG_CAPTURED",
+					"Debug logs collected and selected (%d instances). Press Ctrl+C to copy."
+				),
+				#dump.lastEncounterDump.instances
+			)
+		)
 	end
 	return dump
 end
-
-

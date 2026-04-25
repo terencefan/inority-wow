@@ -131,8 +131,7 @@ local function GetNormalizedAppearanceInfoBySource(sourceID)
 				or appearanceInfo.isValidForPlayer
 		end
 		if appearanceInfo.appearanceIsUsable == nil then
-			appearanceInfo.appearanceIsUsable = appearanceInfo.usable
-				or appearanceInfo.isUsable
+			appearanceInfo.appearanceIsUsable = appearanceInfo.usable or appearanceInfo.isUsable
 		end
 		return appearanceInfo
 	end
@@ -144,16 +143,18 @@ function CollectionState.ResolveLootItemCollectionState(item, includeDebug)
 	local itemInfo = item and (item.link or item.itemID)
 	local collectSameAppearance = true
 	local typeKey = item and item.typeKey
-	local debugInfo = includeDebug and {
-		itemName = item and item.name or nil,
-		itemLink = item and item.link or nil,
-		itemID = item and item.itemID or nil,
-		typeKey = typeKey,
-		slot = item and item.slot or nil,
-		itemType = item and item.itemType or nil,
-		itemSubType = item and item.itemSubType or nil,
-		collectSameAppearance = collectSameAppearance,
-	} or nil
+	local debugInfo = includeDebug
+			and {
+				itemName = item and item.name or nil,
+				itemLink = item and item.link or nil,
+				itemID = item and item.itemID or nil,
+				typeKey = typeKey,
+				slot = item and item.slot or nil,
+				itemType = item and item.itemType or nil,
+				itemSubType = item and item.itemSubType or nil,
+				collectSameAppearance = collectSameAppearance,
+			}
+		or nil
 
 	local function ReturnState(state, reason)
 		if debugInfo then
@@ -272,7 +273,8 @@ function CollectionState.ResolveLootItemCollectionState(item, includeDebug)
 		if debugInfo then
 			debugInfo.appearanceCollected = appearanceInfo and appearanceInfo.appearanceIsCollected and true or false
 			debugInfo.appearanceUsable = appearanceInfo and appearanceInfo.appearanceIsUsable and true or false
-			debugInfo.appearanceAnySourceValid = appearanceInfo and appearanceInfo.isAnySourceValidForPlayer and true or false
+			debugInfo.appearanceAnySourceValid = appearanceInfo and appearanceInfo.isAnySourceValidForPlayer and true
+				or false
 		end
 		if appearanceInfo then
 			if appearanceInfo.appearanceIsCollected then
@@ -360,45 +362,122 @@ function CollectionState.GetLootItemDisplayCollectionState(item)
 	return currentState
 end
 
-function CollectionState.LootItemMatchesTypeFilter(item)
-	local gateway = addon.StorageGateway
-	local settings = gateway and gateway.GetSettings and gateway.GetSettings() or {}
-	local selected = settings.selectedLootTypes
+local function BuildSelectedLootTypeLookup(filterContext)
+	local selected = type(filterContext) == "table" and filterContext.selectedLootTypes or nil
 	if type(selected) ~= "table" or next(selected) == nil then
-		selected = nil
-	end
-	if selected and not selected[item.typeKey or "MISC"] then
-		return false
+		return nil
 	end
 
-	local displayState = CollectionState.GetLootItemDisplayCollectionState(item)
-	local isCollectedLike = displayState == "collected" or displayState == "newly_collected"
-	if item.typeKey ~= "MOUNT" and item.typeKey ~= "PET" and settings.hideCollectedTransmog and isCollectedLike then
-		return false
+	local lookup = {}
+	local hasEntries = false
+	local hasNumericKeys = false
+	for key, value in pairs(selected) do
+		if type(key) == "number" then
+			hasNumericKeys = true
+		end
+		if value then
+			lookup[tostring(key)] = true
+			hasEntries = true
+		end
 	end
-	if item.typeKey == "MOUNT" and settings.hideCollectedMounts and isCollectedLike then
-		return false
+
+	if hasNumericKeys then
+		lookup = {}
+		hasEntries = false
+		for _, lootType in ipairs(selected) do
+			local normalizedType = tostring(lootType or "")
+			if normalizedType ~= "" then
+				lookup[normalizedType] = true
+				hasEntries = true
+			end
+		end
 	end
-	if item.typeKey == "PET" and settings.hideCollectedPets and isCollectedLike then
-		return false
+
+	if not hasEntries then
+		return nil
 	end
-	return true
+	return lookup
 end
 
-function CollectionState.GetEncounterLootDisplayState(encounter)
-	local gateway = addon.StorageGateway
-	local settings = gateway and gateway.GetSettings and gateway.GetSettings() or {}
-	local selected = settings.selectedLootTypes
+local function BuildHideCollectedFlags(filterContext)
+	local hideCollectedFlags = type(filterContext) == "table" and filterContext.hideCollectedFlags or nil
+	if type(hideCollectedFlags) ~= "table" then
+		hideCollectedFlags = filterContext
+	end
+	if type(hideCollectedFlags) ~= "table" then
+		hideCollectedFlags = {}
+	end
+
+	return {
+		transmog = hideCollectedFlags.transmog and true
+			or hideCollectedFlags.hideCollectedTransmog and true
+			or false,
+		mount = hideCollectedFlags.mount and true
+			or hideCollectedFlags.hideCollectedMounts and true
+			or false,
+		pet = hideCollectedFlags.pet and true
+			or hideCollectedFlags.hideCollectedPets and true
+			or false,
+	}
+end
+
+function CollectionState.BuildLootItemFilterState(item, filterContext)
+	local selectedLookup = BuildSelectedLootTypeLookup(filterContext)
+	local typeKey = item and item.typeKey or "MISC"
+	local displayState = CollectionState.GetLootItemDisplayCollectionState(item)
+	local isCollectedLike = displayState == "collected" or displayState == "newly_collected"
+
+	local state = {
+		displayState = displayState,
+		isCollected = isCollectedLike,
+		isVisible = true,
+		hiddenReason = nil,
+	}
+
+	if selectedLookup and not selectedLookup[typeKey or "MISC"] then
+		state.isVisible = false
+		state.hiddenReason = "type_filtered"
+		return state
+	end
+
+	local hideCollectedFlags = BuildHideCollectedFlags(filterContext)
+	if typeKey ~= "MOUNT" and typeKey ~= "PET" and hideCollectedFlags.transmog and isCollectedLike then
+		state.isVisible = false
+		state.hiddenReason = "collected_transmog"
+		return state
+	end
+	if typeKey == "MOUNT" and hideCollectedFlags.mount and isCollectedLike then
+		state.isVisible = false
+		state.hiddenReason = "collected_mount"
+		return state
+	end
+	if typeKey == "PET" and hideCollectedFlags.pet and isCollectedLike then
+		state.isVisible = false
+		state.hiddenReason = "collected_pet"
+		return state
+	end
+
+	return state
+end
+
+function CollectionState.LootItemMatchesTypeFilter(item, filterContext)
+	local filterState = CollectionState.BuildLootItemFilterState(item, filterContext)
+	return filterState.isVisible and true or false
+end
+
+function CollectionState.GetEncounterLootDisplayState(encounter, filterContext)
 	local state = {
 		filteredLoot = {},
 		visibleLoot = {},
 		fullyCollected = false,
+		allRowsFiltered = false,
 	}
 
 	for _, item in ipairs((encounter and encounter.loot) or {}) do
-		if type(selected) ~= "table" or next(selected) == nil or selected[item.typeKey or "MISC"] then
+		local filterState = CollectionState.BuildLootItemFilterState(item, filterContext)
+		if filterState.hiddenReason ~= "type_filtered" then
 			state.filteredLoot[#state.filteredLoot + 1] = item
-			if CollectionState.LootItemMatchesTypeFilter(item) then
+			if filterState.isVisible then
 				state.visibleLoot[#state.visibleLoot + 1] = item
 			end
 		end
@@ -413,6 +492,8 @@ function CollectionState.GetEncounterLootDisplayState(encounter)
 			end
 		end
 	end
+
+	state.allRowsFiltered = #state.filteredLoot > 0 and #state.visibleLoot == 0
 
 	return state
 end

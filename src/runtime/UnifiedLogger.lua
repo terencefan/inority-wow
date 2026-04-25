@@ -305,7 +305,10 @@ local function FilterLogs(entries, filters)
 	local hasLevelFilter = next(allowedLevels) ~= nil
 	local hasScopeFilter = next(allowedScopes) ~= nil
 	for _, entry in ipairs(entries or {}) do
-		if (not hasLevelFilter or allowedLevels[tostring(entry.level)]) and (not hasScopeFilter or allowedScopes[tostring(entry.scope)]) then
+		if
+			(not hasLevelFilter or allowedLevels[tostring(entry.level)])
+			and (not hasScopeFilter or allowedScopes[tostring(entry.scope)])
+		then
 			filtered[#filtered + 1] = entry
 		end
 	end

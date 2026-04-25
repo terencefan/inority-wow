@@ -151,7 +151,9 @@ function ConfigPanelController.UpdateClassFilterUI(settings)
 				button.classIcon:SetTexCoord(0, 1, 0, 1)
 			end
 			button.classIcon:Show()
-			button.text:SetText(dependencies.ColorizeCharacterName(dependencies.GetClassDisplayName(classFile), classFile))
+			button.text:SetText(
+				dependencies.ColorizeCharacterName(dependencies.GetClassDisplayName(classFile), classFile)
+			)
 			button.text:SetWidth(62)
 			button.text:SetJustifyH("LEFT")
 			button:SetChecked(settings.selectedClasses[classFile] and true or false)
@@ -245,7 +247,13 @@ function ConfigPanelController.UpdateLootTypeFilterUI(settings)
 			local columnIndex = (groupTypeIndex - 1) % maxColumns
 			local rowIndex = math.floor((groupTypeIndex - 1) / maxColumns)
 			button:ClearAllPoints()
-			button:SetPoint("TOPLEFT", content, "TOPLEFT", columnIndex * buttonColumnWidth, yOffset - (rowIndex * rowHeight))
+			button:SetPoint(
+				"TOPLEFT",
+				content,
+				"TOPLEFT",
+				columnIndex * buttonColumnWidth,
+				yOffset - (rowIndex * rowHeight)
+			)
 			button.text:SetText(dependencies.GetLootTypeLabel(typeKey))
 			button.text:SetWidth(buttonColumnWidth - 26)
 			button.text:SetJustifyH("LEFT")
@@ -338,11 +346,21 @@ function ConfigPanelController.SetPanelView(view)
 	end
 	MogTrackerPanelConfigLootHeader:SetShown(isConfig)
 	MogTrackerPanelStyleHeader:SetShown(isConfig)
-	if panel.bulkUpdateHeader then panel.bulkUpdateHeader:SetShown(isConfig) end
-	if panel.bulkUpdateDescription then panel.bulkUpdateDescription:SetShown(isConfig) end
-	if panel.bulkUpdateRaidButton then panel.bulkUpdateRaidButton:SetShown(isConfig) end
-	if panel.bulkUpdateDungeonButton then panel.bulkUpdateDungeonButton:SetShown(isConfig) end
-	if addon.UpdateConfigBulkUpdateButtons then addon.UpdateConfigBulkUpdateButtons() end
+	if panel.bulkUpdateHeader then
+		panel.bulkUpdateHeader:SetShown(isConfig)
+	end
+	if panel.bulkUpdateDescription then
+		panel.bulkUpdateDescription:SetShown(isConfig)
+	end
+	if panel.bulkUpdateRaidButton then
+		panel.bulkUpdateRaidButton:SetShown(isConfig)
+	end
+	if panel.bulkUpdateDungeonButton then
+		panel.bulkUpdateDungeonButton:SetShown(isConfig)
+	end
+	if addon.UpdateConfigBulkUpdateButtons then
+		addon.UpdateConfigBulkUpdateButtons()
+	end
 	MogTrackerPanelClassHeader:SetShown(isClasses)
 	MogTrackerPanelItemHeader:SetShown(isLoot)
 	MogTrackerPanelCheckbox1:SetShown(isConfig)
@@ -375,13 +393,17 @@ function ConfigPanelController.SetPanelView(view)
 		classScrollFrame:SetSize(456, 176)
 		classScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -84)
 		classScrollChild:SetWidth(432)
-		if classScrollFrame.ScrollBar then classScrollFrame.ScrollBar:Hide() end
+		if classScrollFrame.ScrollBar then
+			classScrollFrame.ScrollBar:Hide()
+		end
 	elseif isLoot then
 		MogTrackerPanelItemHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -62)
 		itemScrollFrame:SetSize(456, 360)
 		itemScrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 156, -84)
 		itemScrollChild:SetWidth(432)
-		if itemScrollFrame.ScrollBar then itemScrollFrame.ScrollBar:Hide() end
+		if itemScrollFrame.ScrollBar then
+			itemScrollFrame.ScrollBar:Hide()
+		end
 	else
 		scrollChild:SetWidth(478)
 	end
@@ -464,9 +486,13 @@ function ConfigPanelController.InitializePanel()
 	dependencies.ApplyDefaultPanelStyle()
 
 	MogTrackerPanelTitle:SetText(T("ADDON_TITLE", "幻化追踪"))
-	MogTrackerPanelSubtitle:SetText(T("ADDON_SUBTITLE", "Lightweight dungeon and raid lockout tracking for your characters."))
+	MogTrackerPanelSubtitle:SetText(
+		T("ADDON_SUBTITLE", "Lightweight dungeon and raid lockout tracking for your characters.")
+	)
 	local addonVersion = dependencies.GetAddonMetadata(dependencies.addonName, "Version") or "0.0.0"
-	MogTrackerPanelFooter:SetText(string.format("%s · v%s", T("PANEL_FOOTER", "MogTracker，风之小祈是 Vibe coder"), tostring(addonVersion)))
+	MogTrackerPanelFooter:SetText(
+		string.format("%s · v%s", T("PANEL_FOOTER", "MogTracker，风之小祈是 Vibe coder"), tostring(addonVersion))
+	)
 	MogTrackerPanelNavHeader:SetText(T("NAV_SECTIONS", "Sections"))
 	MogTrackerPanelNavFiltersHeader:SetText(T("NAV_FILTERS", "Filters"))
 	MogTrackerPanelNavDebugHeader:Hide()
@@ -474,7 +500,9 @@ function ConfigPanelController.InitializePanel()
 	ConfigPanelController.InitializePanelNavigation()
 	MogTrackerPanelConfigHeader:SetText(T("CONFIG_HEADER", "Config"))
 	if MogTrackerPanelConfigDescription then
-		MogTrackerPanelConfigDescription:SetText(T("CONFIG_DESCRIPTION", "Track current-instance loot, set pieces, and collection status."))
+		MogTrackerPanelConfigDescription:SetText(
+			T("CONFIG_DESCRIPTION", "Track current-instance loot, set pieces, and collection status.")
+		)
 	end
 	MogTrackerPanelConfigLootHeader:SetText(T("CONFIG_LOOT_HEADER", "Loot Display"))
 	MogTrackerPanelStyleHeader:SetText(T("STYLE_HEADER", "风格"))
@@ -483,12 +511,19 @@ function ConfigPanelController.InitializePanel()
 	MogTrackerPanelResetButton:SetText(T("BUTTON_CLEAR_DATA", "Clear Data"))
 	panel.bulkUpdateHeader = panel.bulkUpdateHeader or panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	panel.bulkUpdateHeader:SetText(T("CONFIG_BULK_UPDATE_HEADER", "全量更新"))
-	panel.bulkUpdateDescription = panel.bulkUpdateDescription or panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	panel.bulkUpdateDescription = panel.bulkUpdateDescription
+		or panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	panel.bulkUpdateDescription:SetJustifyH("LEFT")
 	panel.bulkUpdateDescription:SetJustifyV("TOP")
 	panel.bulkUpdateDescription:SetTextColor(0.82, 0.86, 0.92)
-	panel.bulkUpdateDescription:SetText(T("CONFIG_BULK_UPDATE_DESCRIPTION", "分别扫描团队副本或地下城，并重建看板缓存与套装来源分类。"))
-	panel.bulkUpdateRaidButton = panel.bulkUpdateRaidButton or CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+	panel.bulkUpdateDescription:SetText(
+		T(
+			"CONFIG_BULK_UPDATE_DESCRIPTION",
+			"分别扫描团队副本或地下城，并重建看板缓存与套装来源分类。"
+		)
+	)
+	panel.bulkUpdateRaidButton = panel.bulkUpdateRaidButton
+		or CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 	panel.bulkUpdateRaidButton:SetSize(92, 22)
 	panel.bulkUpdateRaidButton:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -497,9 +532,14 @@ function ConfigPanelController.InitializePanel()
 		GameTooltip:AddLine(addon.GetDashboardBulkScanHintText("raid"), 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
-	panel.bulkUpdateRaidButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	panel.bulkUpdateRaidButton:SetScript("OnClick", function() dependencies.StartDashboardBulkScan(false, "raid") end)
-	panel.bulkUpdateDungeonButton = panel.bulkUpdateDungeonButton or CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+	panel.bulkUpdateRaidButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	panel.bulkUpdateRaidButton:SetScript("OnClick", function()
+		dependencies.StartDashboardBulkScan(false, "raid")
+	end)
+	panel.bulkUpdateDungeonButton = panel.bulkUpdateDungeonButton
+		or CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 	panel.bulkUpdateDungeonButton:SetSize(108, 22)
 	panel.bulkUpdateDungeonButton:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -508,9 +548,15 @@ function ConfigPanelController.InitializePanel()
 		GameTooltip:AddLine(addon.GetDashboardBulkScanHintText("party"), 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
-	panel.bulkUpdateDungeonButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	panel.bulkUpdateDungeonButton:SetScript("OnClick", function() dependencies.StartDashboardBulkScan(false, "party") end)
-	if addon.UpdateConfigBulkUpdateButtons then addon.UpdateConfigBulkUpdateButtons() end
+	panel.bulkUpdateDungeonButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+	panel.bulkUpdateDungeonButton:SetScript("OnClick", function()
+		dependencies.StartDashboardBulkScan(false, "party")
+	end)
+	if addon.UpdateConfigBulkUpdateButtons then
+		addon.UpdateConfigBulkUpdateButtons()
+	end
 
 	_G["MogTrackerPanelCheckbox1Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_TRANSMOG", "Hide collected appearances"))
 	_G["MogTrackerPanelCheckbox2Text"]:SetText(T("CHECKBOX_HIDE_COLLECTED_MOUNTS", "Hide collected mounts"))
@@ -547,8 +593,12 @@ function ConfigPanelController.InitializePanel()
 	MogTrackerPanelScrollChild:SetTextInsets(4, 4, 4, 4)
 	MogTrackerPanelScrollChild:EnableMouse(true)
 	MogTrackerPanelScrollChild:SetMaxLetters(0)
-	MogTrackerPanelScrollChild:SetScript("OnMouseUp", function(self) self:SetFocus() end)
-	MogTrackerPanelScrollChild:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+	MogTrackerPanelScrollChild:SetScript("OnMouseUp", function(self)
+		self:SetFocus()
+	end)
+	MogTrackerPanelScrollChild:SetScript("OnEscapePressed", function(self)
+		self:ClearFocus()
+	end)
 	MogTrackerPanelScrollFrame:SetScrollChild(MogTrackerPanelScrollChild)
 
 	MogTrackerPanelClassScrollChild:SetSize(132, 112)
@@ -561,9 +611,15 @@ function ConfigPanelController.InitializePanel()
 	MogTrackerPanelItemScrollFrame:SetScrollChild(MogTrackerPanelItemScrollChild)
 	ConfigPanelController.UpdateLootTypeFilterUI(settings)
 
-	MogTrackerPanelNavConfigButton:SetScript("OnClick", function() ConfigPanelController.SetPanelView("config") end)
-	MogTrackerPanelNavClassButton:SetScript("OnClick", function() ConfigPanelController.SetPanelView("classes") end)
-	MogTrackerPanelNavLootButton:SetScript("OnClick", function() ConfigPanelController.SetPanelView("loot") end)
+	MogTrackerPanelNavConfigButton:SetScript("OnClick", function()
+		ConfigPanelController.SetPanelView("config")
+	end)
+	MogTrackerPanelNavClassButton:SetScript("OnClick", function()
+		ConfigPanelController.SetPanelView("classes")
+	end)
+	MogTrackerPanelNavLootButton:SetScript("OnClick", function()
+		ConfigPanelController.SetPanelView("loot")
+	end)
 	MogTrackerPanelRefreshButton:SetScript("OnClick", function()
 		if RequestRaidInfo then
 			RequestRaidInfo()
@@ -593,8 +649,12 @@ function ConfigPanelController.InitializePanel()
 	panel:EnableMouse(true)
 	panel:SetMovable(true)
 	panel:RegisterForDrag("LeftButton")
-	panel:SetScript("OnDragStart", function(self) self:StartMoving() end)
-	panel:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+	panel:SetScript("OnDragStart", function(self)
+		self:StartMoving()
+	end)
+	panel:SetScript("OnDragStop", function(self)
+		self:StopMovingOrSizing()
+	end)
 
 	dependencies.ApplyElvUISkin()
 	ConfigPanelController.SetPanelView("config")

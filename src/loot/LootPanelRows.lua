@@ -219,7 +219,12 @@ function LootPanelRows.UpdateLootItemAcquiredHighlight(itemRow, item)
 		itemRow.newlyCollectedHighlight:SetColorTexture(0.30, 0.85, 0.45, 0.22)
 		itemRow.newlyCollectedHighlight:Show()
 		SetDashedBorderVisible(itemRow, true)
-		if itemRow.acquiredFlash and itemRow.acquiredFlashAnim and itemKey and not lootPanelSessionState.itemCelebrated[itemKey] then
+		if
+			itemRow.acquiredFlash
+			and itemRow.acquiredFlashAnim
+			and itemKey
+			and not lootPanelSessionState.itemCelebrated[itemKey]
+		then
 			lootPanelSessionState.itemCelebrated[itemKey] = true
 			itemRow.acquiredFlashAnim:Stop()
 			itemRow.acquiredFlashAnim:Play()
@@ -297,13 +302,22 @@ function LootPanelRows.UpdateEncounterHeaderVisuals(header, fullyCollected, coll
 	end
 end
 
-function LootPanelRows.GetEncounterAutoCollapsed(encounter, encounterName, lootState, encounterKillState, progressCount, encounterKilled)
+function LootPanelRows.GetEncounterAutoCollapsed(
+	encounter,
+	encounterName,
+	lootState,
+	encounterKillState,
+	progressCount,
+	encounterKilled
+)
 	local isEncounterKilledByName = dependencies.IsEncounterKilledByName
 	local isLootEncounterAutoCollapseDelayed = dependencies.IsLootEncounterAutoCollapseDelayed
 	local lootPanelSessionState = GetLootPanelSessionState()
 	local isKilled = encounterKilled and true or false
 	if not isKilled then
-		isKilled = type(isEncounterKilledByName) == "function" and isEncounterKilledByName(encounterKillState, encounterName) or false
+		isKilled = type(isEncounterKilledByName) == "function"
+				and isEncounterKilledByName(encounterKillState, encounterName)
+			or false
 	end
 	local autoCollapsed = lootState.fullyCollected or isKilled
 	if not lootPanelSessionState.active then

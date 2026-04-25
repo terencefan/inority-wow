@@ -313,7 +313,9 @@ function LootSets.UpdateSetCompletionRowVisual(itemRow, setEntry)
 	end
 
 	if itemRow.collectionIcon then
-		itemRow.collectionIcon:SetTexture(isCompleted and "Interface\\RaidFrame\\ReadyCheck-Ready" or "Interface\\RaidFrame\\ReadyCheck-NotReady")
+		itemRow.collectionIcon:SetTexture(
+			isCompleted and "Interface\\RaidFrame\\ReadyCheck-Ready" or "Interface\\RaidFrame\\ReadyCheck-NotReady"
+		)
 		itemRow.collectionIcon:Show()
 	end
 
@@ -331,8 +333,13 @@ function LootSets.BuildCurrentInstanceLootSummary(data, sourceContext)
 		rows = {},
 		sourcesBySetID = {},
 	}
-	local instanceName = tostring((sourceContext and sourceContext.instanceName) or (data and data.instanceName) or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本"))
-	local difficultyName = tostring((sourceContext and sourceContext.difficultyName) or (data and data.difficultyName) or "")
+	local instanceName = tostring(
+		(sourceContext and sourceContext.instanceName)
+			or (data and data.instanceName)
+			or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")
+	)
+	local difficultyName =
+		tostring((sourceContext and sourceContext.difficultyName) or (data and data.difficultyName) or "")
 	for _, encounter in ipairs((data and data.encounters) or {}) do
 		local encounterName = encounter.name or Translate("LOOT_UNKNOWN_BOSS", "未知首领")
 		for _, item in ipairs(encounter.loot or {}) do
@@ -511,38 +518,97 @@ function LootSets.BuildSetPieceSlotKey(slot, equipLoc)
 	if normalizedSlot == "" then
 		return nil
 	end
-	if normalizedSlot:find("head", 1, true) or normalizedSlot:find("helmet", 1, true) or normalizedSlot:find("helm", 1, true) or normalizedSlot:find("hood", 1, true) or normalizedSlot:find("crown", 1, true) or normalizedSlot:find("circlet", 1, true) or normalizedSlot:find("mask", 1, true) or normalizedSlot:find("头", 1, true) then
+	if
+		normalizedSlot:find("head", 1, true)
+		or normalizedSlot:find("helmet", 1, true)
+		or normalizedSlot:find("helm", 1, true)
+		or normalizedSlot:find("hood", 1, true)
+		or normalizedSlot:find("crown", 1, true)
+		or normalizedSlot:find("circlet", 1, true)
+		or normalizedSlot:find("mask", 1, true)
+		or normalizedSlot:find("头", 1, true)
+	then
 		return "INVTYPE_HEAD"
 	end
-	if normalizedSlot:find("shoulder", 1, true) or normalizedSlot:find("spaulder", 1, true) or normalizedSlot:find("pauldron", 1, true) or normalizedSlot:find("mantle", 1, true) or normalizedSlot:find("肩", 1, true) then
+	if
+		normalizedSlot:find("shoulder", 1, true)
+		or normalizedSlot:find("spaulder", 1, true)
+		or normalizedSlot:find("pauldron", 1, true)
+		or normalizedSlot:find("mantle", 1, true)
+		or normalizedSlot:find("肩", 1, true)
+	then
 		return "INVTYPE_SHOULDER"
 	end
-	if normalizedSlot:find("chest", 1, true) or normalizedSlot:find("robe", 1, true) or normalizedSlot:find("tunic", 1, true) or normalizedSlot:find("vest", 1, true) or normalizedSlot:find("外衣", 1, true) or normalizedSlot:find("胸", 1, true) or normalizedSlot:find("袍", 1, true) then
+	if
+		normalizedSlot:find("chest", 1, true)
+		or normalizedSlot:find("robe", 1, true)
+		or normalizedSlot:find("tunic", 1, true)
+		or normalizedSlot:find("vest", 1, true)
+		or normalizedSlot:find("外衣", 1, true)
+		or normalizedSlot:find("胸", 1, true)
+		or normalizedSlot:find("袍", 1, true)
+	then
 		return "INVTYPE_CHEST"
 	end
-	if normalizedSlot:find("waist", 1, true) or normalizedSlot:find("belt", 1, true) or normalizedSlot:find("girdle", 1, true) or normalizedSlot:find("cord", 1, true) or normalizedSlot:find("腰", 1, true) then
+	if
+		normalizedSlot:find("waist", 1, true)
+		or normalizedSlot:find("belt", 1, true)
+		or normalizedSlot:find("girdle", 1, true)
+		or normalizedSlot:find("cord", 1, true)
+		or normalizedSlot:find("腰", 1, true)
+	then
 		return "INVTYPE_WAIST"
 	end
-	if normalizedSlot:find("legs", 1, true) or normalizedSlot:find("leg", 1, true) or normalizedSlot:find("pants", 1, true) or normalizedSlot:find("kilt", 1, true) or normalizedSlot:find("trousers", 1, true) or normalizedSlot:find("腿", 1, true) then
+	if
+		normalizedSlot:find("legs", 1, true)
+		or normalizedSlot:find("leg", 1, true)
+		or normalizedSlot:find("pants", 1, true)
+		or normalizedSlot:find("kilt", 1, true)
+		or normalizedSlot:find("trousers", 1, true)
+		or normalizedSlot:find("腿", 1, true)
+	then
 		return "INVTYPE_LEGS"
 	end
-	if normalizedSlot:find("feet", 1, true) or normalizedSlot:find("foot", 1, true) or normalizedSlot:find("boots", 1, true) or normalizedSlot:find("sabatons", 1, true) or normalizedSlot:find("靴", 1, true) or normalizedSlot:find("脚", 1, true) then
+	if
+		normalizedSlot:find("feet", 1, true)
+		or normalizedSlot:find("foot", 1, true)
+		or normalizedSlot:find("boots", 1, true)
+		or normalizedSlot:find("sabatons", 1, true)
+		or normalizedSlot:find("靴", 1, true)
+		or normalizedSlot:find("脚", 1, true)
+	then
 		return "INVTYPE_FEET"
 	end
-	if normalizedSlot:find("wrist", 1, true) or normalizedSlot:find("bracer", 1, true) or normalizedSlot:find("腕", 1, true) then
+	if
+		normalizedSlot:find("wrist", 1, true)
+		or normalizedSlot:find("bracer", 1, true)
+		or normalizedSlot:find("腕", 1, true)
+	then
 		return "INVTYPE_WRIST"
 	end
-	if normalizedSlot:find("hand", 1, true) or normalizedSlot:find("glove", 1, true) or normalizedSlot:find("gauntlet", 1, true) or normalizedSlot:find("grip", 1, true) or normalizedSlot:find("手", 1, true) then
+	if
+		normalizedSlot:find("hand", 1, true)
+		or normalizedSlot:find("glove", 1, true)
+		or normalizedSlot:find("gauntlet", 1, true)
+		or normalizedSlot:find("grip", 1, true)
+		or normalizedSlot:find("手", 1, true)
+	then
 		return "INVTYPE_HAND"
 	end
-	if normalizedSlot:find("cloak", 1, true) or normalizedSlot:find("cape", 1, true) or normalizedSlot:find("back", 1, true) or normalizedSlot:find("披风", 1, true) then
+	if
+		normalizedSlot:find("cloak", 1, true)
+		or normalizedSlot:find("cape", 1, true)
+		or normalizedSlot:find("back", 1, true)
+		or normalizedSlot:find("披风", 1, true)
+	then
 		return "INVTYPE_CLOAK"
 	end
 	return nil
 end
 
 function LootSets.GetSetAppearanceDisplayName(appearance, sourceDisplayInfo)
-	local sourceName = tostring((appearance and appearance.name) or (sourceDisplayInfo and sourceDisplayInfo.name) or "")
+	local sourceName =
+		tostring((appearance and appearance.name) or (sourceDisplayInfo and sourceDisplayInfo.name) or "")
 	if sourceName ~= "" then
 		return sourceName
 	end
@@ -586,7 +652,12 @@ function LootSets.GetATTSourceHint(sourceID, itemLink, itemID)
 	if numericSourceID > 0 and type(att.SearchForObject) == "function" then
 		results = att.SearchForObject("sourceID", numericSourceID, nil, true)
 	end
-	if (type(results) ~= "table" or #results == 0) and itemLink and itemLink ~= "" and type(att.SearchForLink) == "function" then
+	if
+		(type(results) ~= "table" or #results == 0)
+		and itemLink
+		and itemLink ~= ""
+		and type(att.SearchForLink) == "function"
+	then
 		results = att.SearchForLink(itemLink)
 	end
 	if (type(results) ~= "table" or #results == 0) and tonumber(itemID) and type(att.SearchForObject) == "function" then
@@ -677,7 +748,9 @@ function LootSets.BuildCurrentInstanceMissingSetPieces(setID, currentInstanceSou
 					searchName = tostring(source.name or Translate("LOOT_UNKNOWN_ITEM", "未知物品")),
 					acquisitionText = acquisitionText,
 					sourceBoss = tostring(source.encounterName or Translate("LOOT_UNKNOWN_BOSS", "未知首领")),
-					sourceInstance = tostring(source.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")),
+					sourceInstance = tostring(
+						source.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")
+					),
 					sourceDifficulty = tostring(source.difficultyName or ""),
 					icon = source.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
 					sourceID = source.sourceID,
@@ -744,7 +817,8 @@ end
 
 function LootSets.BuildSetMissingPieces(setID, currentInstanceSources)
 	local missingPieces = {}
-	local currentInstanceMissingPieces, seenSlotKeys = LootSets.BuildCurrentInstanceMissingSetPieces(setID, currentInstanceSources)
+	local currentInstanceMissingPieces, seenSlotKeys =
+		LootSets.BuildCurrentInstanceMissingSetPieces(setID, currentInstanceSources)
 	for _, piece in ipairs(currentInstanceMissingPieces) do
 		missingPieces[#missingPieces + 1] = piece
 	end
@@ -753,13 +827,21 @@ function LootSets.BuildSetMissingPieces(setID, currentInstanceSources)
 	if not (C_TransmogSets and C_TransmogSets.GetSetPrimaryAppearances) then
 		for _, indexedSource in ipairs(LootSets.BuildIndexedSetSources(setID)) do
 			local sourceDisplayInfo = LootSets.GetAppearanceSourceDisplayInfo(indexedSource.sourceID)
-			local slotKey = LootSets.BuildSetPieceSlotKey(indexedSource.name, sourceDisplayInfo and sourceDisplayInfo.equipLoc)
+			local slotKey =
+				LootSets.BuildSetPieceSlotKey(indexedSource.name, sourceDisplayInfo and sourceDisplayInfo.equipLoc)
 			if not (slotKey and seenSlotKeys[slotKey]) then
 				missingPieces[#missingPieces + 1] = {
-					name = tostring((sourceDisplayInfo and (sourceDisplayInfo.link or sourceDisplayInfo.name)) or indexedSource.link or indexedSource.name or Translate("LOOT_SET_MISSING_PIECE", "未收集部位")),
+					name = tostring(
+						(sourceDisplayInfo and (sourceDisplayInfo.link or sourceDisplayInfo.name))
+							or indexedSource.link
+							or indexedSource.name
+							or Translate("LOOT_SET_MISSING_PIECE", "未收集部位")
+					),
 					searchName = tostring((sourceDisplayInfo and sourceDisplayInfo.name) or indexedSource.name or ""),
 					acquisitionText = Translate("LOOT_SET_SOURCE_UNKNOWN", "来源待确认"),
-					icon = (sourceDisplayInfo and sourceDisplayInfo.icon) or indexedSource.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+					icon = (sourceDisplayInfo and sourceDisplayInfo.icon)
+						or indexedSource.icon
+						or "Interface\\Icons\\INV_Misc_QuestionMark",
 					sourceID = indexedSource.sourceID,
 					itemID = indexedSource.itemID,
 					link = (sourceDisplayInfo and sourceDisplayInfo.link) or indexedSource.link or nil,
@@ -782,7 +864,8 @@ function LootSets.BuildSetMissingPieces(setID, currentInstanceSources)
 	local seenAppearanceSourceIDs = {}
 	for _, appearance in ipairs(appearances) do
 		local appearanceSourceID = tonumber(appearance and appearance.sourceID) or 0
-		local sourceDisplayInfo = appearanceSourceID > 0 and LootSets.GetAppearanceSourceDisplayInfo(appearanceSourceID) or nil
+		local sourceDisplayInfo = appearanceSourceID > 0 and LootSets.GetAppearanceSourceDisplayInfo(appearanceSourceID)
+			or nil
 		local isCollected = LootSets.IsSetAppearanceCollected(appearance, sourceDisplayInfo)
 		if not isCollected then
 			if appearanceSourceID > 0 and not seenAppearanceSourceIDs[appearanceSourceID] then
@@ -798,16 +881,26 @@ function LootSets.BuildSetMissingPieces(setID, currentInstanceSources)
 
 				if not matchedCurrentInstance then
 					seenAppearanceSourceIDs[appearanceSourceID] = true
-					local slotKey = LootSets.BuildSetPieceSlotKey(appearance and (appearance.slotName or appearance.slot), sourceDisplayInfo and sourceDisplayInfo.equipLoc)
+					local slotKey = LootSets.BuildSetPieceSlotKey(
+						appearance and (appearance.slotName or appearance.slot),
+						sourceDisplayInfo and sourceDisplayInfo.equipLoc
+					)
 					if not (slotKey and seenSlotKeys[slotKey]) then
 						local sourceName = LootSets.GetSetAppearanceDisplayName(appearance, sourceDisplayInfo)
-						local attHint = LootSets.GetATTSourceHint(appearanceSourceID, sourceDisplayInfo and sourceDisplayInfo.link or nil, nil)
-						local acquisitionText = attHint and string.format(Translate("LOOT_SET_SOURCE_ATT", "其他来源: %s"), attHint) or Translate("LOOT_SET_SOURCE_OTHER", "其他途径")
+						local attHint = LootSets.GetATTSourceHint(
+							appearanceSourceID,
+							sourceDisplayInfo and sourceDisplayInfo.link or nil,
+							nil
+						)
+						local acquisitionText = attHint
+								and string.format(Translate("LOOT_SET_SOURCE_ATT", "其他来源: %s"), attHint)
+							or Translate("LOOT_SET_SOURCE_OTHER", "其他途径")
 						missingPieces[#missingPieces + 1] = {
 							name = sourceName,
 							searchName = tostring((sourceDisplayInfo and sourceDisplayInfo.name) or sourceName),
 							acquisitionText = acquisitionText,
-							icon = sourceDisplayInfo and sourceDisplayInfo.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+							icon = sourceDisplayInfo and sourceDisplayInfo.icon
+								or "Interface\\Icons\\INV_Misc_QuestionMark",
 							sourceID = appearanceSourceID,
 							link = sourceDisplayInfo and sourceDisplayInfo.link or nil,
 							slotKey = slotKey,
@@ -829,9 +922,10 @@ function LootSets.BuildSetMissingPieces(setID, currentInstanceSources)
 	local unresolvedCount = math.max(0, (total - collected) - resolvedSlotCount)
 	if unresolvedCount > 0 then
 		missingPieces[#missingPieces + 1] = {
-			name = unresolvedCount > 1
-				and string.format(Translate("LOOT_SET_MISSING_OTHER_COUNT", "其他未收集部位 x%d"), unresolvedCount)
-				or Translate("LOOT_SET_MISSING_OTHER", "其他未收集部位"),
+			name = unresolvedCount > 1 and string.format(
+				Translate("LOOT_SET_MISSING_OTHER_COUNT", "其他未收集部位 x%d"),
+				unresolvedCount
+			) or Translate("LOOT_SET_MISSING_OTHER", "其他未收集部位"),
 			searchName = nil,
 			acquisitionText = Translate("LOOT_SET_SOURCE_UNKNOWN", "来源待确认"),
 			icon = "Interface\\Icons\\INV_Misc_QuestionMark",
@@ -863,33 +957,63 @@ function LootSets.BuildCurrentInstanceSetSummary(data, context)
 	local getLootItemSetIDs = context.getLootItemSetIDs or GetLootItemSetIDs
 	local classMatchesSetInfo = context.classMatchesSetInfo or ClassMatchesSetInfo
 	local getSetProgress = context.getSetProgress or GetSetProgress
-	local currentInstanceLootSummary = context.currentInstanceLootSummary or LootSets.BuildCurrentInstanceLootSummary(data, context.selectedInstance)
+	local currentInstanceLootSummary = context.currentInstanceLootSummary
+		or LootSets.BuildCurrentInstanceLootSummary(data, context.selectedInstance)
 	local classFilesCacheKey = BuildClassFilesCacheKey(classFiles)
-	local currentInstanceSummaryVersion = tonumber(currentInstanceLootSummary and currentInstanceLootSummary.rulesVersion) or 0
+	local filterSignature = tostring(currentInstanceLootSummary and currentInstanceLootSummary.filterSignature or "")
+	local currentInstanceSummaryVersion = tonumber(
+		currentInstanceLootSummary and currentInstanceLootSummary.rulesVersion
+	) or 0
 	local summaryStore = addon.DerivedSummaryStore
-	local summaries = summaryStore and summaryStore.GetLootPanelDerivedSummaries and summaryStore.GetLootPanelDerivedSummaries(data) or nil
+	local summaries = summaryStore
+			and summaryStore.GetLootPanelDerivedSummaries
+			and summaryStore.GetLootPanelDerivedSummaries(data)
+		or nil
 	if summaries and type(currentInstanceLootSummary) == "table" then
 		summaries.currentInstanceLootSummary = currentInstanceLootSummary
 	end
-	local summaryCache = type(summaries and summaries.currentInstanceSetSummaryCache) == "table" and summaries.currentInstanceSetSummaryCache or nil
-	if summaryStore
+	local summaryCache = type(summaries and summaries.currentInstanceSetSummaryCache) == "table"
+			and summaries.currentInstanceSetSummaryCache
+		or nil
+	if
+		summaryStore
 		and summaryStore.MatchesCurrentInstanceSetSummaryCache
-		and summaryStore.MatchesCurrentInstanceSetSummaryCache(summaryCache, currentInstanceLootSummary and currentInstanceLootSummary.selectionKey, currentInstanceSummaryVersion, classFilesCacheKey) then
-		return summaryCache.summary or {
-			message = Translate("LOOT_SETS_NO_MATCHING", "No incomplete collectible sets match the current instance and class filter."),
-			classGroups = {},
-		}
+		and summaryStore.MatchesCurrentInstanceSetSummaryCache(
+			summaryCache,
+			currentInstanceLootSummary and currentInstanceLootSummary.selectionKey,
+			currentInstanceSummaryVersion,
+			classFilesCacheKey
+		)
+		and tostring(summaryCache.filterSignature or "") == filterSignature
+	then
+		return summaryCache.summary
+			or {
+				message = Translate(
+					"LOOT_SETS_NO_MATCHING",
+					"No incomplete collectible sets match the current instance and class filter."
+				),
+				classGroups = {},
+			}
 	end
-	local setLootSources = currentInstanceLootSummary.sourcesBySetID or {}
-	local indexedSetEntryCache = type(summaries and summaries.currentInstanceSetEntryIndexCache) == "table" and summaries.currentInstanceSetEntryIndexCache or nil
+	local setLootSources = currentInstanceLootSummary.visibleSourcesBySetID or currentInstanceLootSummary.sourcesBySetID or {}
+	local indexedSetEntryCache = type(summaries and summaries.currentInstanceSetEntryIndexCache) == "table"
+			and summaries.currentInstanceSetEntryIndexCache
+		or nil
 	local indexedSetEntriesByID
-	if summaryStore
+	if
+		summaryStore
 		and summaryStore.MatchesCurrentInstanceSetEntryIndexCache
-		and summaryStore.MatchesCurrentInstanceSetEntryIndexCache(indexedSetEntryCache, currentInstanceLootSummary and currentInstanceLootSummary.selectionKey, currentInstanceSummaryVersion) then
+		and summaryStore.MatchesCurrentInstanceSetEntryIndexCache(
+			indexedSetEntryCache,
+			currentInstanceLootSummary and currentInstanceLootSummary.selectionKey,
+			currentInstanceSummaryVersion
+		)
+		and tostring(indexedSetEntryCache.filterSignature or "") == filterSignature
+	then
 		indexedSetEntriesByID = indexedSetEntryCache.entriesByID or {}
 	else
 		indexedSetEntriesByID = {}
-		for _, lootRow in ipairs(currentInstanceLootSummary.rows or {}) do
+		for _, lootRow in ipairs(currentInstanceLootSummary.visibleRows or currentInstanceLootSummary.rows or {}) do
 			for _, setID in ipairs(lootRow.setIDs or getLootItemSetIDs(lootRow)) do
 				if not indexedSetEntriesByID[setID] then
 					local setInfo = C_TransmogSets.GetSetInfo(setID)
@@ -914,9 +1038,12 @@ function LootSets.BuildCurrentInstanceSetSummary(data, context)
 		end
 		if summaries then
 			summaries.currentInstanceSetEntryIndexCache = {
-				rulesVersion = summaryStore and summaryStore.GetRulesVersion and summaryStore.GetRulesVersion("currentInstanceSetEntryIndexCache") or 0,
+				rulesVersion = summaryStore and summaryStore.GetRulesVersion and summaryStore.GetRulesVersion(
+					"currentInstanceSetEntryIndexCache"
+				) or 0,
 				selectionKey = currentInstanceLootSummary and currentInstanceLootSummary.selectionKey or "",
 				currentInstanceSummaryVersion = currentInstanceSummaryVersion,
+				filterSignature = filterSignature,
 				entriesByID = indexedSetEntriesByID,
 			}
 		end
@@ -931,14 +1058,15 @@ function LootSets.BuildCurrentInstanceSetSummary(data, context)
 		}
 	end
 
-	for _, lootRow in ipairs(currentInstanceLootSummary.rows or {}) do
+	for _, lootRow in ipairs(currentInstanceLootSummary.visibleRows or currentInstanceLootSummary.rows or {}) do
 		for _, setID in ipairs(lootRow.setIDs or getLootItemSetIDs(lootRow)) do
 			local setEntry = indexedSetEntriesByID[setID]
 			local setInfo = setEntry and setEntry.setInfo or nil
 			if setInfo then
 				for _, classFile in ipairs(classFiles) do
 					if classMatchesSetInfo(classFile, setInfo) then
-						groupsByClass[classFile].setsByID[setID] = groupsByClass[classFile].setsByID[setID] or CopyIndexedSetEntry(setEntry)
+						groupsByClass[classFile].setsByID[setID] = groupsByClass[classFile].setsByID[setID]
+							or CopyIndexedSetEntry(setEntry)
 					end
 				end
 			end
@@ -982,7 +1110,10 @@ function LootSets.BuildCurrentInstanceSetSummary(data, context)
 
 	local summaryMessage = nil
 	if not hasSets then
-		summaryMessage = Translate("LOOT_SETS_NO_MATCHING", "No incomplete collectible sets match the current instance and class filter.")
+		summaryMessage = Translate(
+			"LOOT_SETS_NO_MATCHING",
+			"No incomplete collectible sets match the current instance and class filter."
+		)
 	end
 
 	local summary = {
@@ -991,10 +1122,13 @@ function LootSets.BuildCurrentInstanceSetSummary(data, context)
 	}
 	if summaries then
 		summaries.currentInstanceSetSummaryCache = {
-			rulesVersion = summaryStore and summaryStore.GetRulesVersion and summaryStore.GetRulesVersion("currentInstanceSetSummaryCache") or 0,
+			rulesVersion = summaryStore and summaryStore.GetRulesVersion and summaryStore.GetRulesVersion(
+				"currentInstanceSetSummaryCache"
+			) or 0,
 			selectionKey = currentInstanceLootSummary and currentInstanceLootSummary.selectionKey or "",
 			currentInstanceSummaryVersion = currentInstanceSummaryVersion,
 			classFilesKey = classFilesCacheKey,
+			filterSignature = filterSignature,
 			summary = summary,
 		}
 	end

@@ -5,7 +5,8 @@ local L = addon.L
 
 L.ADDON_TITLE = "Transmog Tracker"
 L.ADDON_SUBTITLE = ""
-L.CONFIG_DESCRIPTION = "Track current-instance loot, set pieces, and collection status.\nReview raid progress, boss kills, and class-based filters across characters.\nQuickly see which appearances are still missing and where you can farm them."
+L.CONFIG_DESCRIPTION =
+	"Track current-instance loot, set pieces, and collection status.\nReview raid progress, boss kills, and class-based filters across characters.\nQuickly see which appearances are still missing and where you can farm them."
 L.PANEL_FOOTER = "MogTracker · Vibe Coder: Fengzhixiaoqi (Inority)"
 L.NAV_SECTIONS = "Sections"
 L.NAV_GENERAL = "General"
@@ -20,8 +21,10 @@ L.CONFIG_FILTERS_HEADER = "Tracking Filters"
 L.CONFIG_LOOT_HEADER = "Loot Display"
 L.TRACK_HEADER = "Raid Transmog Dashboard"
 L.TRACK_HEADER_DUNGEON = "Dungeon Transmog Dashboard"
-L.DASHBOARD_SUBTITLE = "Only cached raids are shown. Use the buttons below to switch the metric. Class filters only affect column order; opening a raid refreshes the cached snapshot for every class. Some transmog set slots can come from multiple raid-drop sources, so the totals are source-based and may exceed the count of unique slots."
-L.DASHBOARD_SUBTITLE_DUNGEON = "Only cached dungeons are shown. Use the buttons below to switch the metric. Class filters only affect column order; opening a dungeon refreshes the cached snapshot for every class."
+L.DASHBOARD_SUBTITLE =
+	"Only cached raids are shown. Use the buttons below to switch the metric. Class filters only affect column order; opening a raid refreshes the cached snapshot for every class. Some transmog set slots can come from multiple raid-drop sources, so the totals are source-based and may exceed the count of unique slots."
+L.DASHBOARD_SUBTITLE_DUNGEON =
+	"Only cached dungeons are shown. Use the buttons below to switch the metric. Class filters only affect column order; opening a dungeon refreshes the cached snapshot for every class."
 L.DASHBOARD_SETS = "Set Pieces"
 L.DASHBOARD_ALL_ITEMS = "All Pieces"
 L.CLASS_FILTER_HEADER = "Classes"
@@ -39,24 +42,34 @@ L.DASHBOARD_TOOLTIP_MULTI_SET_NOTE = "This total accumulates multiple matched se
 L.LOOT_SET_DISPLAY_COUNT_SUFFIX = "%d pieces"
 L.DASHBOARD_PARTIAL_ERRORS = "partial raid scans failed"
 L.DASHBOARD_NO_CLASS_FILTER = "Select at least one class in the main panel first."
-L.DASHBOARD_EMPTY = "No cached raid data yet.\nOpen any raid loot panel first, and only already-computed raids will appear here."
-L.DASHBOARD_EMPTY_DUNGEON = "No cached dungeon data yet.\nOpen any dungeon loot panel first, and only already-computed dungeons will appear here."
+L.DASHBOARD_EMPTY =
+	"No cached raid data yet.\nOpen any raid loot panel first, and only already-computed raids will appear here."
+L.DASHBOARD_EMPTY_DUNGEON =
+	"No cached dungeon data yet.\nOpen any dungeon loot panel first, and only already-computed dungeons will appear here."
 L.DASHBOARD_BUTTON_BULK_SCAN = "Bulk Update"
-L.DASHBOARD_BULK_SCAN_STARTED = "Started raid dashboard update: %d raid difficulties (all available difficulties, with collection progress precomputed)."
+L.DASHBOARD_BULK_SCAN_STARTED =
+	"Started raid dashboard update: %d raid difficulties (all available difficulties, with collection progress precomputed)."
 L.DASHBOARD_BULK_SCAN_PROGRESS = "Raid dashboard scan progress: %d/%d %s (%s)"
 L.DASHBOARD_BULK_SCAN_COMPLETE = "Raid dashboard scan complete: %d raids."
 L.DASHBOARD_BULK_SCAN_EMPTY = "No raid instances available to scan."
-L.DASHBOARD_BULK_SCAN_HINT = "Scans every available difficulty of each raid one by one and precomputes collection state and set progress. This can take a while. Recommended while idle in a capital city and out of combat."
-L.DASHBOARD_BULK_SCAN_CONFIRM = "Bulk update will scan every available difficulty of each raid one by one and precompute collection state and set progress. This can take a while and may cause temporary stutter during the scan.\n\nRecommended while idle in a capital city and out of combat.\n\nContinue?"
+L.DASHBOARD_BULK_SCAN_HINT =
+	"Scans every available difficulty of each raid one by one and precomputes collection state and set progress. This can take a while. Recommended while idle in a capital city and out of combat."
+L.DASHBOARD_BULK_SCAN_CONFIRM =
+	"Bulk update will scan every available difficulty of each raid one by one and precompute collection state and set progress. This can take a while and may cause temporary stutter during the scan.\n\nRecommended while idle in a capital city and out of combat.\n\nContinue?"
 L.DASHBOARD_BULK_SCAN_PROGRESS_DUNGEON = "Dungeon dashboard scan progress: %d/%d %s (%s)"
 L.DASHBOARD_BULK_SCAN_COMPLETE_DUNGEON = "Dungeon dashboard scan complete: %d dungeons."
 L.DASHBOARD_BULK_SCAN_EMPTY_DUNGEON = "No dungeon instances available to scan."
-L.DASHBOARD_BULK_SCAN_HINT_DUNGEON = "Scans every available difficulty of each dungeon and precomputes collection state and set progress. This can take a while. Recommended while idle in a capital city and out of combat."
-L.DASHBOARD_BULK_SCAN_CONFIRM_DUNGEON = "Bulk update will scan every available difficulty of each dungeon and precompute collection state and set progress. This can take a while and may cause temporary stutter during the scan.\n\nRecommended while idle in a capital city and out of combat.\n\nContinue?"
-L.DASHBOARD_TOOLTIP_SET_PIECE_SCOPE_NOTE = "This number only counts set-piece drops matched in the current instance snapshot, not full-set completion."
+L.DASHBOARD_BULK_SCAN_HINT_DUNGEON =
+	"Scans every available difficulty of each dungeon and precomputes collection state and set progress. This can take a while. Recommended while idle in a capital city and out of combat."
+L.DASHBOARD_BULK_SCAN_CONFIRM_DUNGEON =
+	"Bulk update will scan every available difficulty of each dungeon and precompute collection state and set progress. This can take a while and may cause temporary stutter during the scan.\n\nRecommended while idle in a capital city and out of combat.\n\nContinue?"
+L.DASHBOARD_TOOLTIP_SET_PIECE_SCOPE_NOTE =
+	"This number only counts set-piece drops matched in the current instance snapshot, not full-set completion."
 L.DASHBOARD_TOOLTIP_SET_PIECE_PROGRESS = "Current-instance set-piece drops"
-L.DASHBOARD_TOOLTIP_SET_COLLECTION_NOTE = "Below is the full collection progress for the sets matched by those drops, so it can differ from values like 8/9 or 9/9 on the set page."
-L.DASHBOARD_TOOLTIP_SET_TOTAL_NOTE = "Below is the full collection progress for every set matched by these drops, so it can differ from the drop-piece count above."
+L.DASHBOARD_TOOLTIP_SET_COLLECTION_NOTE =
+	"Below is the full collection progress for the sets matched by those drops, so it can differ from values like 8/9 or 9/9 on the set page."
+L.DASHBOARD_TOOLTIP_SET_TOTAL_NOTE =
+	"Below is the full collection progress for every set matched by these drops, so it can differ from the drop-piece count above."
 L.DEBUG_HEADER = "Debug Output"
 L.DEBUG_SECTION_HEADER = "Log Sections"
 L.DEBUG_SECTION_RAW_INSTANCES = "Raw Saved Instances"
@@ -82,8 +95,8 @@ L.BUTTON_COLLECT_DEBUG = "Collect Logs"
 L.MESSAGE_LOCKOUTS_REFRESHED = "Lockouts refreshed."
 L.MESSAGE_STORED_SNAPSHOTS_CLEARED = "Stored character data and dashboard snapshots cleared."
 L.MESSAGE_DEBUG_CAPTURED = "Debug logs collected and selected (%d instances). Press Ctrl+C to copy."
-L.DEBUG_EMPTY = "No debug logs yet.\nOpen /img debug and click \"Collect Logs\"."
-L.DEBUG_COPY_HINT = "Tip: click \"Collect Logs\" to auto-select the text, then press Ctrl+C to copy."
+L.DEBUG_EMPTY = 'No debug logs yet.\nOpen /img debug and click "Collect Logs".'
+L.DEBUG_COPY_HINT = 'Tip: click "Collect Logs" to auto-select the text, then press Ctrl+C to copy.'
 L.TOOLTIP_TITLE = "Transmog Tracker"
 L.TOOLTIP_COLUMN_INSTANCE = "Instance"
 L.TOOLTIP_COLUMN_DIFFICULTY = "Difficulty"
@@ -154,4 +167,3 @@ L.LOOT_SET_PROGRESS = "%d/%d"
 L.LOOT_NO_ITEMS = "  No loot matches the current filter."
 L.LOOT_DEBUG_SELECTED = "Debug info selected. Press Ctrl+C to copy."
 L.LOOT_MENU_UNAVAILABLE = "No supported dropdown menu API is available on this client."
-

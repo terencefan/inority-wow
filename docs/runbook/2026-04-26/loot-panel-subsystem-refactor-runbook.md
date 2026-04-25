@@ -14,6 +14,7 @@
 - 本轮真实读取到的 wiring 事实：`src/runtime/CoreFeatureWiring.lua` 当前把 `RefreshLootPanel()`、`GetSelectedLootPanelInstance()`、`CollectCurrentInstanceLootData()`、`GetEncounterLootDisplayState()` 等能力直接横向注入多个模块，尚未形成 `RefreshRequest + SelectionContext` 主骨架。
 - 本轮真实读取到的测试事实：仓库已有 `tools/run_lua_tests.ps1` 全量 Lua 回归入口，且 `tests/unit/loot/`、`tests/validation/loot/` 已覆盖 loot panel 打开、summary、autocollapse、slot/filter 等关键路径。
 - 本轮真实读取到的文档事实：当前已有 [ui-loot-panel-subsystem-refactor-spec.md](../../specs/ui/ui-loot-panel-subsystem-refactor-spec.md)、[ui-loot-panel.md](../../specs/ui/ui-loot-panel.md)、[ui-loot-overview.md](../../specs/ui/ui-loot-overview.md)、[ui-panels-overview.md](../../specs/ui/ui-panels-overview.md)，其中 spec 已明确了状态区、selection 记忆、boss kill count 与 `loot/sets` 空态语义。
+- 本轮补充侦察到的缺口事实：`BuildSelectionContext()` 虽已显式持有 `hideCollectedFlags`，但 `CollectionState.LootItemMatchesTypeFilter()` 仍直接读取 settings，`LootPanelRenderer.lua` 仍直接消费 `GetEncounterLootDisplayState()`；收藏态过滤 owner 还没有真正收口到 spec 定义的 derive contract。
 - 本轮真实读取到的工作树事实：`MogTracker` 仓库当前已经存在大量与 loot panel 重构无关的未提交改动；authority 执行必须在不覆盖、不回滚这些无关差异的前提下推进。
 - 本轮没有可用 dry-run：仓库内没有针对 loot panel 重构的原生 `plan/dry-run` 命令；因此第 1 步必须先做只读冻结，后续通过 focused tests 和 `git diff` 作为最小验证闭环。
 
@@ -41,6 +42,7 @@ digraph current {
 ### 目标
 
 - 以渐进式兼容方式，把 loot panel 的第一阶段改造落成到代码：先立 `RefreshRequest + SelectionContext + open/filter/selection` 刷新语义 contract，再让后续 collect / derive / present 有稳定 owner。
+- 在现有第一阶段基础上，继续把“收藏态事实”和“收藏态过滤可见性”拆开：让 `CollectionState` 只提供事实状态，把 `hideCollectedFlags` 收口到 derive contract，并去掉 renderer 对 `GetEncounterLootDisplayState()` 的直接 owner 依赖。
 - 保持现有玩家主入口和主要交互习惯不变，只落 spec 已经拍板的“小幅行为调整”，例如唯一状态区、selection 记忆、tab 恢复、`manual_refresh` 强刷新语义。
 - 完成 focused tests 与文档同步，使执行边界停在“本地代码、测试、文档全部完成并通过”。
 
@@ -540,6 +542,161 @@ git diff --stat -- src/loot src/core src/runtime/CoreFeatureWiring.lua tests/uni
 
 - 无法从 status/stat 中区分 authority 相关差异与无关差异。
 
+<a id="item-6"></a>
+
+### 🔴 6. 收口收藏态过滤 owner 到 `SelectionContext + derive contract`
+
+> [!CAUTION]
+> 本步骤会修改收藏态过滤的 owner，涉及 `CollectionState`、derive 语义和 renderer 依赖边界。
+
+> [!CAUTION]
+> 严重后果：如果只搬一半 owner，代码会同时保留“settings 直读过滤”和“SelectionContext 派生过滤”两套语义，后续很难判断谁才是真正 contract。
+
+#### 执行 @吕布 2026-04-26 01:05 CST
+
+[跳转到执行记录](#item-6-execution-record)
+
+操作性质：破坏性
+
+执行分组：拆开收藏态事实与收藏态过滤可见性
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+
+# 修改范围固定为：
+# - src/core/CollectionState.lua
+# - src/loot/LootDataController.lua
+# - src/loot/LootPanelRenderer.lua
+# - src/loot/LootSets.lua
+# - src/runtime/CoreFeatureWiring.lua
+#
+# 需要落地的真实状态变化：
+# 1. CollectionState 只继续负责单个 item/source 的收藏态事实与会话显示态，
+#    不再直接读取 settings 决定“是否隐藏”
+# 2. 收藏态过滤以 SelectionContext.hideCollectedFlags 为唯一输入 owner，
+#    默认只触发 re-derive + re-present，不改变 collect scope
+# 3. derive contract 显式产出 item/group 可见性字段，例如：
+#    isCollected / isVisible / hiddenReason / allRowsFiltered
+# 4. LootPanelRenderer 与 sets 分支不再直接依赖 GetEncounterLootDisplayState()
+#    作为收藏态过滤 owner
+# 5. loot 与 sets 在“过滤导致全空”时继续保留组结构，由面板级唯一状态区解释
+```
+
+预期结果：
+
+- 收藏态事实与收藏态过滤可见性已经是两层 owner。
+- `hideCollectedFlags` 真正进入 derive contract，而不是只停留在 SelectionContext 字段定义里。
+- renderer 不再自己判断“该不该隐藏已收藏项”。
+
+停止条件：
+
+- `CollectionState` 仍直接读取 settings 决定过滤结果。
+- renderer 仍直接把 `GetEncounterLootDisplayState()` 当成收藏态过滤总入口。
+- `loot` 与 `sets` 对收藏态过滤语义出现不一致分叉。
+
+#### 验收 @吕布 2026-04-26 01:05 CST
+
+[跳转到验收记录](#item-6-acceptance-record)
+
+验收命令：
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+git diff -- src/core/CollectionState.lua src/loot/LootDataController.lua src/loot/LootPanelRenderer.lua src/loot/LootSets.lua src/runtime/CoreFeatureWiring.lua
+rg -n "hideCollectedFlags|isCollected|isVisible|hiddenReason|allRowsFiltered|GetEncounterLootDisplayState|LootItemMatchesTypeFilter" \
+  src/core/CollectionState.lua \
+  src/loot/LootDataController.lua \
+  src/loot/LootPanelRenderer.lua \
+  src/loot/LootSets.lua \
+  src/runtime/CoreFeatureWiring.lua
+```
+
+预期结果：
+
+- diff 与搜索结果能直接证明收藏态过滤 owner 已从 settings 直读迁到 derive contract。
+- 可以直接从代码看出 `CollectionState` 只保留“事实状态/显示态”，而不是继续兼管过滤裁剪。
+
+停止条件：
+
+- 仍看得到 settings 直读过滤是主路径。
+- derive contract 没有显式可见性字段。
+
+<a id="item-7"></a>
+
+### 🔴 7. 同步收藏态过滤 focused tests 与文档
+
+> [!CAUTION]
+> 本步骤会补齐收藏态过滤 owner 迁移后的 focused tests 与 docs，同步 spec 和实现边界。
+
+> [!CAUTION]
+> 严重后果：如果 owner 迁移后没有 focused tests，后续很容易再次把过滤逻辑塞回 CollectionState 或 renderer。
+
+#### 执行 @吕布 2026-04-26 01:10 CST
+
+[跳转到执行记录](#item-7-execution-record)
+
+操作性质：破坏性
+
+执行分组：补齐收藏态过滤 contract 测试与文档同步
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+
+# 修改范围固定为：
+# - tests/unit/loot
+# - tests/validation/loot
+# - docs/specs/ui/ui-loot-panel-subsystem-refactor-spec.md
+# - docs/specs/ui/ui-loot-panel.md
+# - docs/specs/ui/ui-loot-overview.md
+# - docs/specs/ui/ui-panels-overview.md
+#
+# 需要落地的真实状态变化：
+# 1. focused tests 覆盖 hideCollectedFlags -> derive visibility 的 contract
+# 2. 验证 loot / sets 两页都消费同一组收藏态过滤语义
+# 3. 验证过滤导致全空时仍保留组结构，由唯一状态区解释
+# 4. docs 明确当前实现已经完成收藏态事实与过滤可见性的 owner 拆分
+```
+
+预期结果：
+
+- focused tests 能直接证明收藏态过滤 owner 已按 spec 收口。
+- docs 不再把这块写成“未来工作”。
+
+停止条件：
+
+- tests 只验证表面渲染，不验证 `hideCollectedFlags` contract。
+- docs 仍和实现 owner 不一致。
+
+#### 验收 @吕布 2026-04-26 01:10 CST
+
+[跳转到验收记录](#item-7-acceptance-record)
+
+验收命令：
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+git diff -- tests/unit/loot tests/validation/loot docs/specs/ui
+rg -n "hideCollectedFlags|isVisible|hiddenReason|allRowsFiltered|收藏态过滤|GetEncounterLootDisplayState" \
+  tests/unit/loot tests/validation/loot docs/specs/ui
+```
+
+预期结果：
+
+- diff 能证明 tests/docs 变化与收藏态过滤 authority 范围一致。
+- 搜索结果能直接看出收藏态过滤 contract 已被测试与文档吸收。
+
+停止条件：
+
+- tests/docs 没有覆盖收藏态过滤 owner 迁移后的关键边界。
+
 ## 执行记录
 
 ### 🟢 1. 冻结 loot panel 重构现状
@@ -917,6 +1074,140 @@ git diff --stat -- src/loot src/core src/runtime/CoreFeatureWiring.lua tests/uni
 - 当前可以清楚区分 authority 相关差异与仓库原有无关脏改，item 5 的“冻结提交前上下文”目标已达成。
 - 当前 `🟢 5` 的 `#### 验收` 通过，编号项执行已经全部完成。
 
+### 🔴 6. 收口收藏态过滤 owner 到 `SelectionContext + derive contract`
+
+<a id="item-6-execution-record"></a>
+
+#### 执行记录 @吕布 2026-04-26 01:05 CST
+
+执行命令：
+
+```bash
+cd /mnt/c/Users/Terence/workspace/MogTracker
+/mnt/c/Users/Terence/AppData/Local/Programs/Lua/bin/lua.exe -e "assert(loadfile('src/core/CollectionState.lua')); assert(loadfile('src/loot/LootDataController.lua')); assert(loadfile('src/loot/LootPanelRenderer.lua')); assert(loadfile('src/loot/sets/LootSets.lua')); assert(loadfile('src/runtime/CoreFeatureWiring.lua')); print('syntax-ok')"
+rg -n "hideCollectedFlags|BuildLootItemFilterState|isVisible|hiddenReason|allRowsFiltered|GetEncounterLootDisplayState|LootItemMatchesTypeFilter" \
+  src/core/CollectionState.lua \
+  src/loot/LootDataController.lua \
+  src/loot/LootPanelRenderer.lua \
+  src/loot/sets/LootSets.lua \
+  src/runtime/CoreFeatureWiring.lua
+```
+
+执行结果：
+
+```text
+src/core/CollectionState.lua 不再直接读取 settings 做过滤裁剪，新增 BuildLootItemFilterState()，把 selectedLootTypes + hideCollectedFlags 组合成 displayState / isCollected / isVisible / hiddenReason。
+src/loot/LootDataController.lua 现在在 BuildCurrentInstanceLootSummary() 内显式拉取 SelectionContext，并派生 encounter.filteredLoot / encounter.visibleLoot / encounter.fullyCollected / encounter.allRowsFiltered；同时新增 visibleRows / visibleSourcesBySetID 供 sets 分支消费。
+src/loot/LootPanelRenderer.lua 已移除 renderer 对 GetEncounterLootDisplayState() 的直接依赖，loot 分支改为直接消费 encounter 上已经派生好的过滤结果；同时把 loot / sets 的“全组为空”状态接回面板级 banner，而不是继续把解释留在旧聚合函数里。
+src/loot/sets/LootSets.lua 改为基于 currentInstanceLootSummary.visibleRows / visibleSourcesBySetID 生成 sets summary，并把 filterSignature 带入 cache guard，确保 hideCollectedFlags 变化时重新派生。
+src/runtime/CoreFeatureWiring.lua 已把 BuildSelectionContext / BuildLootItemFilterState 注入 LootDataController，并移除了 renderer 对 GetEncounterLootDisplayState 的 wiring 依赖。
+/mnt/c/Users/Terence/AppData/Local/Programs/Lua/bin/lua.exe loadfile 检查返回 syntax-ok，说明 item 6 触达的 5 个目标文件语法可加载。
+rg 命中结果显示 hideCollectedFlags / BuildLootItemFilterState / isVisible / hiddenReason / allRowsFiltered 已出现在 CollectionState / LootDataController / LootPanelRenderer / LootSets / CoreFeatureWiring；renderer 文件中不再命中 GetEncounterLootDisplayState() 调用点。
+```
+
+执行结论：
+
+- item 6 已把收藏态事实与收藏态过滤可见性拆成两层 owner，并把 `hideCollectedFlags` 真正接入 derive contract。
+- 当前可以进入同一编号项的 `#### 验收`。
+
+<a id="item-6-acceptance-record"></a>
+
+#### 验收记录 @吕布 2026-04-26 01:05 CST
+
+验收命令：
+
+```bash
+cd /mnt/c/Users/Terence/workspace/MogTracker
+git diff -- src/core/CollectionState.lua src/loot/LootDataController.lua src/loot/LootPanelRenderer.lua src/loot/sets/LootSets.lua src/runtime/CoreFeatureWiring.lua
+rg -n "hideCollectedFlags|isCollected|isVisible|hiddenReason|allRowsFiltered|GetEncounterLootDisplayState|LootItemMatchesTypeFilter" \
+  src/core/CollectionState.lua \
+  src/loot/LootDataController.lua \
+  src/loot/LootPanelRenderer.lua \
+  src/loot/sets/LootSets.lua \
+  src/runtime/CoreFeatureWiring.lua
+```
+
+验收结果：
+
+```text
+验收时使用了仓库中的真实 LootSets 模块路径 src/loot/sets/LootSets.lua；authority 计划区原文写成 src/loot/LootSets.lua，但现场唯一真实模块就是当前这条路径。
+git diff 直接证明：
+- CollectionState 把过滤裁剪收敛到 BuildLootItemFilterState(item, filterContext)，不再通过 GetSettings() 做 settings 直读。
+- LootDataController 已派生出 isCollected / isVisible / hiddenReason / allRowsFiltered，并把 visibleRows / visibleSourcesBySetID 作为 sets 分支输入。
+- LootPanelRenderer 已移除对 GetEncounterLootDisplayState() 的 renderer wiring 依赖，loot 分支直接消费 encounter 上的派生结果。
+- LootSets 已改为基于 visibleRows / visibleSourcesBySetID 和 filterSignature 生成 sets summary。
+- CoreFeatureWiring 已把 BuildSelectionContext / BuildLootItemFilterState 接入 LootDataController。
+rg 命中结果证明 hideCollectedFlags / isCollected / isVisible / hiddenReason / allRowsFiltered 已落在目标文件中；GetEncounterLootDisplayState 仅剩 CollectionState 兼容函数和 wiring 导出，renderer 文件内不再出现调用点。
+```
+
+验收结论：
+
+- item 6 的通过条件已满足：收藏态过滤 owner 已从 settings 直读迁到 derive contract，且可见性字段已显式落地。
+- 当前 `🟢 6` 的 `#### 验收` 通过，可以推进到 `🔴 7`。
+
+### 🔴 7. 同步收藏态过滤 focused tests 与文档
+
+<a id="item-7-execution-record"></a>
+
+#### 执行记录 @吕布 2026-04-26 01:10 CST
+
+执行命令：
+
+```bash
+cd /mnt/c/Users/Terence/workspace/MogTracker
+/mnt/c/Users/Terence/AppData/Local/Programs/Lua/bin/lua.exe tests/unit/loot/loot_collection_filter_summary_contract_test.lua
+/mnt/c/Users/Terence/AppData/Local/Programs/Lua/bin/lua.exe tests/validation/loot/validate_lootsets_visible_rows_contract.lua
+git status --short -- tests/unit/loot/loot_collection_filter_summary_contract_test.lua tests/validation/loot/validate_lootsets_visible_rows_contract.lua docs/specs/ui/ui-loot-panel.md docs/specs/ui/ui-loot-overview.md docs/specs/ui/ui-panels-overview.md docs/specs/ui/ui-loot-panel-subsystem-refactor-spec.md
+```
+
+执行结果：
+
+```text
+/mnt/c/Users/Terence/AppData/Local/Programs/Lua/bin/lua.exe tests/unit/loot/loot_collection_filter_summary_contract_test.lua 返回 loot_collection_filter_summary_contract_test passed，证明 BuildCurrentInstanceLootSummary() 已把 hideCollectedFlags 派生成 row.hiddenReason / row.isVisible / encounter.allRowsFiltered / visibleSourcesBySetID。
+/mnt/c/Users/Terence/AppData/Local/Programs/Lua/bin/lua.exe tests/validation/loot/validate_lootsets_visible_rows_contract.lua 返回 validated_lootsets_visible_rows_contract=true，证明 sets 分支已经按 visibleRows / visibleSourcesBySetID 保留组结构，而不是继续回退到 raw rows。
+git status --short 显示本步骤 authority 范围内新增了 2 个 focused tests：tests/unit/loot/loot_collection_filter_summary_contract_test.lua、tests/validation/loot/validate_lootsets_visible_rows_contract.lua；并同步更新了 ui-loot-panel.md、ui-loot-overview.md、ui-panels-overview.md、ui-loot-panel-subsystem-refactor-spec.md 四份文档。
+ui-loot-panel.md 中原先仍残留的 GetEncounterLootDisplayState() / LootItemMatchesTypeFilter() 旧 owner 描述已经替换成 BuildCurrentInstanceLootSummary() / BuildLootItemFilterState() 新链路，文档不再把收藏态过滤写成旧实现。
+```
+
+执行结论：
+
+- item 7 已补齐收藏态过滤 owner 迁移后的 focused tests 与文档同步证据。
+- 当前可以进入同一编号项的 `#### 验收`。
+
+<a id="item-7-acceptance-record"></a>
+
+#### 验收记录 @吕布 2026-04-26 01:10 CST
+
+验收命令：
+
+```bash
+cd /mnt/c/Users/Terence/workspace/MogTracker
+git diff -- tests/unit/loot tests/validation/loot docs/specs/ui
+rg -n "hideCollectedFlags|isVisible|hiddenReason|allRowsFiltered|收藏态过滤|GetEncounterLootDisplayState" \
+  tests/unit/loot tests/validation/loot docs/specs/ui
+```
+
+验收结果：
+
+```text
+git diff 在 docs/specs/ui 范围内直接显示：
+- ui-loot-panel.md 已把收藏态过滤主链路改写为 SelectionContext -> BuildCurrentInstanceLootSummary() -> BuildLootItemFilterState() -> RenderLootBranch()，并把排查图更新为 derive contract 视角。
+- ui-loot-overview.md 已把 loot / sets 的运行时流程图更新为派生 encounter.filteredLoot / visibleLoot / allRowsFiltered，以及 sets 消费 visibleRows / visibleSourcesBySetID。
+- ui-panels-overview.md 与 ui-loot-panel-subsystem-refactor-spec.md 已吸收“收藏态过滤 owner 从 CollectionState 直读迁到 derive contract”的当前实现边界。
+git diff 不显示 untracked focused tests，但这与 git 的默认行为一致；本编号项执行记录里的 git status --short 已给出 2 个新增测试文件的现场证据。
+rg 命中结果显示 hideCollectedFlags / isVisible / hiddenReason / allRowsFiltered 已同时出现在：
+- tests/unit/loot/loot_collection_filter_summary_contract_test.lua
+- docs/specs/ui/ui-loot-panel.md
+- docs/specs/ui/ui-loot-overview.md
+- docs/specs/ui/ui-loot-panel-subsystem-refactor-spec.md
+并且 ui-loot-panel.md 已不再把 GetEncounterLootDisplayState() 或 LootItemMatchesTypeFilter() 写成当前过滤 owner；spec 文件中剩余的 GetEncounterLootDisplayState() 命中只用于现状图、边界约束和兼容桥接说明，不与当前实现描述冲突。
+```
+
+验收结论：
+
+- item 7 的通过条件已满足：focused tests 与 docs 都已经吸收收藏态过滤 owner 迁移后的 contract。
+- 当前 `🟢 7` 的 `#### 验收` 通过。
+
 ## 最终验收
 
 - [x] 第 1 项验收通过并有 `#### 验收记录 @...` 证据
@@ -924,9 +1215,11 @@ git diff --stat -- src/loot src/core src/runtime/CoreFeatureWiring.lua tests/uni
 - [x] 第 3 项验收通过并有 `#### 验收记录 @...` 证据
 - [x] 第 4 项验收通过并有 `#### 验收记录 @...` 证据
 - [x] 第 5 项验收通过并有 `#### 验收记录 @...` 证据
-- [x] 已新开一个独立上下文的 `$runbook-recon` 子代理执行最终终态侦察
-- [x] 最终验收只使用该独立 recon 子代理本轮重新采集的证据，不复用编号项执行 / 验收记录里的既有证据
-- [x] 最终验收 recon 输出证明本地 `代码重构 + 测试校验 + 文档同步` 已完成
+- [x] 第 6 项验收通过并有 `#### 验收记录 @...` 证据
+- [x] 第 7 项验收通过并有 `#### 验收记录 @...` 证据
+- [ ] 已新开一个独立上下文的 `$runbook-recon` 子代理执行最终终态侦察
+- [ ] 最终验收只使用该独立 recon 子代理本轮重新采集的证据，不复用编号项执行 / 验收记录里的既有证据
+- [ ] 最终验收 recon 输出证明本地 `代码重构 + 测试校验 + 文档同步` 已完成
 
 最终验收侦察问题：
 
@@ -1006,6 +1299,27 @@ git diff --stat -- \
 - 默认回滚边界：只回滚本 authority 触达的 loot panel 相关文件；不动当前仓库中与本 authority 无关的既有差异。
 - 禁止回滚路径：禁止使用 `git reset --hard`、`git checkout -- .` 这类会吞掉无关工作树的全局 git 动作。
 
+1. 回退 `冻结 loot panel 重构现状` 记录基线
+
+回滚动作：
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+git status --short
+```
+
+回滚后验证：
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+rg -n "RefreshLootPanel\\(|CollectCurrentInstanceLootData\\(|GetEncounterLootDisplayState\\(" \
+  src/loot src/runtime/CoreFeatureWiring.lua src/core
+```
+
 2. 回退 `RefreshRequest + SelectionContext` 首刀改动
 
 回滚动作：
@@ -1068,6 +1382,67 @@ cd /mnt/c/Users/Terence/workspace/MogTracker
 git diff --stat -- tests/unit/loot tests/validation/loot docs/specs/ui
 ```
 
+5. 回退 `focused validation` 与提交前上下文冻结记录
+
+回滚动作：
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+git diff -- src/loot src/core src/runtime/CoreFeatureWiring.lua tests/unit/loot tests/validation/loot docs/specs/ui
+```
+
+回滚后验证：
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+git status --short
+```
+
+6. 回退 `收藏态过滤 owner` 收口改动
+
+回滚动作：
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+git diff -- src/core/CollectionState.lua src/loot/LootDataController.lua src/loot/LootPanelRenderer.lua src/loot/LootSets.lua src/runtime/CoreFeatureWiring.lua
+```
+
+回滚后验证：
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+rg -n "hideCollectedFlags|GetEncounterLootDisplayState|LootItemMatchesTypeFilter" \
+  src/core/CollectionState.lua src/loot/LootDataController.lua src/loot/LootPanelRenderer.lua src/loot/LootSets.lua src/runtime/CoreFeatureWiring.lua
+```
+
+7. 回退 `收藏态过滤 focused tests 与文档` 同步
+
+回滚动作：
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+git diff -- tests/unit/loot tests/validation/loot docs/specs/ui
+```
+
+回滚后验证：
+
+```bash
+set -euo pipefail
+
+cd /mnt/c/Users/Terence/workspace/MogTracker
+git diff --stat -- tests/unit/loot tests/validation/loot docs/specs/ui
+```
+
 ## 访谈记录
 
 ### Q：这份 runbook 的唯一执行目标，按哪种范围冻结？
@@ -1109,6 +1484,14 @@ git diff --stat -- tests/unit/loot tests/validation/loot docs/specs/ui
 访谈时间：2026-04-25 11:04 CST
 
 最终验收必须同时覆盖 contract、tests 与 docs，不能只验“行为没退”或“文件更清晰”。
+
+### Q：收藏态过滤的逻辑对比 spec 后，是否有必要新建一份独立 runbook？
+
+> A：不新建，直接追加到现有 loot panel authority runbook。
+
+访谈时间：2026-04-25 23:08 CST
+
+补充侦察确认：当前缺口仍然属于 loot panel 同一 authority 的后续 owner 收口，不值得再拆成第二份平行 runbook；后续应把“收藏态事实”和“收藏态过滤可见性”作为现有 authority 的新增阶段继续推进。
 
 ## 外部链接
 

@@ -58,36 +58,106 @@ local function GetLootItemDisplayCollectionState(item)
 	return nil
 end
 
-local function GetLootPanel() return ReadDependency("getLootPanel", nil) end
-local function GetLootPanelState() return ReadDependency("getLootPanelState", {}) end
-local function GetLootPanelContentWidth() return ReadDependency("GetLootPanelContentWidth", 360) end
-local function GetLootClassScopeButtonLabel() return ReadDependency("GetLootClassScopeButtonLabel", "") end
-local function GetSelectedLootPanelInstance() return ReadDependency("GetSelectedLootPanelInstance", nil) end
-local function GetCurrentJournalInstanceID() return ReadDependency("GetCurrentJournalInstanceID", nil) end
-local function GetSelectedLootClassFiles() return ReadDependency("GetSelectedLootClassFiles", {}) end
-local function CollectCurrentInstanceLootData() return ReadDependency("CollectCurrentInstanceLootData", { encounters = {} }) end
-local function BuildCurrentInstanceLootSummary(data, selectedInstance) return ReadDependency("BuildCurrentInstanceLootSummary", nil, data, selectedInstance) end
-local function BuildCurrentEncounterKillMap() return ReadDependency("BuildCurrentEncounterKillMap", { byName = {}, byNormalizedName = {}, progressCount = 0 }) end
-local function IsEncounterKilledByName(state, encounterName) return ReadDependency("IsEncounterKilledByName", false, state, encounterName) end
-local function GetEncounterTotalKillCount(selectedInstance, encounterName) return ReadDependency("GetEncounterTotalKillCount", 0, selectedInstance, encounterName) end
-local function BuildBossKillCountViewModel(selectedInstance, encounterName) return ReadDependency("BuildBossKillCountViewModel", { bossKillCount = GetEncounterTotalKillCount(selectedInstance, encounterName) }, selectedInstance, encounterName) end
-local function GetEncounterCollapseCacheEntry(encounterName) return ReadDependency("GetEncounterCollapseCacheEntry", nil, encounterName) end
-local function ToggleLootEncounterCollapsed(encounterID, encounterName) CallDependency("ToggleLootEncounterCollapsed", encounterID, encounterName) end
-local function EnsureLootItemRow(parentFrame, row, index) return ReadDependency("EnsureLootItemRow", nil, parentFrame, row, index) end
-local function ResetLootItemRowState(itemRow) CallDependency("ResetLootItemRowState", itemRow) end
-local function UpdateLootItemCollectionState(itemRow, item) CallDependency("UpdateLootItemCollectionState", itemRow, item) end
-local function UpdateLootItemAcquiredHighlight(itemRow, item) CallDependency("UpdateLootItemAcquiredHighlight", itemRow, item) end
-local function UpdateLootItemSetHighlight(itemRow, item) CallDependency("UpdateLootItemSetHighlight", itemRow, item) end
-local function UpdateLootItemClassIcons(itemRow, item) CallDependency("UpdateLootItemClassIcons", itemRow, item) end
-local function UpdateEncounterHeaderVisuals(header, fullyCollected, collapsed, killed) CallDependency("UpdateEncounterHeaderVisuals", header, fullyCollected, collapsed, killed) end
-local function GetEncounterAutoCollapsed(encounter, encounterName, lootState, encounterKillState, progressCount) return ReadDependency("GetEncounterAutoCollapsed", false, encounter, encounterName, lootState, encounterKillState, progressCount) end
-local function GetEncounterLootDisplayState(encounter) return ReadDependency("GetEncounterLootDisplayState", { visibleLoot = {}, fullyCollected = false }, encounter) end
-local function GetLootRefreshPending() return ReadDependency("getLootRefreshPending", false) end
-local function SetLootRefreshPending(value) CallDependency("setLootRefreshPending", value) end
-local function ColorizeCharacterName(name, classFile) return ReadDependency("ColorizeCharacterName", tostring(name or ""), name, classFile) end
-local function GetClassDisplayName(classFile) return ReadDependency("GetClassDisplayName", tostring(classFile or ""), classFile) end
-local function GetLootItemSetIDs(item) return ReadDependency("GetLootItemSetIDs", {}, item) end
-local function ClassMatchesSetInfo(classFile, setInfo) return ReadDependency("ClassMatchesSetInfo", false, classFile, setInfo) end
+local function GetLootPanel()
+	return ReadDependency("getLootPanel", nil)
+end
+local function GetLootPanelState()
+	return ReadDependency("getLootPanelState", {})
+end
+local function GetLootPanelContentWidth()
+	return ReadDependency("GetLootPanelContentWidth", 360)
+end
+local function GetLootClassScopeButtonLabel()
+	return ReadDependency("GetLootClassScopeButtonLabel", "")
+end
+local function GetSelectedLootPanelInstance()
+	return ReadDependency("GetSelectedLootPanelInstance", nil)
+end
+local function GetCurrentJournalInstanceID()
+	return ReadDependency("GetCurrentJournalInstanceID", nil)
+end
+local function GetSelectedLootClassFiles()
+	return ReadDependency("GetSelectedLootClassFiles", {})
+end
+local function CollectCurrentInstanceLootData()
+	return ReadDependency("CollectCurrentInstanceLootData", { encounters = {} })
+end
+local function BuildCurrentInstanceLootSummary(data, selectedInstance)
+	return ReadDependency("BuildCurrentInstanceLootSummary", nil, data, selectedInstance)
+end
+local function BuildCurrentEncounterKillMap()
+	return ReadDependency("BuildCurrentEncounterKillMap", { byName = {}, byNormalizedName = {}, progressCount = 0 })
+end
+local function IsEncounterKilledByName(state, encounterName)
+	return ReadDependency("IsEncounterKilledByName", false, state, encounterName)
+end
+local function GetEncounterTotalKillCount(selectedInstance, encounterName)
+	return ReadDependency("GetEncounterTotalKillCount", 0, selectedInstance, encounterName)
+end
+local function BuildBossKillCountViewModel(selectedInstance, encounterName)
+	return ReadDependency(
+		"BuildBossKillCountViewModel",
+		{ bossKillCount = GetEncounterTotalKillCount(selectedInstance, encounterName) },
+		selectedInstance,
+		encounterName
+	)
+end
+local function GetEncounterCollapseCacheEntry(encounterName)
+	return ReadDependency("GetEncounterCollapseCacheEntry", nil, encounterName)
+end
+local function ToggleLootEncounterCollapsed(encounterID, encounterName)
+	CallDependency("ToggleLootEncounterCollapsed", encounterID, encounterName)
+end
+local function EnsureLootItemRow(parentFrame, row, index)
+	return ReadDependency("EnsureLootItemRow", nil, parentFrame, row, index)
+end
+local function ResetLootItemRowState(itemRow)
+	CallDependency("ResetLootItemRowState", itemRow)
+end
+local function UpdateLootItemCollectionState(itemRow, item)
+	CallDependency("UpdateLootItemCollectionState", itemRow, item)
+end
+local function UpdateLootItemAcquiredHighlight(itemRow, item)
+	CallDependency("UpdateLootItemAcquiredHighlight", itemRow, item)
+end
+local function UpdateLootItemSetHighlight(itemRow, item)
+	CallDependency("UpdateLootItemSetHighlight", itemRow, item)
+end
+local function UpdateLootItemClassIcons(itemRow, item)
+	CallDependency("UpdateLootItemClassIcons", itemRow, item)
+end
+local function UpdateEncounterHeaderVisuals(header, fullyCollected, collapsed, killed)
+	CallDependency("UpdateEncounterHeaderVisuals", header, fullyCollected, collapsed, killed)
+end
+local function GetEncounterAutoCollapsed(encounter, encounterName, lootState, encounterKillState, progressCount)
+	return ReadDependency(
+		"GetEncounterAutoCollapsed",
+		false,
+		encounter,
+		encounterName,
+		lootState,
+		encounterKillState,
+		progressCount
+	)
+end
+local function GetLootRefreshPending()
+	return ReadDependency("getLootRefreshPending", false)
+end
+local function SetLootRefreshPending(value)
+	CallDependency("setLootRefreshPending", value)
+end
+local function ColorizeCharacterName(name, classFile)
+	return ReadDependency("ColorizeCharacterName", tostring(name or ""), name, classFile)
+end
+local function GetClassDisplayName(classFile)
+	return ReadDependency("GetClassDisplayName", tostring(classFile or ""), classFile)
+end
+local function GetLootItemSetIDs(item)
+	return ReadDependency("GetLootItemSetIDs", {}, item)
+end
+local function ClassMatchesSetInfo(classFile, setInfo)
+	return ReadDependency("ClassMatchesSetInfo", false, classFile, setInfo)
+end
 local function GetSetProgress(setID)
 	local fn = dependencies.GetSetProgress
 	if type(fn) == "function" then
@@ -98,9 +168,15 @@ end
 local function RecordLootPanelOpenDebug(stage, details)
 	CallDependency("RecordLootPanelOpenDebug", stage, details)
 end
-local function GetDebugFormatter() return ReadDependency("getDebugFormatter", nil) end
-local function HideLootDashboardWidgets(lootPanel) CallDependency("HideLootDashboardWidgets", lootPanel) end
-local function UpdateSetCompletionRowVisual(itemRow, setEntry) CallDependency("UpdateSetCompletionRowVisual", itemRow, setEntry) end
+local function GetDebugFormatter()
+	return ReadDependency("getDebugFormatter", nil)
+end
+local function HideLootDashboardWidgets(lootPanel)
+	CallDependency("HideLootDashboardWidgets", lootPanel)
+end
+local function UpdateSetCompletionRowVisual(itemRow, setEntry)
+	CallDependency("UpdateSetCompletionRowVisual", itemRow, setEntry)
+end
 
 function LootPanelRenderer.ResetMissingItemRefreshState()
 	missingItemRefreshState.selectionKey = nil
@@ -248,7 +324,12 @@ end
 
 local function BuildSelectedInstanceTitle(selectedInstance, fallbackTitle)
 	local titleText = fallbackTitle or T("LOOT_UNKNOWN_INSTANCE", "未知副本")
-	if selectedInstance and selectedInstance.difficultyName and selectedInstance.difficultyName ~= "" and not selectedInstance.isCurrent then
+	if
+		selectedInstance
+		and selectedInstance.difficultyName
+		and selectedInstance.difficultyName ~= ""
+		and not selectedInstance.isCurrent
+	then
 		titleText = string.format("%s (%s)", titleText, selectedInstance.difficultyName)
 	end
 	return titleText
@@ -269,7 +350,8 @@ local function BuildCurrentInstanceTitleFallback()
 		difficultyName = debugInfo and debugInfo.difficultyName or nil,
 		journalInstanceID = journalInstanceID,
 		isCurrent = true,
-	}, debugInfo
+	},
+		debugInfo
 end
 
 local function PreparePanelChrome(lootPanel, currentTab)
@@ -279,7 +361,9 @@ local function PreparePanelChrome(lootPanel, currentTab)
 		lootPanel.instanceSelectorButton:Show()
 		lootPanel.instanceSelectorButton:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."))
 		if lootPanel.instanceSelectorButton.customText then
-			lootPanel.instanceSelectorButton.customText:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."))
+			lootPanel.instanceSelectorButton.customText:SetText(
+				T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本...")
+			)
 		end
 	end
 	if lootPanel.instanceSelectorButton and lootPanel.instanceSelectorButton.arrow then
@@ -304,7 +388,9 @@ local function ApplyUnknownInstanceChrome(lootPanel)
 		lootPanel.instanceSelectorButton:Show()
 		lootPanel.instanceSelectorButton:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."))
 		if lootPanel.instanceSelectorButton.customText then
-			lootPanel.instanceSelectorButton.customText:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."))
+			lootPanel.instanceSelectorButton.customText:SetText(
+				T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本...")
+			)
 		end
 	end
 	if lootPanel.classScopeButton then
@@ -326,7 +412,8 @@ local function IsUnknownInstanceError(data)
 	if errorText == "" then
 		return false
 	end
-	return errorText:find(T("LOOT_ERROR_NO_INSTANCE", "当前不在可识别的副本或地下城中。"), 1, true) ~= nil
+	return errorText:find(T("LOOT_ERROR_NO_INSTANCE", "当前不在可识别的副本或地下城中。"), 1, true)
+		~= nil
 end
 
 local function LayoutScrollFrame(lootPanel, hasError)
@@ -359,12 +446,14 @@ local function RenderNoSelectedClassesState(lootPanel, rows, contentWidth, heade
 	row.header.collectionIcon:Hide()
 	row.header.countText:SetText("")
 	row.header.countText:Hide()
-	row.header.text:SetText(T("LOOT_NO_CLASS_FILTER", "请先在主面板的职业过滤里选择至少一个职业。"))
+	row.header.text:SetText(
+		T("LOOT_NO_CLASS_FILTER", "请先在主面板的职业过滤里选择至少一个职业。")
+	)
 	row.header:SetScript("OnClick", nil)
 	row.header:Show()
 	row.bodyFrame:Hide()
 	HideTrailingRows(rows, rowIndex)
-	lootPanel.content:SetHeight(math.max(1, -((yOffset - headerRowStep)) + 4))
+	lootPanel.content:SetHeight(math.max(1, -(yOffset - headerRowStep) + 4))
 	if lootPanel.scrollFrame.SetVerticalScroll then
 		lootPanel.scrollFrame:SetVerticalScroll(0)
 	end
@@ -397,6 +486,23 @@ local function BuildPanelBannerViewModel(args)
 			state = "partial",
 			title = T("LOOT_PANEL_STATUS", "状态"),
 			message = T("LOOT_PARTIAL_ITEM_DATA", "当前掉落数据仍在补全中，面板会继续尝试刷新。"),
+		}
+	end
+	if currentTab == "loot" and allLootGroupsEmpty then
+		return {
+			state = "empty",
+			title = T("LOOT_PANEL_STATUS", "状态"),
+			message = T("LOOT_NO_ITEMS", "没有符合当前过滤条件的掉落。"),
+		}
+	end
+	if currentTab == "sets" and allSetGroupsEmpty then
+		return {
+			state = "empty",
+			title = T("LOOT_PANEL_STATUS", "状态"),
+			message = tostring(
+				(setSummary and setSummary.message)
+					or T("LOOT_SETS_NO_MATCHING", "No incomplete collectible sets match the current instance and class filter.")
+			),
 		}
 	end
 	return nil
@@ -511,12 +617,21 @@ local function RenderSetGroupRow(row, contentWidth, group, itemRowHeight, itemRo
 			itemRow:SetPoint("TOPLEFT", row.bodyFrame, "TOPLEFT", 0, -itemYOffset)
 			itemRow:SetPoint("RIGHT", row.bodyFrame, "RIGHT", 0, 0)
 			itemRow.icon:SetTexture(setEntry.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-			local setName = addon.LootSets and addon.LootSets.GetDisplaySetName and addon.LootSets.GetDisplaySetName(setEntry) or tostring(setEntry.name or ("Set " .. tostring(setEntry.setID)))
+			local setName = addon.LootSets
+					and addon.LootSets.GetDisplaySetName
+					and addon.LootSets.GetDisplaySetName(setEntry)
+				or tostring(setEntry.name or ("Set " .. tostring(setEntry.setID)))
 			itemRow.setID = setEntry.setID
 			itemRow.setName = setName
 			itemRow.itemName = setName
 			itemRow.wardrobeMode = "sets"
-			itemRow.text:SetText(string.format("%s (%s)", setName, string.format(T("LOOT_SET_PROGRESS", "%d/%d"), setEntry.collected or 0, setEntry.total or 0)))
+			itemRow.text:SetText(
+				string.format(
+					"%s (%s)",
+					setName,
+					string.format(T("LOOT_SET_PROGRESS", "%d/%d"), setEntry.collected or 0, setEntry.total or 0)
+				)
+			)
 			UpdateLootItemCollectionState(itemRow, nil)
 			UpdateSetCompletionRowVisual(itemRow, setEntry)
 			itemRow:Show()
@@ -534,17 +649,32 @@ local function RenderSetGroupRow(row, contentWidth, group, itemRowHeight, itemRo
 				missingRow.itemID = missingPiece.itemID
 				missingRow.itemName = missingPiece.searchName or missingPiece.name
 				missingRow.wardrobeMode = "items"
-				missingRow.text:SetText(string.format("  %s", tostring(missingPiece.link or missingPiece.name or T("LOOT_UNKNOWN_ITEM", "未知物品"))))
+				missingRow.text:SetText(
+					string.format(
+						"  %s",
+						tostring(missingPiece.link or missingPiece.name or T("LOOT_UNKNOWN_ITEM", "未知物品"))
+					)
+				)
 				if missingRow.rightText then
 					local rightLabel
 					if missingPiece.sourceBoss and missingPiece.sourceBoss ~= "" then
 						if missingPiece.sourceDifficulty and missingPiece.sourceDifficulty ~= "" then
-							rightLabel = string.format("%s - %s(%s)", tostring(missingPiece.sourceBoss), tostring(missingPiece.sourceInstance or T("LOOT_UNKNOWN_INSTANCE", "未知副本")), tostring(missingPiece.sourceDifficulty))
+							rightLabel = string.format(
+								"%s - %s(%s)",
+								tostring(missingPiece.sourceBoss),
+								tostring(missingPiece.sourceInstance or T("LOOT_UNKNOWN_INSTANCE", "未知副本")),
+								tostring(missingPiece.sourceDifficulty)
+							)
 						else
-							rightLabel = string.format("%s - %s", tostring(missingPiece.sourceBoss), tostring(missingPiece.sourceInstance or T("LOOT_UNKNOWN_INSTANCE", "未知副本")))
+							rightLabel = string.format(
+								"%s - %s",
+								tostring(missingPiece.sourceBoss),
+								tostring(missingPiece.sourceInstance or T("LOOT_UNKNOWN_INSTANCE", "未知副本"))
+							)
 						end
 					else
-						rightLabel = tostring(missingPiece.acquisitionText or T("LOOT_SET_SOURCE_OTHER", "其他途径"))
+						rightLabel =
+							tostring(missingPiece.acquisitionText or T("LOOT_SET_SOURCE_OTHER", "其他途径"))
 					end
 					missingRow.rightText:SetText(rightLabel)
 				end
@@ -575,13 +705,25 @@ local function RenderSetGroupRow(row, contentWidth, group, itemRowHeight, itemRo
 	return row.bodyFrame:GetHeight()
 end
 
-local function RenderSetsBranch(lootPanel, rows, contentWidth, headerRowStep, itemRowHeight, itemRowStep, groupGap, data, startRowIndex, startYOffset, setSummaryOverride)
+local function RenderSetsBranch(
+	lootPanel,
+	rows,
+	contentWidth,
+	headerRowStep,
+	itemRowHeight,
+	itemRowStep,
+	groupGap,
+	data,
+	startRowIndex,
+	startYOffset,
+	setSummaryOverride
+)
 	lootPanel.debugEditBox:SetText("")
 	local setSummary = setSummaryOverride or LootPanelRenderer.BuildCurrentInstanceSetSummary(data)
 	local yOffset = startYOffset or -4
 	local rowIndex = tonumber(startRowIndex) or 0
 
-	if setSummary.message then
+	if setSummary.message and #((setSummary and setSummary.classGroups) or {}) == 0 then
 		rowIndex = rowIndex + 1
 		local row = EnsurePanelRow(lootPanel, rows, rowIndex, contentWidth, false)
 		row.header:ClearAllPoints()
@@ -623,11 +765,18 @@ local function AreAllSetGroupsEmpty(setSummary)
 	return #((setSummary and setSummary.classGroups) or {}) > 0
 end
 
-function LootPanelRenderer.ResolveEncounterCollapsedState(lootPanelState, encounter, lootState, cachedCollapsed, autoCollapsed)
+function LootPanelRenderer.ResolveEncounterCollapsedState(
+	lootPanelState,
+	encounter,
+	lootState,
+	cachedCollapsed,
+	autoCollapsed
+)
 	if lootState.fullyCollected then
 		lootPanelState.collapsed[encounter.encounterID] = true
 	elseif lootPanelState.manualCollapsed[encounter.encounterID] ~= nil then
-		lootPanelState.collapsed[encounter.encounterID] = lootPanelState.manualCollapsed[encounter.encounterID] and true or false
+		lootPanelState.collapsed[encounter.encounterID] = lootPanelState.manualCollapsed[encounter.encounterID] and true
+			or false
 	elseif cachedCollapsed ~= nil then
 		lootPanelState.collapsed[encounter.encounterID] = cachedCollapsed and true or false
 	else
@@ -657,6 +806,15 @@ end
 local function IsEncounterExhaustedForCurrentFilter(lootState)
 	local visibleLoot = type(lootState and lootState.visibleLoot) == "table" and lootState.visibleLoot or {}
 	return #visibleLoot == 0
+end
+
+local function GetEncounterDerivedLootState(encounter)
+	return {
+		filteredLoot = type(encounter and encounter.filteredLoot) == "table" and encounter.filteredLoot or {},
+		visibleLoot = type(encounter and encounter.visibleLoot) == "table" and encounter.visibleLoot or {},
+		fullyCollected = encounter and encounter.fullyCollected and true or false,
+		allRowsFiltered = encounter and encounter.allRowsFiltered and true or false,
+	}
 end
 
 local function RenderEncounterLootRows(row, visibleLoot, itemRowStep, itemRowHeight)
@@ -698,7 +856,8 @@ end
 
 local function BuildEncounterCountText(lootState, encounter)
 	local filteredLoot = type(lootState and lootState.filteredLoot) == "table" and lootState.filteredLoot or {}
-	local totalLootItems = type(encounter and encounter.allLoot) == "table" and encounter.allLoot or ((encounter and encounter.loot) or {})
+	local totalLootItems = type(encounter and encounter.allLoot) == "table" and encounter.allLoot
+		or ((encounter and encounter.loot) or {})
 	local totalLoot = #totalLootItems
 	local collectedCount = 0
 	local totalCollectedCount = 0
@@ -737,7 +896,8 @@ local function ShowEncounterCountTooltip(anchor, encounterName, totalKillCount, 
 	end
 
 	local filteredLoot = type(lootState and lootState.filteredLoot) == "table" and lootState.filteredLoot or {}
-	local totalLootItems = type(encounter and encounter.allLoot) == "table" and encounter.allLoot or ((encounter and encounter.loot) or {})
+	local totalLootItems = type(encounter and encounter.allLoot) == "table" and encounter.allLoot
+		or ((encounter and encounter.loot) or {})
 	local totalLoot = #totalLootItems
 	local collectedCount = 0
 	local totalCollectedCount = 0
@@ -761,13 +921,46 @@ local function ShowEncounterCountTooltip(anchor, encounterName, totalKillCount, 
 
 	GameTooltip:SetOwner(anchor, "ANCHOR_RIGHT")
 	GameTooltip:SetText(tostring(encounterName or T("LOOT_UNKNOWN_BOSS", "未知首领")))
-	GameTooltip:AddLine(string.format("|cff8f8f8fx%d|r: 累计击杀次数", tonumber(totalKillCount) or 0), 1, 1, 1, true)
-	GameTooltip:AddLine(string.format("|cff%s%d/%d|r: 当前筛选收集进度", filteredColor, collectedCount, #filteredLoot), 1, 1, 1, true)
-	GameTooltip:AddLine(string.format("|cff%s%d/%d|r: 总收集进度", totalColor, totalCollectedCount, totalLoot), 1, 1, 1, true)
+	GameTooltip:AddLine(
+		string.format("|cff8f8f8fx%d|r: 累计击杀次数", tonumber(totalKillCount) or 0),
+		1,
+		1,
+		1,
+		true
+	)
+	GameTooltip:AddLine(
+		string.format("|cff%s%d/%d|r: 当前筛选收集进度", filteredColor, collectedCount, #filteredLoot),
+		1,
+		1,
+		1,
+		true
+	)
+	GameTooltip:AddLine(
+		string.format("|cff%s%d/%d|r: 总收集进度", totalColor, totalCollectedCount, totalLoot),
+		1,
+		1,
+		1,
+		true
+	)
 	GameTooltip:Show()
 end
 
-local function RenderLootBranch(lootPanel, rows, contentWidth, headerRowStep, itemRowHeight, itemRowStep, groupGap, encounters, lootPanelState, selectedInstance, encounterKillState, progressCount, startRowIndex, startYOffset)
+local function RenderLootBranch(
+	lootPanel,
+	rows,
+	contentWidth,
+	headerRowStep,
+	itemRowHeight,
+	itemRowStep,
+	groupGap,
+	encounters,
+	lootPanelState,
+	selectedInstance,
+	encounterKillState,
+	progressCount,
+	startRowIndex,
+	startYOffset
+)
 	lootPanel.debugEditBox:SetText("")
 	local yOffset = startYOffset or -4
 	local rowIndex = tonumber(startRowIndex) or 0
@@ -776,14 +969,28 @@ local function RenderLootBranch(lootPanel, rows, contentWidth, headerRowStep, it
 		rowIndex = rowIndex + 1
 		local row = EnsurePanelRow(lootPanel, rows, rowIndex, contentWidth, false)
 		local encounterName = encounter.name or T("LOOT_UNKNOWN_BOSS", "未知首领")
-		local lootState = GetEncounterLootDisplayState(encounter)
+		local lootState = GetEncounterDerivedLootState(encounter)
 		local encounterExhausted = IsEncounterExhaustedForCurrentFilter(lootState)
 		local encounterKilled = IsEncounterKilledByName(encounterKillState, encounterName)
 		local bossKillCount = BuildBossKillCountViewModel(selectedInstance, encounterName)
-		local totalKillCount = tonumber(bossKillCount and bossKillCount.bossKillCount) or GetEncounterTotalKillCount(selectedInstance, encounterName)
-		local autoCollapsed = GetEncounterAutoCollapsed(encounter, encounterName, lootState, encounterKillState, progressCount, encounterKilled)
+		local totalKillCount = tonumber(bossKillCount and bossKillCount.bossKillCount)
+			or GetEncounterTotalKillCount(selectedInstance, encounterName)
+		local autoCollapsed = GetEncounterAutoCollapsed(
+			encounter,
+			encounterName,
+			lootState,
+			encounterKillState,
+			progressCount,
+			encounterKilled
+		)
 		local cachedCollapsed = GetEncounterCollapseCacheEntry(encounterName)
-		local isCollapsed = LootPanelRenderer.ResolveEncounterCollapsedState(lootPanelState, encounter, lootState, cachedCollapsed, autoCollapsed)
+		local isCollapsed = LootPanelRenderer.ResolveEncounterCollapsedState(
+			lootPanelState,
+			encounter,
+			lootState,
+			cachedCollapsed,
+			autoCollapsed
+		)
 		if encounterExhausted then
 			isCollapsed = true
 		end
@@ -802,12 +1009,23 @@ local function RenderLootBranch(lootPanel, rows, contentWidth, headerRowStep, it
 			LootPanelRenderer.RefreshLootPanel()
 		end)
 		row.header:SetScript("OnEnter", function(self)
-			ShowEncounterCountTooltip(self, tooltipEncounterName, tooltipTotalKillCount, tooltipLootState, tooltipEncounter)
+			ShowEncounterCountTooltip(
+				self,
+				tooltipEncounterName,
+				tooltipTotalKillCount,
+				tooltipLootState,
+				tooltipEncounter
+			)
 		end)
 		row.header:SetScript("OnLeave", function()
 			GameTooltip:Hide()
 		end)
-		UpdateEncounterHeaderVisuals(row.header, encounterExhausted or lootState.fullyCollected, isCollapsed, encounterKilled)
+		UpdateEncounterHeaderVisuals(
+			row.header,
+			encounterExhausted or lootState.fullyCollected,
+			isCollapsed,
+			encounterKilled
+		)
 		row.header.text:SetText(encounterName)
 		local countText = BuildEncounterCountText(lootState, encounter)
 		if totalKillCount > 0 then
@@ -840,7 +1058,7 @@ local function AreAllLootGroupsEmpty(encounters)
 	local sawEncounter = false
 	for _, encounter in ipairs(encounters or {}) do
 		sawEncounter = true
-		local lootState = GetEncounterLootDisplayState(encounter)
+		local lootState = GetEncounterDerivedLootState(encounter)
 		if type(lootState.visibleLoot) == "table" and #lootState.visibleLoot > 0 then
 			return false
 		end
@@ -924,7 +1142,10 @@ end
 function LootPanelRenderer.BuildCurrentInstanceSetSummary(data)
 	local selectedInstance = GetSelectedLootPanelInstance()
 	if not (addon.LootSets and addon.LootSets.BuildCurrentInstanceSetSummary) then
-		return { message = T("LOOT_ERROR_NO_APIS", "Encounter Journal APIs are not available on this client."), classGroups = {} }
+		return {
+			message = T("LOOT_ERROR_NO_APIS", "Encounter Journal APIs are not available on this client."),
+			classGroups = {},
+		}
 	end
 	local currentInstanceLootSummary = BuildCurrentInstanceLootSummary(data, selectedInstance)
 	return addon.LootSets.BuildCurrentInstanceSetSummary(data, {
@@ -946,7 +1167,11 @@ function LootPanelRenderer.RefreshLootPanel()
 	end
 	RecordLootPanelOpenDebug("refresh_start", {
 		source = "loot_panel_renderer",
-		note = string.format("tab=%s key=%s", tostring((GetLootPanelState() or {}).currentTab or "loot"), tostring((GetLootPanelState() or {}).selectedInstanceKey)),
+		note = string.format(
+			"tab=%s key=%s",
+			tostring((GetLootPanelState() or {}).currentTab or "loot"),
+			tostring((GetLootPanelState() or {}).selectedInstanceKey)
+		),
 	})
 
 	local lootPanelState = GetLootPanelState()
@@ -956,7 +1181,8 @@ function LootPanelRenderer.RefreshLootPanel()
 		startedAtMS = renderStartedAt,
 		tab = lootPanelState.currentTab or "loot",
 		selectedInstanceKey = lootPanelState.selectedInstanceKey or nil,
-		caller = type(debugstack) == "function" and tostring((debugstack(2, 2, 2) or ""):match("([^\n]+)")) or "unknown",
+		caller = type(debugstack) == "function" and tostring((debugstack(2, 2, 2) or ""):match("([^\n]+)"))
+			or "unknown",
 		phases = {},
 	}
 
@@ -1006,7 +1232,10 @@ function LootPanelRenderer.RefreshLootPanel()
 	end
 	local activeClassFiles = GetSelectedLootClassFiles()
 	local noSelectedClasses = lootPanelState.classScopeMode ~= "current" and #activeClassFiles == 0
-	local titleBeforeData = BuildSelectedInstanceTitle(selectedInstance, (selectedInstance and selectedInstance.instanceName) or T("LOOT_UNKNOWN_INSTANCE", "未知副本"))
+	local titleBeforeData = BuildSelectedInstanceTitle(
+		selectedInstance,
+		(selectedInstance and selectedInstance.instanceName) or T("LOOT_UNKNOWN_INSTANCE", "未知副本")
+	)
 	lootPanel.title:SetText(titleBeforeData)
 	RecordLootPanelOpenDebug("refresh_title_before_data", {
 		source = "loot_panel_renderer",
@@ -1032,7 +1261,9 @@ function LootPanelRenderer.RefreshLootPanel()
 			local bannerRow = EnsurePanelRow(lootPanel, rows, 1, contentWidth, true)
 			RenderPanelBanner(bannerRow, contentWidth, headerRowStep, bannerViewModel)
 			HideTrailingRows(rows, 1)
-			lootPanel.content:SetHeight(math.max(1, headerRowStep + (bannerRow.body and bannerRow.body:GetStringHeight() or 0) + 16))
+			lootPanel.content:SetHeight(
+				math.max(1, headerRowStep + (bannerRow.body and bannerRow.body:GetStringHeight() or 0) + 16)
+			)
 			if lootPanel.scrollFrame.SetVerticalScroll then
 				lootPanel.scrollFrame:SetVerticalScroll(0)
 			end
@@ -1045,18 +1276,40 @@ function LootPanelRenderer.RefreshLootPanel()
 	end
 
 	local data = CollectCurrentInstanceLootData()
-	markPhase("collect_loot_data", string.format("error=%s encounters=%s", tostring(data and data.error ~= nil), tostring(#((data and data.encounters) or {}))))
+	markPhase(
+		"collect_loot_data",
+		string.format(
+			"error=%s encounters=%s",
+			tostring(data and data.error ~= nil),
+			tostring(#((data and data.encounters) or {}))
+		)
+	)
 	local currentInstanceLootSummary = BuildCurrentInstanceLootSummary(data, selectedInstance)
-	markPhase("build_loot_summary", string.format("rows=%s encounters=%s", tostring(#((currentInstanceLootSummary and currentInstanceLootSummary.rows) or {})), tostring(#((currentInstanceLootSummary and currentInstanceLootSummary.encounters) or {}))))
+	markPhase(
+		"build_loot_summary",
+		string.format(
+			"rows=%s encounters=%s",
+			tostring(#((currentInstanceLootSummary and currentInstanceLootSummary.rows) or {})),
+			tostring(#((currentInstanceLootSummary and currentInstanceLootSummary.encounters) or {}))
+		)
+	)
 	local encounterKillState = BuildCurrentEncounterKillMap()
-	markPhase("build_kill_map", string.format("progressCount=%s", tostring(encounterKillState and encounterKillState.progressCount or 0)))
+	markPhase(
+		"build_kill_map",
+		string.format("progressCount=%s", tostring(encounterKillState and encounterKillState.progressCount or 0))
+	)
 	local progressCount = tonumber(encounterKillState.progressCount) or 0
-	local titleAfterData = BuildSelectedInstanceTitle(selectedInstance, data.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本"))
+	local titleAfterData =
+		BuildSelectedInstanceTitle(selectedInstance, data.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本"))
 	lootPanel.title:SetText(titleAfterData)
 	RecordLootPanelOpenDebug("refresh_title_after_data", {
 		source = "loot_panel_renderer",
 		incomingTitle = titleAfterData,
-		note = string.format("error=%s encounters=%s", tostring(data and data.error ~= nil), tostring(#((data and data.encounters) or {}))),
+		note = string.format(
+			"error=%s encounters=%s",
+			tostring(data and data.error ~= nil),
+			tostring(#((data and data.encounters) or {}))
+		),
 	})
 	renderDebug.dataInstanceName = data and data.instanceName or nil
 	renderDebug.dataJournalInstanceID = data and data.journalInstanceID or nil
@@ -1075,13 +1328,16 @@ function LootPanelRenderer.RefreshLootPanel()
 	if currentTab == "sets" and not data.error then
 		setSummary = LootPanelRenderer.BuildCurrentInstanceSetSummary(data)
 	end
+	local allLootGroupsEmpty = currentTab == "loot"
+		and AreAllLootGroupsEmpty((currentInstanceLootSummary and currentInstanceLootSummary.encounters) or data.encounters)
+	local allSetGroupsEmpty = currentTab == "sets" and AreAllSetGroupsEmpty(setSummary)
 	local bannerViewModel = BuildPanelBannerViewModel({
 		currentTab = currentTab,
 		data = data,
 		noSelectedClasses = noSelectedClasses,
 		setSummary = setSummary,
-		allLootGroupsEmpty = false,
-		allSetGroupsEmpty = false,
+		allLootGroupsEmpty = allLootGroupsEmpty,
+		allSetGroupsEmpty = allSetGroupsEmpty,
 	})
 
 	if bannerViewModel then
@@ -1097,7 +1353,19 @@ function LootPanelRenderer.RefreshLootPanel()
 		end
 		markPhase("render_error_state")
 	elseif currentTab == "sets" then
-		local renderedRows, renderedYOffset = RenderSetsBranch(lootPanel, rows, contentWidth, headerRowStep, itemRowHeight, itemRowStep, groupGap, data, rowIndex, yOffset, setSummary)
+		local renderedRows, renderedYOffset = RenderSetsBranch(
+			lootPanel,
+			rows,
+			contentWidth,
+			headerRowStep,
+			itemRowHeight,
+			itemRowStep,
+			groupGap,
+			data,
+			rowIndex,
+			yOffset,
+			setSummary
+		)
 		rowIndex = math.max(rowIndex, renderedRows)
 		yOffset = renderedYOffset
 	else
@@ -1134,7 +1402,15 @@ function LootPanelRenderer.RefreshLootPanel()
 	markPhase("finalize_layout")
 	ScheduleMissingItemRefresh(data)
 	ScheduleZeroLootRefresh(data)
-	finishRender("ok", string.format("tab=%s rows=%s missingItemData=%s", tostring(currentTab), tostring(rowIndex), tostring(data and data.missingItemData and true or false)))
+	finishRender(
+		"ok",
+		string.format(
+			"tab=%s rows=%s missingItemData=%s",
+			tostring(currentTab),
+			tostring(rowIndex),
+			tostring(data and data.missingItemData and true or false)
+		)
+	)
 	RecordLootPanelOpenDebug("refresh_finish", {
 		source = "loot_panel_renderer",
 		incomingTitle = lootPanel.title and lootPanel.title.GetText and lootPanel.title:GetText() or nil,

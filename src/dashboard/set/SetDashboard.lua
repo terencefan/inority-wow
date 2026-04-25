@@ -139,7 +139,8 @@ end
 
 local function GetExpansionName(expansionID)
 	expansionID = tonumber(expansionID) or 0
-	return EXPANSION_NAMES[expansionID] or string.format("%s %d", Translate("PVP_DASHBOARD_EXPANSION", "资料片"), expansionID)
+	return EXPANSION_NAMES[expansionID]
+		or string.format("%s %d", Translate("PVP_DASHBOARD_EXPANSION", "资料片"), expansionID)
 end
 
 local function BuildExpansionCollapseKey(tabKey, expansionName)
@@ -218,11 +219,14 @@ local function BuildRaidTierSetMetadata()
 			local bestDifficultyID = -1
 			for difficultyID, difficultyEntry in pairs(entry.difficultyData or {}) do
 				if type(difficultyEntry) == "table" then
-					local displayOrder = getRaidDifficultyDisplayOrder and getRaidDifficultyDisplayOrder(difficultyID) or 999
+					local displayOrder = getRaidDifficultyDisplayOrder and getRaidDifficultyDisplayOrder(difficultyID)
+						or 999
 					local numericDifficultyID = tonumber(difficultyID) or 0
-					if not bestDifficultyEntry
+					if
+						not bestDifficultyEntry
 						or displayOrder > bestDisplayOrder
-						or (displayOrder == bestDisplayOrder and numericDifficultyID > bestDifficultyID) then
+						or (displayOrder == bestDisplayOrder and numericDifficultyID > bestDifficultyID)
+					then
 						bestDifficultyEntry = difficultyEntry
 						bestDisplayOrder = displayOrder
 						bestDifficultyID = numericDifficultyID
@@ -367,7 +371,9 @@ function SetDashboard.BuildClassSetData()
 	local data = {
 		classFiles = classFiles,
 		expansions = expansions,
-		message = #expansions == 0 and Translate("SET_DASHBOARD_CLASS_EMPTY", "未找到可统计的团本 T 系列职业套装。") or nil,
+		message = #expansions == 0
+				and Translate("SET_DASHBOARD_CLASS_EMPTY", "未找到可统计的团本 T 系列职业套装。")
+			or nil,
 	}
 	SetDashboard.classSetCache = {
 		version = SET_DASHBOARD_RULES_VERSION,
@@ -426,9 +432,23 @@ local function ShowMetricTooltip(self)
 
 	GameTooltip:SetOwner(self, "ANCHOR_TOP")
 	GameTooltip:ClearLines()
-	GameTooltip:AddLine(tostring(tooltipData.title or Translate("SET_DASHBOARD_TITLE", "套装统计看板")), 1, 0.82, 0)
+	GameTooltip:AddLine(
+		tostring(tooltipData.title or Translate("SET_DASHBOARD_TITLE", "套装统计看板")),
+		1,
+		0.82,
+		0
+	)
 	GameTooltip:AddLine(string.format("散件进度: %s", GetMetricText(tooltipData.bucket)), 1, 1, 1)
-	GameTooltip:AddLine(string.format("整套完成: %d/%d", tonumber(tooltipData.bucket and tooltipData.bucket.completedSets) or 0, tonumber(tooltipData.bucket and tooltipData.bucket.totalSets) or 0), 1, 1, 1)
+	GameTooltip:AddLine(
+		string.format(
+			"整套完成: %d/%d",
+			tonumber(tooltipData.bucket and tooltipData.bucket.completedSets) or 0,
+			tonumber(tooltipData.bucket and tooltipData.bucket.totalSets) or 0
+		),
+		1,
+		1,
+		1
+	)
 	if tooltipData.bucket and tooltipData.bucket.setNames and #tooltipData.bucket.setNames > 0 then
 		GameTooltip:AddLine(" ")
 		for _, name in ipairs(tooltipData.bucket.setNames) do
@@ -539,7 +559,15 @@ function SetDashboard.BuildData()
 		}
 	end
 
-	if not (C_TransmogSets and C_TransmogSets.GetAllSets and addon.SetCategories and addon.SetCategories.CreateContext and addon.SetCategories.ClassifyTransmogSet) then
+	if
+		not (
+			C_TransmogSets
+			and C_TransmogSets.GetAllSets
+			and addon.SetCategories
+			and addon.SetCategories.CreateContext
+			and addon.SetCategories.ClassifyTransmogSet
+		)
+	then
 		local unavailableMessage = Translate("SET_DASHBOARD_UNAVAILABLE", "当前客户端无法读取套装数据。")
 		for _, tabKey in ipairs(TAB_ORDER) do
 			categories[tabKey].message = unavailableMessage
@@ -670,13 +698,18 @@ function SetDashboard.RenderContent(owner, content, scrollFrame)
 	categoryData = categoryData or { classFiles = {}, expansions = {}, message = EMPTY_MESSAGES[owner.dashboardSetTab] }
 	local classFiles = categoryData.classFiles or data.classFiles or {}
 
-	local contentWidth = math.max(520, tonumber(scrollFrame and scrollFrame:GetWidth()) or tonumber(content:GetWidth()) or 680)
+	local contentWidth =
+		math.max(520, tonumber(scrollFrame and scrollFrame:GetWidth()) or tonumber(content:GetWidth()) or 680)
 	local compact = #classFiles >= 10
 	local fixedColumns = math.max(1, #classFiles + 1)
 	local tierColumnWidth = compact and 42 or 56
-	local firstColumnWidth = compact and math.max(120, math.floor(contentWidth * 0.22)) or math.max(164, math.floor(contentWidth * 0.24))
+	local firstColumnWidth = compact and math.max(120, math.floor(contentWidth * 0.22))
+		or math.max(164, math.floor(contentWidth * 0.24))
 	local difficultyColumnWidth = compact and 60 or 84
-	local cellWidth = math.max(compact and 34 or 44, math.floor((contentWidth - tierColumnWidth - firstColumnWidth - difficultyColumnWidth) / fixedColumns))
+	local cellWidth = math.max(
+		compact and 34 or 44,
+		math.floor((contentWidth - tierColumnWidth - firstColumnWidth - difficultyColumnWidth) / fixedColumns)
+	)
 	local classColumnWidth = cellWidth
 	local totalColumnWidth = cellWidth
 	local usedWidth = tierColumnWidth + firstColumnWidth + difficultyColumnWidth + (cellWidth * fixedColumns)
@@ -714,7 +747,9 @@ function SetDashboard.RenderContent(owner, content, scrollFrame)
 	headerRow.label:ClearAllPoints()
 	headerRow.label:SetPoint("LEFT", headerRow, "LEFT", tierColumnWidth, 0)
 	headerRow.label:SetWidth(firstColumnWidth - 6)
-	headerRow.label:SetText(ROW_COLUMN_LABELS[owner.dashboardSetTab] or Translate("PVP_DASHBOARD_COLUMN_SEASON", "资料片 / 来源"))
+	headerRow.label:SetText(
+		ROW_COLUMN_LABELS[owner.dashboardSetTab] or Translate("PVP_DASHBOARD_COLUMN_SEASON", "资料片 / 来源")
+	)
 	headerRow.difficultyLabel:ClearAllPoints()
 	headerRow.difficultyLabel:SetPoint("LEFT", headerRow, "LEFT", tierColumnWidth + firstColumnWidth, 0)
 	headerRow.difficultyLabel:SetWidth(difficultyColumnWidth - 4)
@@ -723,7 +758,8 @@ function SetDashboard.RenderContent(owner, content, scrollFrame)
 
 	local cellLeft = tierColumnWidth + firstColumnWidth + difficultyColumnWidth
 	for index, classFile in ipairs(classFiles) do
-		headerRow.cells[index] = headerRow.cells[index] or headerRow:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		headerRow.cells[index] = headerRow.cells[index]
+			or headerRow:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		local cell = headerRow.cells[index]
 		cell:ClearAllPoints()
 		cell:SetPoint("LEFT", headerRow, "LEFT", cellLeft, 0)
@@ -740,7 +776,8 @@ function SetDashboard.RenderContent(owner, content, scrollFrame)
 		cell:Show()
 		cellLeft = cellLeft + classColumnWidth
 	end
-	headerRow.cells[#classFiles + 1] = headerRow.cells[#classFiles + 1] or headerRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	headerRow.cells[#classFiles + 1] = headerRow.cells[#classFiles + 1]
+		or headerRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	local totalHeader = headerRow.cells[#classFiles + 1]
 	totalHeader:ClearAllPoints()
 	totalHeader:SetPoint("LEFT", headerRow, "LEFT", cellLeft, 0)
@@ -767,7 +804,10 @@ function SetDashboard.RenderContent(owner, content, scrollFrame)
 		expansionRow.tierLabel:Hide()
 		expansionRow.collectionIcon:ClearAllPoints()
 		expansionRow.collectionIcon:SetPoint("LEFT", expansionRow, "LEFT", 2, 0)
-		expansionRow.collectionIcon:SetTexture(IsExpansionCollapsed(expansionCollapseKey) and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+		expansionRow.collectionIcon:SetTexture(
+			IsExpansionCollapsed(expansionCollapseKey) and "Interface\\Buttons\\UI-PlusButton-Up"
+				or "Interface\\Buttons\\UI-MinusButton-Up"
+		)
 		expansionRow.collectionIcon:Show()
 		expansionRow.label:ClearAllPoints()
 		expansionRow.label:SetPoint("LEFT", expansionRow.collectionIcon, "RIGHT", 4, 0)
@@ -800,7 +840,11 @@ function SetDashboard.RenderContent(owner, content, scrollFrame)
 				classColumnWidth,
 				20,
 				bucket,
-				string.format("%s - %s", tostring(expansionEntry.expansionName or "Other"), tostring(GetClassDisplayName(classFile)))
+				string.format(
+					"%s - %s",
+					tostring(expansionEntry.expansionName or "Other"),
+					tostring(GetClassDisplayName(classFile))
+				)
 			)
 			cellLeft = cellLeft + classColumnWidth
 		end
@@ -842,14 +886,22 @@ function SetDashboard.RenderContent(owner, content, scrollFrame)
 				itemRow.label:ClearAllPoints()
 				itemRow.label:SetPoint("LEFT", itemRow, "LEFT", tierColumnWidth, 0)
 				itemRow.label:SetWidth(firstColumnWidth - 6)
-				itemRow.label:SetText("  " .. tostring(rowInfo.label or Translate("LOOT_UNKNOWN_INSTANCE", "未知来源")))
+				itemRow.label:SetText(
+					"  " .. tostring(rowInfo.label or Translate("LOOT_UNKNOWN_INSTANCE", "未知来源"))
+				)
 				itemRow.label:SetFontObject(compact and GameFontDisableSmall or GameFontHighlightSmall)
 				itemRow.label:SetTextColor(0.92, 0.92, 0.92)
 				itemRow.difficultyLabel:Show()
 				itemRow.difficultyLabel:ClearAllPoints()
 				itemRow.difficultyLabel:SetPoint("LEFT", itemRow, "LEFT", tierColumnWidth + firstColumnWidth, 0)
 				itemRow.difficultyLabel:SetWidth(difficultyColumnWidth - 4)
-				itemRow.difficultyLabel:SetText(string.format("%d/%d", tonumber(rowInfo.total and rowInfo.total.completedSets) or 0, tonumber(rowInfo.total and rowInfo.total.totalSets) or 0))
+				itemRow.difficultyLabel:SetText(
+					string.format(
+						"%d/%d",
+						tonumber(rowInfo.total and rowInfo.total.completedSets) or 0,
+						tonumber(rowInfo.total and rowInfo.total.totalSets) or 0
+					)
+				)
 				itemRow.difficultyLabel:SetTextColor(0.82, 0.82, 0.86)
 				itemRow:SetScript("OnMouseUp", nil)
 				itemRow:SetScript("OnEnter", nil)
@@ -866,7 +918,12 @@ function SetDashboard.RenderContent(owner, content, scrollFrame)
 						classColumnWidth,
 						20,
 						bucket,
-						string.format("%s - %s - %s", tostring(expansionEntry.expansionName or "Other"), tostring(rowInfo.label or "Row"), tostring(GetClassDisplayName(classFile)))
+						string.format(
+							"%s - %s - %s",
+							tostring(expansionEntry.expansionName or "Other"),
+							tostring(rowInfo.label or "Row"),
+							tostring(GetClassDisplayName(classFile))
+						)
 					)
 					cellLeft = cellLeft + classColumnWidth
 				end
@@ -877,7 +934,11 @@ function SetDashboard.RenderContent(owner, content, scrollFrame)
 					totalColumnWidth,
 					20,
 					rowInfo.total,
-					string.format("%s - %s", tostring(expansionEntry.expansionName or "Other"), tostring(rowInfo.label or "Row"))
+					string.format(
+						"%s - %s",
+						tostring(expansionEntry.expansionName or "Other"),
+						tostring(rowInfo.label or "Row")
+					)
 				)
 				for index = #classFiles + 2, #(itemRow.cells or {}) do
 					itemRow.cells[index]:Hide()
@@ -916,12 +977,15 @@ function SetDashboard.RenderOverviewContent(owner, content, scrollFrame)
 	owner.setDashboardUI = ui
 	local data = SetDashboard.BuildClassSetData() or { classFiles = {}, expansions = {} }
 	local classFiles = data.classFiles or {}
-	local contentWidth = math.max(520, tonumber(scrollFrame and scrollFrame:GetWidth()) or tonumber(content:GetWidth()) or 680)
+	local contentWidth =
+		math.max(520, tonumber(scrollFrame and scrollFrame:GetWidth()) or tonumber(content:GetWidth()) or 680)
 	local compact = #classFiles >= 10
 	local fixedColumns = math.max(1, #classFiles + 1)
 	local tierColumnWidth = compact and 42 or 56
-	local firstColumnWidth = compact and math.max(160, math.floor(contentWidth * 0.28)) or math.max(220, math.floor(contentWidth * 0.30))
-	local cellWidth = math.max(compact and 34 or 44, math.floor((contentWidth - tierColumnWidth - firstColumnWidth) / fixedColumns))
+	local firstColumnWidth = compact and math.max(160, math.floor(contentWidth * 0.28))
+		or math.max(220, math.floor(contentWidth * 0.30))
+	local cellWidth =
+		math.max(compact and 34 or 44, math.floor((contentWidth - tierColumnWidth - firstColumnWidth) / fixedColumns))
 	local classColumnWidth = cellWidth
 	local totalColumnWidth = cellWidth
 	local usedWidth = tierColumnWidth + firstColumnWidth + (cellWidth * fixedColumns)
@@ -966,7 +1030,8 @@ function SetDashboard.RenderOverviewContent(owner, content, scrollFrame)
 
 	local cellLeft = tierColumnWidth + firstColumnWidth
 	for index, classFile in ipairs(classFiles) do
-		headerRow.cells[index] = headerRow.cells[index] or headerRow:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		headerRow.cells[index] = headerRow.cells[index]
+			or headerRow:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		local cell = headerRow.cells[index]
 		cell:ClearAllPoints()
 		cell:SetPoint("LEFT", headerRow, "LEFT", cellLeft, 0)
@@ -983,7 +1048,8 @@ function SetDashboard.RenderOverviewContent(owner, content, scrollFrame)
 		cell:Show()
 		cellLeft = cellLeft + classColumnWidth
 	end
-	headerRow.cells[#classFiles + 1] = headerRow.cells[#classFiles + 1] or headerRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	headerRow.cells[#classFiles + 1] = headerRow.cells[#classFiles + 1]
+		or headerRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	local totalHeader = headerRow.cells[#classFiles + 1]
 	totalHeader:ClearAllPoints()
 	totalHeader:SetPoint("LEFT", headerRow, "LEFT", cellLeft, 0)
@@ -1011,7 +1077,10 @@ function SetDashboard.RenderOverviewContent(owner, content, scrollFrame)
 		expansionRow.tierLabel:Hide()
 		expansionRow.collectionIcon:ClearAllPoints()
 		expansionRow.collectionIcon:SetPoint("LEFT", expansionRow, "LEFT", 2, 0)
-		expansionRow.collectionIcon:SetTexture(IsExpansionCollapsed(expansionCollapseKey) and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+		expansionRow.collectionIcon:SetTexture(
+			IsExpansionCollapsed(expansionCollapseKey) and "Interface\\Buttons\\UI-PlusButton-Up"
+				or "Interface\\Buttons\\UI-MinusButton-Up"
+		)
 		expansionRow.collectionIcon:Show()
 		expansionRow.label:ClearAllPoints()
 		expansionRow.label:SetPoint("LEFT", expansionRow.collectionIcon, "RIGHT", 4, 0)
@@ -1043,7 +1112,11 @@ function SetDashboard.RenderOverviewContent(owner, content, scrollFrame)
 				classColumnWidth,
 				20,
 				expansionEntry.byClass and expansionEntry.byClass[classFile] or BuildBucket(),
-				string.format("%s - %s", tostring(expansionEntry.expansionName or "Other"), tostring(GetClassDisplayName(classFile)))
+				string.format(
+					"%s - %s",
+					tostring(expansionEntry.expansionName or "Other"),
+					tostring(GetClassDisplayName(classFile))
+				)
 			)
 			cellLeft = cellLeft + classColumnWidth
 		end
@@ -1104,7 +1177,12 @@ function SetDashboard.RenderOverviewContent(owner, content, scrollFrame)
 						classColumnWidth,
 						20,
 						bucket,
-						string.format("%s - %s - %s", tostring(expansionEntry.expansionName or "Other"), tostring(rowInfo.label or "Tier"), tostring(GetClassDisplayName(classFile)))
+						string.format(
+							"%s - %s - %s",
+							tostring(expansionEntry.expansionName or "Other"),
+							tostring(rowInfo.label or "Tier"),
+							tostring(GetClassDisplayName(classFile))
+						)
 					)
 					cellLeft = cellLeft + classColumnWidth
 				end
@@ -1115,7 +1193,11 @@ function SetDashboard.RenderOverviewContent(owner, content, scrollFrame)
 					totalColumnWidth,
 					20,
 					rowInfo.total,
-					string.format("%s - %s", tostring(expansionEntry.expansionName or "Other"), tostring(rowInfo.label or "Tier"))
+					string.format(
+						"%s - %s",
+						tostring(expansionEntry.expansionName or "Other"),
+						tostring(rowInfo.label or "Tier")
+					)
 				)
 				for index = #classFiles + 2, #(tierRow.cells or {}) do
 					tierRow.cells[index]:Hide()
@@ -1130,7 +1212,9 @@ function SetDashboard.RenderOverviewContent(owner, content, scrollFrame)
 	ui.emptyText:SetPoint("TOPLEFT", content, "TOPLEFT", 4, -32)
 	ui.emptyText:SetPoint("TOPRIGHT", content, "TOPRIGHT", -8, -32)
 	ui.emptyText:SetJustifyH("LEFT")
-	ui.emptyText:SetText(Translate("SET_DASHBOARD_OVERVIEW_EMPTY", "未找到可统计的团本 T 系列职业套装。"))
+	ui.emptyText:SetText(
+		Translate("SET_DASHBOARD_OVERVIEW_EMPTY", "未找到可统计的团本 T 系列职业套装。")
+	)
 	ui.emptyText:SetShown(not hasAnyRows)
 
 	for index = rowIndex + 1, #(ui.rows or {}) do

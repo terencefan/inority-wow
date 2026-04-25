@@ -102,7 +102,10 @@ function API.GetNumSpecializationsForClassID(classID)
 end
 
 function API.GetJournalInstanceForMap(mapID)
-	return C_EncounterJournal and C_EncounterJournal.GetInstanceForGameMap and C_EncounterJournal.GetInstanceForGameMap(mapID) or nil
+	return C_EncounterJournal
+			and C_EncounterJournal.GetInstanceForGameMap
+			and C_EncounterJournal.GetInstanceForGameMap(mapID)
+		or nil
 end
 
 function API.GetJournalNumLoot()
@@ -135,7 +138,9 @@ function API.GetJournalNumLootForEncounter(encounterToken)
 end
 
 function API.GetJournalLootInfoByIndex(index)
-	local info = C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex and C_EncounterJournal.GetLootInfoByIndex(index)
+	local info = C_EncounterJournal
+		and C_EncounterJournal.GetLootInfoByIndex
+		and C_EncounterJournal.GetLootInfoByIndex(index)
 	if info then
 		return info.itemID, info.encounterID, info.name, info.icon, info.slot, info.armorType, info.link
 	end
@@ -143,7 +148,9 @@ function API.GetJournalLootInfoByIndex(index)
 end
 
 function API.GetJournalLootInfoByIndexForEncounter(index, encounterToken)
-	local info = C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex and C_EncounterJournal.GetLootInfoByIndex(index, encounterToken)
+	local info = C_EncounterJournal
+		and C_EncounterJournal.GetLootInfoByIndex
+		and C_EncounterJournal.GetLootInfoByIndex(index, encounterToken)
 	if info then
 		return info.itemID, info.encounterID, info.name, info.icon, info.slot, info.armorType, info.link
 	end
@@ -197,7 +204,8 @@ function API.GetCurrentJournalInstanceID(findJournalInstanceByInstanceInfo)
 	}
 
 	if GetInstanceInfo then
-		local instanceName, instanceType, difficultyID, difficultyName, _, _, _, instanceID, _, lfgDungeonID = GetInstanceInfo()
+		local instanceName, instanceType, difficultyID, difficultyName, _, _, _, instanceID, _, lfgDungeonID =
+			GetInstanceInfo()
 		debugInfo.instanceName = instanceName
 		debugInfo.instanceType = instanceType
 		debugInfo.difficultyID = difficultyID
@@ -206,9 +214,12 @@ function API.GetCurrentJournalInstanceID(findJournalInstanceByInstanceInfo)
 		debugInfo.lfgDungeonID = lfgDungeonID
 	end
 
-	local isInstancedContent = debugInfo.instanceType and debugInfo.instanceType ~= "" and debugInfo.instanceType ~= "none"
+	local isInstancedContent = debugInfo.instanceType
+		and debugInfo.instanceType ~= ""
+		and debugInfo.instanceType ~= "none"
 	if isInstancedContent and debugInfo.instanceName then
-		local fallbackJournalInstanceID, resolution = findJournalInstanceByInstanceInfo(debugInfo.instanceName, debugInfo.instanceID, debugInfo.instanceType)
+		local fallbackJournalInstanceID, resolution =
+			findJournalInstanceByInstanceInfo(debugInfo.instanceName, debugInfo.instanceID, debugInfo.instanceType)
 		if fallbackJournalInstanceID then
 			debugInfo.journalInstanceID = fallbackJournalInstanceID
 			debugInfo.resolution = resolution or "instance_info"
@@ -225,7 +236,8 @@ function API.GetCurrentJournalInstanceID(findJournalInstanceByInstanceInfo)
 		end
 	end
 
-	local fallbackJournalInstanceID, resolution = findJournalInstanceByInstanceInfo(debugInfo.instanceName, debugInfo.instanceID, debugInfo.instanceType)
+	local fallbackJournalInstanceID, resolution =
+		findJournalInstanceByInstanceInfo(debugInfo.instanceName, debugInfo.instanceID, debugInfo.instanceType)
 	if fallbackJournalInstanceID then
 		debugInfo.journalInstanceID = fallbackJournalInstanceID
 		debugInfo.resolution = resolution
@@ -245,7 +257,11 @@ function API.BuildCurrentEncounterKillMap(context)
 
 	local GetInstanceLockTimeRemaining = GetRuntimeFunction("GetInstanceLockTimeRemaining")
 	local GetInstanceLockTimeRemainingEncounter = GetRuntimeFunction("GetInstanceLockTimeRemainingEncounter")
-	if (not targetInstance or targetInstance.isCurrent) and GetInstanceLockTimeRemaining and GetInstanceLockTimeRemainingEncounter then
+	if
+		(not targetInstance or targetInstance.isCurrent)
+		and GetInstanceLockTimeRemaining
+		and GetInstanceLockTimeRemainingEncounter
+	then
 		local _, _, encountersTotal = GetInstanceLockTimeRemaining()
 		encountersTotal = tonumber(encountersTotal) or 0
 		for encounterIndex = 1, encountersTotal do
@@ -264,7 +280,14 @@ function API.BuildCurrentEncounterKillMap(context)
 	local GetNumSavedInstanceEncounters = GetRuntimeFunction("GetNumSavedInstanceEncounters")
 	local GetSavedInstanceEncounterInfo = GetRuntimeFunction("GetSavedInstanceEncounterInfo")
 	local GetInstanceInfo = GetRuntimeFunction("GetInstanceInfo")
-	if not (GetNumSavedInstances and GetSavedInstanceInfo and GetNumSavedInstanceEncounters and GetSavedInstanceEncounterInfo) then
+	if
+		not (
+			GetNumSavedInstances
+			and GetSavedInstanceInfo
+			and GetNumSavedInstanceEncounters
+			and GetSavedInstanceEncounterInfo
+		)
+	then
 		return state
 	end
 
@@ -291,7 +314,12 @@ function API.BuildCurrentEncounterKillMap(context)
 		if targetInstance and not targetInstance.isCurrent then
 			matchesInstance = matchesInstance and savedDifficultyID == tonumber(difficultyID)
 		else
-			matchesInstance = matchesInstance and (savedInstanceID == 0 or savedInstanceID == tonumber(currentInstanceID) or savedDifficultyID == tonumber(difficultyID))
+			matchesInstance = matchesInstance
+				and (
+					savedInstanceID == 0
+					or savedInstanceID == tonumber(currentInstanceID)
+					or savedDifficultyID == tonumber(difficultyID)
+				)
 		end
 		if matchesInstance then
 			state.progressCount = tonumber(returns[12]) or 0
@@ -324,16 +352,33 @@ function API.CollectCurrentInstanceLootData(context)
 	local getItemFact = context.getItemFact
 	local upsertItemFact = context.upsertItemFact
 
-	if not EJ_SelectInstance then missingAPIs[#missingAPIs + 1] = "EJ_SelectInstance" end
-	if not EJ_SelectEncounter then missingAPIs[#missingAPIs + 1] = "EJ_SelectEncounter" end
-	if not EJ_GetEncounterInfoByIndex then missingAPIs[#missingAPIs + 1] = "EJ_GetEncounterInfoByIndex" end
-	if not EJ_SetLootFilter then missingAPIs[#missingAPIs + 1] = "EJ_SetLootFilter" end
-	if not (_G.C_EncounterJournal and _G.C_EncounterJournal.GetNumLoot) and not GetRuntimeFunction("EJ_GetNumLoot") then missingAPIs[#missingAPIs + 1] = "GetNumLoot" end
-	if not (_G.C_EncounterJournal and _G.C_EncounterJournal.GetLootInfoByIndex) and not GetRuntimeFunction("EJ_GetLootInfoByIndex") then missingAPIs[#missingAPIs + 1] = "GetLootInfoByIndex" end
+	if not EJ_SelectInstance then
+		missingAPIs[#missingAPIs + 1] = "EJ_SelectInstance"
+	end
+	if not EJ_SelectEncounter then
+		missingAPIs[#missingAPIs + 1] = "EJ_SelectEncounter"
+	end
+	if not EJ_GetEncounterInfoByIndex then
+		missingAPIs[#missingAPIs + 1] = "EJ_GetEncounterInfoByIndex"
+	end
+	if not EJ_SetLootFilter then
+		missingAPIs[#missingAPIs + 1] = "EJ_SetLootFilter"
+	end
+	if not (_G.C_EncounterJournal and _G.C_EncounterJournal.GetNumLoot) and not GetRuntimeFunction("EJ_GetNumLoot") then
+		missingAPIs[#missingAPIs + 1] = "GetNumLoot"
+	end
+	if
+		not (_G.C_EncounterJournal and _G.C_EncounterJournal.GetLootInfoByIndex)
+		and not GetRuntimeFunction("EJ_GetLootInfoByIndex")
+	then
+		missingAPIs[#missingAPIs + 1] = "GetLootInfoByIndex"
+	end
 
 	if #missingAPIs > 0 then
 		return {
-			error = T("LOOT_ERROR_NO_APIS", "当前客户端缺少地下城手册接口。") .. "\n" .. table.concat(missingAPIs, ", "),
+			error = T("LOOT_ERROR_NO_APIS", "当前客户端缺少地下城手册接口。")
+				.. "\n"
+				.. table.concat(missingAPIs, ", "),
 		}
 	end
 
@@ -362,9 +407,12 @@ function API.CollectCurrentInstanceLootData(context)
 		}
 	end
 
-	local instanceName = (targetInstance and targetInstance.instanceName) or (EJ_GetInstanceInfo and EJ_GetInstanceInfo(journalInstanceID))
+	local instanceName = (targetInstance and targetInstance.instanceName)
+		or (EJ_GetInstanceInfo and EJ_GetInstanceInfo(journalInstanceID))
 	EJ_SelectInstance(journalInstanceID)
-	local effectiveDifficultyID = tonumber(targetInstance and targetInstance.difficultyID) or tonumber(debugInfo and debugInfo.difficultyID) or 0
+	local effectiveDifficultyID = tonumber(targetInstance and targetInstance.difficultyID)
+		or tonumber(debugInfo and debugInfo.difficultyID)
+		or 0
 	if EJ_SetDifficulty and effectiveDifficultyID > 0 then
 		EJ_SetDifficulty(effectiveDifficultyID)
 	end
@@ -394,18 +442,22 @@ function API.CollectCurrentInstanceLootData(context)
 	local lootFilterClassIDs = context.getLootFilterClassIDs and context.getLootFilterClassIDs() or selectedClassIDs
 	local lootFilterRuns = #lootFilterClassIDs > 0 and lootFilterClassIDs or { 0 }
 	local seenLootKeys = {}
-	local rawApiDebug = context.captureRawApiDebug and {
-		instanceName = instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本"),
-		journalInstanceID = journalInstanceID,
-		difficultyID = effectiveDifficultyID,
-		difficultyName = targetInstance and targetInstance.difficultyName or debugInfo and debugInfo.difficultyName or nil,
-		selectedClassIDs = {},
-		lootFilterClassIDs = {},
-		filterRuns = {},
-		allClassesRun = nil,
-		missingItemData = false,
-		missingItems = {},
-	} or nil
+	local rawApiDebug = context.captureRawApiDebug
+			and {
+				instanceName = instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本"),
+				journalInstanceID = journalInstanceID,
+				difficultyID = effectiveDifficultyID,
+				difficultyName = targetInstance and targetInstance.difficultyName
+					or debugInfo and debugInfo.difficultyName
+					or nil,
+				selectedClassIDs = {},
+				lootFilterClassIDs = {},
+				filterRuns = {},
+				allClassesRun = nil,
+				missingItemData = false,
+				missingItems = {},
+			}
+		or nil
 	local missingItemKeys = {}
 	local function AppendMissingItemDebug(itemID, name, encounterID, reason)
 		if not rawApiDebug then
@@ -468,7 +520,8 @@ function API.CollectCurrentInstanceLootData(context)
 		}
 
 		if numericItemID > 0 and (not fact.basicResolved or not fact.name or not fact.link) then
-			local cachedName, cachedLink, _, _, _, cachedItemType, cachedItemSubType, _, _, cachedIcon, _, cachedClassID, cachedSubClassID = GetItemInfo(numericItemID)
+			local cachedName, cachedLink, _, _, _, cachedItemType, cachedItemSubType, _, _, cachedIcon, _, cachedClassID, cachedSubClassID =
+				GetItemInfo(numericItemID)
 			fact.name = fact.name or cachedName
 			fact.link = fact.link or cachedLink
 			fact.icon = fact.icon or cachedIcon
@@ -505,7 +558,11 @@ function API.CollectCurrentInstanceLootData(context)
 		})
 		local requiresAppearanceFact = not nonAppearanceTypeKeys[tostring(derivedTypeKey or "MISC")]
 
-		if numericItemID > 0 and requiresAppearanceFact and (not fact.appearanceResolved or not fact.appearanceID or not fact.sourceID) then
+		if
+			numericItemID > 0
+			and requiresAppearanceFact
+			and (not fact.appearanceResolved or not fact.appearanceID or not fact.sourceID)
+		then
 			if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
 				fact.appearanceID, fact.sourceID = C_TransmogCollection.GetItemInfo(fact.link or numericItemID)
 			end
@@ -539,32 +596,41 @@ function API.CollectCurrentInstanceLootData(context)
 			local encounterToken = encounter.encounterID or encounter.index
 			local encounterLootCount = tonumber(API.GetJournalNumLootForEncounter(encounterToken)) or 0
 			totalLoot = totalLoot + encounterLootCount
-			local rawEncounterRun = rawFilterRun and {
-				encounterID = encounter.encounterID,
-				encounterName = encounter.name,
-				totalLoot = encounterLootCount,
-			} or nil
+			local rawEncounterRun = rawFilterRun
+					and {
+						encounterID = encounter.encounterID,
+						encounterName = encounter.name,
+						totalLoot = encounterLootCount,
+					}
+				or nil
 			for lootIndex = 1, encounterLootCount do
 				local itemID, encounterID, name, icon, slot, armorType, itemLink =
 					API.GetJournalLootInfoByIndexForEncounter(lootIndex, encounterToken)
 				local targetEncounter = encounterByID[encounterID] or encounter
-				local lootKey = string.format("%s::%s", tostring(targetEncounter.encounterID or 0), tostring(itemID or name or lootIndex))
-				local rawItem = rawFilterRun and {
-					lootIndex = lootIndex,
-					itemID = itemID,
-					encounterID = encounterID,
-					encounterName = targetEncounter and targetEncounter.name or nil,
-					name = name,
-					icon = icon,
-					slot = slot,
-					armorType = armorType,
-					itemLink = itemLink,
-					lootKey = lootKey,
-					accepted = false,
-				} or nil
+				local lootKey = string.format(
+					"%s::%s",
+					tostring(targetEncounter.encounterID or 0),
+					tostring(itemID or name or lootIndex)
+				)
+				local rawItem = rawFilterRun
+						and {
+							lootIndex = lootIndex,
+							itemID = itemID,
+							encounterID = encounterID,
+							encounterName = targetEncounter and targetEncounter.name or nil,
+							name = name,
+							icon = icon,
+							slot = slot,
+							armorType = armorType,
+							itemLink = itemLink,
+							lootKey = lootKey,
+							accepted = false,
+						}
+					or nil
 				if not seenLootKeys[lootKey] then
 					seenLootKeys[lootKey] = true
-					local itemFact, derivedTypeKey = ResolveLootItemFact(itemID, name, itemLink, icon, slot, armorType, targetEncounter.encounterID)
+					local itemFact, derivedTypeKey =
+						ResolveLootItemFact(itemID, name, itemLink, icon, slot, armorType, targetEncounter.encounterID)
 					local targetLoot = targetEncounter[targetLootField]
 					targetLoot[#targetLoot + 1] = {
 						itemID = itemID,
@@ -612,12 +678,14 @@ function API.CollectCurrentInstanceLootData(context)
 	end
 
 	for _, classID in ipairs(lootFilterRuns) do
-		local rawFilterRun = rawApiDebug and {
-			classID = tonumber(classID) or 0,
-			totalLoot = 0,
-			encounters = {},
-			items = {},
-		} or nil
+		local rawFilterRun = rawApiDebug
+				and {
+					classID = tonumber(classID) or 0,
+					totalLoot = 0,
+					encounters = {},
+					items = {},
+				}
+			or nil
 		local totalLoot = CollectEncounterLootForClassID(classID, "loot", seenLootKeys, rawFilterRun)
 		totalLootAcrossFilterRuns = totalLootAcrossFilterRuns + totalLoot
 		if rawApiDebug and rawFilterRun then
@@ -638,9 +706,7 @@ function API.CollectCurrentInstanceLootData(context)
 	if C_EncounterJournal and C_EncounterJournal.InstanceHasLoot then
 		journalReportsLoot = C_EncounterJournal.InstanceHasLoot(journalInstanceID)
 	end
-	local zeroLootRetrySuggested = totalLootAcrossFilterRuns == 0
-		and #encounters > 0
-		and journalReportsLoot ~= false
+	local zeroLootRetrySuggested = totalLootAcrossFilterRuns == 0 and #encounters > 0 and journalReportsLoot ~= false
 	if rawApiDebug then
 		rawApiDebug.allClassesRun = rawAllClassesRun
 		rawApiDebug.missingItemData = missingItemData and true or false
@@ -727,7 +793,8 @@ function API.CaptureEncounterDebugDump(context)
 	}
 
 	if GetInstanceInfo then
-		local currentInstanceName, currentInstanceType, currentDifficultyID, currentDifficultyName, _, _, _, currentInstanceID = GetInstanceInfo()
+		local currentInstanceName, currentInstanceType, currentDifficultyID, currentDifficultyName, _, _, _, currentInstanceID =
+			GetInstanceInfo()
 		currentLootDebug.instanceName = currentInstanceName
 		currentLootDebug.instanceType = currentInstanceType
 		currentLootDebug.difficultyID = currentDifficultyID
@@ -735,7 +802,8 @@ function API.CaptureEncounterDebugDump(context)
 		currentLootDebug.instanceID = currentInstanceID
 	end
 
-	local journalInstanceID, journalDebugInfo = API.GetCurrentJournalInstanceID(context.findJournalInstanceByInstanceInfo)
+	local journalInstanceID, journalDebugInfo =
+		API.GetCurrentJournalInstanceID(context.findJournalInstanceByInstanceInfo)
 	currentLootDebug.journalInstanceID = journalInstanceID
 	currentLootDebug.resolution = journalDebugInfo and journalDebugInfo.resolution or nil
 

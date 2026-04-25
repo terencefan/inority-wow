@@ -438,6 +438,7 @@ function CoreFeatureWiring.Wire(config)
 	outputs.GetLootItemCollectionStateDebug = CollectionState.GetLootItemCollectionStateDebug
 	outputs.GetLootItemSessionKey = CollectionState.GetLootItemSessionKey
 	outputs.GetLootItemDisplayCollectionState = CollectionState.GetLootItemDisplayCollectionState
+	outputs.BuildLootItemFilterState = CollectionState.BuildLootItemFilterState
 	outputs.LootItemMatchesTypeFilter = CollectionState.LootItemMatchesTypeFilter
 	outputs.GetEncounterLootDisplayState = CollectionState.GetEncounterLootDisplayState
 	outputs.BuildCurrentEncounterKillMap = CollectionState.BuildCurrentEncounterKillMap
@@ -529,6 +530,8 @@ function CoreFeatureWiring.Wire(config)
 		GetDashboardClassFiles = config.GetDashboardClassFiles,
 		GetLootItemSourceID = outputs.GetLootItemSourceID,
 		GetLootItemSetIDs = outputs.GetLootItemSetIDs,
+		BuildSelectionContext = outputs.BuildSelectionContext,
+		BuildLootItemFilterState = outputs.BuildLootItemFilterState,
 		lootDataRulesVersion = config.lootDataRulesVersion,
 		BuildLootPanelInstanceSelections = outputs.BuildLootPanelInstanceSelections,
 		NormalizeLockoutDisplayName = config.NormalizeLockoutDisplayName,
@@ -585,7 +588,6 @@ function CoreFeatureWiring.Wire(config)
 			GetLootItemDisplayCollectionState = outputs.GetLootItemDisplayCollectionState,
 			UpdateEncounterHeaderVisuals = addon.LootPanelRows.UpdateEncounterHeaderVisuals,
 			GetEncounterAutoCollapsed = addon.LootPanelRows.GetEncounterAutoCollapsed,
-			GetEncounterLootDisplayState = outputs.GetEncounterLootDisplayState,
 			getLootRefreshPending = config.getLootRefreshPending,
 			setLootRefreshPending = config.setLootRefreshPending,
 			ColorizeCharacterName = config.ColorizeCharacterName,

@@ -10,13 +10,30 @@ DashboardBulkScan.Configure({
 	end,
 	BuildLootPanelInstanceSelections = function()
 		return {
-			{ instanceType = "raid", expansionName = "军团再临", instanceName = "暗夜要塞", difficultyID = 16, instanceOrder = 2 },
-			{ instanceType = "raid", expansionName = "军团再临", instanceName = "翡翠梦魇", difficultyID = 16, instanceOrder = 1 },
-			{ instanceType = "raid", expansionName = "德拉诺之王", instanceName = "黑石铸造厂", difficultyID = 16, instanceOrder = 1 },
+			{
+				instanceType = "raid",
+				expansionName = "军团再临",
+				instanceName = "暗夜要塞",
+				difficultyID = 16,
+				instanceOrder = 2,
+			},
+			{
+				instanceType = "raid",
+				expansionName = "军团再临",
+				instanceName = "翡翠梦魇",
+				difficultyID = 16,
+				instanceOrder = 1,
+			},
+			{
+				instanceType = "raid",
+				expansionName = "德拉诺之王",
+				instanceName = "黑石铸造厂",
+				difficultyID = 16,
+				instanceOrder = 1,
+			},
 		}
 	end,
-	InvalidateLootPanelSelectionCacheEntries = function()
-	end,
+	InvalidateLootPanelSelectionCacheEntries = function() end,
 	GetExpansionOrder = function(expansionName)
 		if expansionName == "军团再临" then
 			return 6

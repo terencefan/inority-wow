@@ -1,5 +1,3 @@
-
-
 local addonName, addon = ...
 local API = addon.API
 local Storage = addon.Storage
@@ -94,18 +92,19 @@ addon.minimapHoverDebugHistory = addon.minimapHoverDebugHistory or {}
 local selectableClasses = CoreMetadata.selectableClasses or {}
 local classDisplayNameByFile = {}
 
-addon.UI_COLORS = addon.UI_COLORS or {
-	CHAT_ACCENT_HEX = "66ccff",
-	FRAME_BACKGROUND = { 0.06, 0.06, 0.08, 0.94 },
-	FRAME_HEADER = { 0.18, 0.16, 0.12, 0.95 },
-	FRAME_BORDER = { 0.35, 0.35, 0.4, 1 },
-	HEADER_BUTTON_LABEL_NORMAL = { 0.96, 0.84, 0.52 },
-	HEADER_BUTTON_LABEL_HOVER = { 1.0, 0.96, 0.80 },
-	HEADER_BUTTON_TEXT_NORMAL = { 0.92, 0.92, 0.92 },
-	HEADER_BUTTON_TEXT_HOVER = { 1.0, 0.96, 0.80 },
-	HEADER_BUTTON_ICON_NORMAL = { 0.95, 0.90, 0.72, 0.95 },
-	HEADER_BUTTON_ICON_HOVER = { 1, 1, 1, 1 },
-}
+addon.UI_COLORS = addon.UI_COLORS
+	or {
+		CHAT_ACCENT_HEX = "66ccff",
+		FRAME_BACKGROUND = { 0.06, 0.06, 0.08, 0.94 },
+		FRAME_HEADER = { 0.18, 0.16, 0.12, 0.95 },
+		FRAME_BORDER = { 0.35, 0.35, 0.4, 1 },
+		HEADER_BUTTON_LABEL_NORMAL = { 0.96, 0.84, 0.52 },
+		HEADER_BUTTON_LABEL_HOVER = { 1.0, 0.96, 0.80 },
+		HEADER_BUTTON_TEXT_NORMAL = { 0.92, 0.92, 0.92 },
+		HEADER_BUTTON_TEXT_HOVER = { 1.0, 0.96, 0.80 },
+		HEADER_BUTTON_ICON_NORMAL = { 0.95, 0.90, 0.72, 0.95 },
+		HEADER_BUTTON_ICON_HOVER = { 1, 1, 1, 1 },
+	}
 
 local function ResetLootPanelSessionState(active)
 	lootPanelSessionState.active = active and true or false
@@ -152,7 +151,11 @@ local function ApplyLootEncounterAutoCollapse(encounterName)
 	if type(encounterBaseline) == "table" then
 		local suffix = "::" .. key
 		for encounterKey, baseline in pairs(encounterBaseline) do
-			if type(encounterKey) == "string" and encounterKey:sub(-#suffix) == suffix and type(baseline) == "table" then
+			if
+				type(encounterKey) == "string"
+				and encounterKey:sub(-#suffix) == suffix
+				and type(baseline) == "table"
+			then
 				baseline.autoCollapsed = true
 			end
 		end
@@ -180,7 +183,9 @@ local function MarkLootEncounterPendingAutoCollapse(encounterName, delaySeconds)
 	lootPanelSessionState.delayedAutoCollapseUntil[key] = deadline
 	if C_Timer and C_Timer.After then
 		C_Timer.After(delay, function()
-			local currentDeadline = tonumber(lootPanelSessionState.delayedAutoCollapseUntil and lootPanelSessionState.delayedAutoCollapseUntil[key])
+			local currentDeadline = tonumber(
+				lootPanelSessionState.delayedAutoCollapseUntil and lootPanelSessionState.delayedAutoCollapseUntil[key]
+			)
 			if currentDeadline and currentDeadline == deadline then
 				ApplyLootEncounterAutoCollapse(key)
 				if lootPanel and lootPanel:IsShown() and RefreshLootPanel then
@@ -349,8 +354,6 @@ local ApplyLootHeaderIconToolButtonStyle = UIChromeController.ApplyLootHeaderIco
 local ApplyElvUISkin = UIChromeController.ApplyElvUISkin
 local BuildStyleMenu = UIChromeController.BuildStyleMenu
 
-
-
 local ClassLogic = addon.CoreClassLogic
 ClassLogic.Configure({
 	T = T,
@@ -433,14 +436,6 @@ local GetObservedRaidDifficultyOptions = ClassLogic.GetObservedRaidDifficultyOpt
 local GetObservedRaidDifficultyMap = ClassLogic.GetObservedRaidDifficultyMap
 local GetJournalInstanceDifficultyOptions = ClassLogic.GetJournalInstanceDifficultyOptions
 
-
-
-
-
-
-
-
-
 local function FormatTimeLeft(seconds)
 	if not seconds or seconds <= 0 then
 		return "Expired"
@@ -502,11 +497,15 @@ end
 
 local EncounterState = addon.EncounterState
 addon.BuildBossKillCycleInfo = addon.BuildBossKillCycleInfo or EncounterState.BuildBossKillCycleInfo
-addon.GetCurrentCharacterBossKillCycleInfo = addon.GetCurrentCharacterBossKillCycleInfo or EncounterState.GetCurrentCharacterBossKillCycleInfo
-addon.NormalizeBossKillCountsForCharacter = addon.NormalizeBossKillCountsForCharacter or EncounterState.NormalizeBossKillCountsForCharacter
+addon.GetCurrentCharacterBossKillCycleInfo = addon.GetCurrentCharacterBossKillCycleInfo
+	or EncounterState.GetCurrentCharacterBossKillCycleInfo
+addon.NormalizeBossKillCountsForCharacter = addon.NormalizeBossKillCountsForCharacter
+	or EncounterState.NormalizeBossKillCountsForCharacter
 addon.PruneExpiredBossKillCaches = addon.PruneExpiredBossKillCaches or EncounterState.PruneExpiredBossKillCaches
-addon.ClearCurrentInstanceBossKillState = addon.ClearCurrentInstanceBossKillState or EncounterState.ClearCurrentInstanceBossKillState
-addon.ClearTransientDungeonRunState = addon.ClearTransientDungeonRunState or EncounterState.ClearTransientDungeonRunState
+addon.ClearCurrentInstanceBossKillState = addon.ClearCurrentInstanceBossKillState
+	or EncounterState.ClearCurrentInstanceBossKillState
+addon.ClearTransientDungeonRunState = addon.ClearTransientDungeonRunState
+	or EncounterState.ClearTransientDungeonRunState
 addon.HandleManualInstanceReset = addon.HandleManualInstanceReset or EncounterState.HandleManualInstanceReset
 
 local function GetEncounterCollapseCacheEntry(encounterName)
@@ -751,7 +750,9 @@ local wired = CoreFeatureWiring.Wire({
 	ColorizeExpansionLabel = ColorizeExpansionLabel,
 	GetVisibleEligibleClassesForLootItem = GetVisibleEligibleClassesForLootItem,
 	IsLootItemIncompleteSetPiece = function(item)
-		return addon.LootSets and addon.LootSets.IsLootItemIncompleteSetPiece and addon.LootSets.IsLootItemIncompleteSetPiece(item)
+		return addon.LootSets
+			and addon.LootSets.IsLootItemIncompleteSetPiece
+			and addon.LootSets.IsLootItemIncompleteSetPiece(item)
 	end,
 	getDebugFormatter = function()
 		return addon.DebugTools and addon.DebugTools.FormatLootDebugInfo or nil
@@ -768,7 +769,12 @@ local wired = CoreFeatureWiring.Wire({
 	end,
 	RecordLootPanelOpenDebug = function(stage, details)
 		local selectedInstance = GetSelectedLootPanelInstance and GetSelectedLootPanelInstance() or nil
-		local currentJournalInstanceID, currentDebugInfo = InstanceMetadata and InstanceMetadata.GetCurrentJournalInstanceID and InstanceMetadata.GetCurrentJournalInstanceID() or nil, nil
+		local currentJournalInstanceID, currentDebugInfo =
+			InstanceMetadata
+					and InstanceMetadata.GetCurrentJournalInstanceID
+					and InstanceMetadata.GetCurrentJournalInstanceID()
+				or nil,
+			nil
 		if InstanceMetadata and InstanceMetadata.GetCurrentJournalInstanceID then
 			currentJournalInstanceID, currentDebugInfo = InstanceMetadata.GetCurrentJournalInstanceID()
 		end
@@ -777,7 +783,11 @@ local wired = CoreFeatureWiring.Wire({
 		local history = addon.lootPanelOpenDebugHistory or {}
 		history[#history + 1] = {
 			stage = stage,
-			title = currentLootPanel and currentLootPanel.title and currentLootPanel.title.GetText and currentLootPanel.title:GetText() or nil,
+			title = currentLootPanel
+					and currentLootPanel.title
+					and currentLootPanel.title.GetText
+					and currentLootPanel.title:GetText()
+				or nil,
 			selectedInstanceKey = lootPanelState and lootPanelState.selectedInstanceKey or nil,
 			selectedInstanceName = selectedInstance and selectedInstance.instanceName or nil,
 			selectedInstanceJournalInstanceID = selectedInstance and selectedInstance.journalInstanceID or nil,
@@ -838,12 +848,14 @@ local wired = CoreFeatureWiring.Wire({
 		return {
 			exists = true,
 			name = currentButton.GetName and currentButton:GetName() or nil,
-			parent = currentButton.GetParent and currentButton:GetParent() and currentButton:GetParent():GetName() or nil,
+			parent = currentButton.GetParent and currentButton:GetParent() and currentButton:GetParent():GetName()
+				or nil,
 			isShown = currentButton.IsShown and currentButton:IsShown() or false,
 			hasOnClick = currentOnClick ~= nil,
 			hasOnEnter = currentOnEnter ~= nil,
 			hasOnLeave = currentOnLeave ~= nil,
-			onClickMatchesTracked = currentOnClick ~= nil and currentOnClick == currentButton._mogTrackerClickHandler or false,
+			onClickMatchesTracked = currentOnClick ~= nil and currentOnClick == currentButton._mogTrackerClickHandler
+				or false,
 			onEnterMatchesTooltip = currentOnEnter ~= nil and addon.TooltipUI and currentOnEnter ~= nil or false,
 		}
 	end,
@@ -880,7 +892,10 @@ local wired = CoreFeatureWiring.Wire({
 		return lootPanelState.classScopeMode
 	end,
 	getAppearanceSourceDisplayInfo = function(sourceID)
-		return addon.LootSets and addon.LootSets.GetAppearanceSourceDisplayInfo and addon.LootSets.GetAppearanceSourceDisplayInfo(sourceID) or nil
+		return addon.LootSets
+				and addon.LootSets.GetAppearanceSourceDisplayInfo
+				and addon.LootSets.GetAppearanceSourceDisplayInfo(sourceID)
+			or nil
 	end,
 	UpdateRaidDashboardSnapshot = function(selection, dashboardData)
 		if addon.RaidDashboard and addon.RaidDashboard.UpdateSnapshot then
@@ -914,16 +929,28 @@ local wired = CoreFeatureWiring.Wire({
 		return lootPanel and lootPanel:IsShown()
 	end,
 	CaptureSetDashboardPreviewDump = function()
-		return addon.DebugTools and addon.DebugTools.CaptureSetDashboardPreviewDump and addon.DebugTools.CaptureSetDashboardPreviewDump() or nil
+		return addon.DebugTools
+				and addon.DebugTools.CaptureSetDashboardPreviewDump
+				and addon.DebugTools.CaptureSetDashboardPreviewDump()
+			or nil
 	end,
 	CaptureSetCategoryDebugDump = function(query)
-		return addon.DebugTools and addon.DebugTools.CaptureSetCategoryDebugDump and addon.DebugTools.CaptureSetCategoryDebugDump(query) or nil
+		return addon.DebugTools
+				and addon.DebugTools.CaptureSetCategoryDebugDump
+				and addon.DebugTools.CaptureSetCategoryDebugDump(query)
+			or nil
 	end,
 	CaptureDungeonDashboardDebugDump = function(query, instanceType)
-		return addon.DebugTools and addon.DebugTools.CaptureDungeonDashboardDebugDump and addon.DebugTools.CaptureDungeonDashboardDebugDump(query, instanceType) or nil
+		return addon.DebugTools
+				and addon.DebugTools.CaptureDungeonDashboardDebugDump
+				and addon.DebugTools.CaptureDungeonDashboardDebugDump(query, instanceType)
+			or nil
 	end,
 	CapturePvpSetDebugDump = function()
-		return addon.DebugTools and addon.DebugTools.CapturePvpSetDebugDump and addon.DebugTools.CapturePvpSetDebugDump() or nil
+		return addon.DebugTools
+				and addon.DebugTools.CapturePvpSetDebugDump
+				and addon.DebugTools.CapturePvpSetDebugDump()
+			or nil
 	end,
 	GetEncounterCollapseCacheEntry = GetEncounterCollapseCacheEntry,
 	SetEncounterCollapseCacheEntry = SetEncounterCollapseCacheEntry,
@@ -1010,48 +1037,138 @@ DeriveLootTypeKey = function(item)
 	local className = string.lower(tostring(itemType or ""))
 	local subClassName = string.lower(tostring(itemSubType or ""))
 
-	if armorType == "plate" or armorType == "板甲" then return "PLATE" end
-	if armorType == "mail" or armorType == "锁甲" then return "MAIL" end
-	if armorType == "leather" or armorType == "皮甲" then return "LEATHER" end
-	if armorType == "cloth" or armorType == "布甲" then return "CLOTH" end
-	if equipLoc == "INVTYPE_CLOAK" then return "BACK" end
-	if equipLoc == "INVTYPE_FINGER" then return "RING" end
-	if equipLoc == "INVTYPE_NECK" then return "NECK" end
-	if equipLoc == "INVTYPE_TRINKET" then return "TRINKET" end
-	if slot:find("cloak", 1, true) or slot:find("back", 1, true) or slot:find("披风", 1, true) or slot:find("背部", 1, true) then return "BACK" end
-	if slot:find("shield", 1, true) or slot:find("盾", 1, true) then return "SHIELD" end
-	if slot:find("held in off%-hand") or slot:find("off%-hand") or slot:find("副手", 1, true) then return "OFF_HAND" end
-	if subClassName:find("dagger", 1, true) or subClassName:find("匕首", 1, true) then return "DAGGER" end
-	if subClassName:find("wand", 1, true) or subClassName:find("魔杖", 1, true) then return "WAND" end
-	if subClassName:find("bow", 1, true) or subClassName:find("弓", 1, true) then return "BOW" end
-	if subClassName:find("gun", 1, true) or subClassName:find("枪", 1, true) then return "GUN" end
-	if subClassName:find("crossbow", 1, true) or subClassName:find("弩", 1, true) then return "CROSSBOW" end
-	if subClassName:find("polearm", 1, true) or subClassName:find("长柄", 1, true) then return "POLEARM" end
-	if subClassName:find("staff", 1, true) or subClassName:find("法杖", 1, true) then return "STAFF" end
-	if subClassName:find("fist", 1, true) or subClassName:find("拳套", 1, true) then return "FIST" end
-	if subClassName:find("axe", 1, true) or subClassName:find("斧", 1, true) then return "AXE" end
-	if subClassName:find("mace", 1, true) or subClassName:find("锤", 1, true) then return "MACE" end
-	if subClassName:find("sword", 1, true) or subClassName:find("剑", 1, true) then return "SWORD" end
-	if slot:find("dagger", 1, true) or slot:find("匕首", 1, true) then return "DAGGER" end
-	if slot:find("wand", 1, true) or slot:find("魔杖", 1, true) then return "WAND" end
-	if slot:find("bow", 1, true) or slot:find("弓", 1, true) then return "BOW" end
-	if slot:find("gun", 1, true) or slot:find("枪", 1, true) then return "GUN" end
-	if slot:find("crossbow", 1, true) or slot:find("弩", 1, true) then return "CROSSBOW" end
-	if slot:find("polearm", 1, true) or slot:find("长柄", 1, true) then return "POLEARM" end
-	if slot:find("staff", 1, true) or slot:find("法杖", 1, true) then return "STAFF" end
-	if slot:find("fist", 1, true) or slot:find("拳套", 1, true) then return "FIST" end
-	if slot:find("axe", 1, true) or slot:find("斧", 1, true) then return "AXE" end
-	if slot:find("mace", 1, true) or slot:find("锤", 1, true) then return "MACE" end
-	if slot:find("sword", 1, true) or slot:find("剑", 1, true) then return "SWORD" end
-	if slot:find("two%-hand") or slot:find("双手", 1, true) then return "TWO_HAND" end
-	if slot:find("one%-hand") or slot:find("单手", 1, true) then return "ONE_HAND" end
-	if slot:find("finger", 1, true) or slot:find("ring", 1, true) or slot:find("戒指", 1, true) or slot:find("手指", 1, true) then return "RING" end
-	if slot:find("neck", 1, true) or slot:find("项链", 1, true) or slot:find("颈部", 1, true) then return "NECK" end
-	if slot:find("trinket", 1, true) or slot:find("饰品", 1, true) then return "TRINKET" end
+	if armorType == "plate" or armorType == "板甲" then
+		return "PLATE"
+	end
+	if armorType == "mail" or armorType == "锁甲" then
+		return "MAIL"
+	end
+	if armorType == "leather" or armorType == "皮甲" then
+		return "LEATHER"
+	end
+	if armorType == "cloth" or armorType == "布甲" then
+		return "CLOTH"
+	end
+	if equipLoc == "INVTYPE_CLOAK" then
+		return "BACK"
+	end
+	if equipLoc == "INVTYPE_FINGER" then
+		return "RING"
+	end
+	if equipLoc == "INVTYPE_NECK" then
+		return "NECK"
+	end
+	if equipLoc == "INVTYPE_TRINKET" then
+		return "TRINKET"
+	end
+	if
+		slot:find("cloak", 1, true)
+		or slot:find("back", 1, true)
+		or slot:find("披风", 1, true)
+		or slot:find("背部", 1, true)
+	then
+		return "BACK"
+	end
+	if slot:find("shield", 1, true) or slot:find("盾", 1, true) then
+		return "SHIELD"
+	end
+	if slot:find("held in off%-hand") or slot:find("off%-hand") or slot:find("副手", 1, true) then
+		return "OFF_HAND"
+	end
+	if subClassName:find("dagger", 1, true) or subClassName:find("匕首", 1, true) then
+		return "DAGGER"
+	end
+	if subClassName:find("wand", 1, true) or subClassName:find("魔杖", 1, true) then
+		return "WAND"
+	end
+	if subClassName:find("bow", 1, true) or subClassName:find("弓", 1, true) then
+		return "BOW"
+	end
+	if subClassName:find("gun", 1, true) or subClassName:find("枪", 1, true) then
+		return "GUN"
+	end
+	if subClassName:find("crossbow", 1, true) or subClassName:find("弩", 1, true) then
+		return "CROSSBOW"
+	end
+	if subClassName:find("polearm", 1, true) or subClassName:find("长柄", 1, true) then
+		return "POLEARM"
+	end
+	if subClassName:find("staff", 1, true) or subClassName:find("法杖", 1, true) then
+		return "STAFF"
+	end
+	if subClassName:find("fist", 1, true) or subClassName:find("拳套", 1, true) then
+		return "FIST"
+	end
+	if subClassName:find("axe", 1, true) or subClassName:find("斧", 1, true) then
+		return "AXE"
+	end
+	if subClassName:find("mace", 1, true) or subClassName:find("锤", 1, true) then
+		return "MACE"
+	end
+	if subClassName:find("sword", 1, true) or subClassName:find("剑", 1, true) then
+		return "SWORD"
+	end
+	if slot:find("dagger", 1, true) or slot:find("匕首", 1, true) then
+		return "DAGGER"
+	end
+	if slot:find("wand", 1, true) or slot:find("魔杖", 1, true) then
+		return "WAND"
+	end
+	if slot:find("bow", 1, true) or slot:find("弓", 1, true) then
+		return "BOW"
+	end
+	if slot:find("gun", 1, true) or slot:find("枪", 1, true) then
+		return "GUN"
+	end
+	if slot:find("crossbow", 1, true) or slot:find("弩", 1, true) then
+		return "CROSSBOW"
+	end
+	if slot:find("polearm", 1, true) or slot:find("长柄", 1, true) then
+		return "POLEARM"
+	end
+	if slot:find("staff", 1, true) or slot:find("法杖", 1, true) then
+		return "STAFF"
+	end
+	if slot:find("fist", 1, true) or slot:find("拳套", 1, true) then
+		return "FIST"
+	end
+	if slot:find("axe", 1, true) or slot:find("斧", 1, true) then
+		return "AXE"
+	end
+	if slot:find("mace", 1, true) or slot:find("锤", 1, true) then
+		return "MACE"
+	end
+	if slot:find("sword", 1, true) or slot:find("剑", 1, true) then
+		return "SWORD"
+	end
+	if slot:find("two%-hand") or slot:find("双手", 1, true) then
+		return "TWO_HAND"
+	end
+	if slot:find("one%-hand") or slot:find("单手", 1, true) then
+		return "ONE_HAND"
+	end
+	if
+		slot:find("finger", 1, true)
+		or slot:find("ring", 1, true)
+		or slot:find("戒指", 1, true)
+		or slot:find("手指", 1, true)
+	then
+		return "RING"
+	end
+	if slot:find("neck", 1, true) or slot:find("项链", 1, true) or slot:find("颈部", 1, true) then
+		return "NECK"
+	end
+	if slot:find("trinket", 1, true) or slot:find("饰品", 1, true) then
+		return "TRINKET"
+	end
 	if subClassName:find("mount", 1, true) or subClassName:find("坐骑", 1, true) then
 		return "MOUNT"
 	end
-	if subClassName:find("companion pet", 1, true) or subClassName:find("battle pet", 1, true) or subClassName:find("宠物", 1, true) then
+	if
+		subClassName:find("companion pet", 1, true)
+		or subClassName:find("battle pet", 1, true)
+		or subClassName:find("宠物", 1, true)
+	then
 		return "PET"
 	end
 	if itemClassID == 15 then
@@ -1066,7 +1183,11 @@ DeriveLootTypeKey = function(item)
 		if subClassName:find("mount", 1, true) or subClassName:find("坐骑", 1, true) then
 			return "MOUNT"
 		end
-		if subClassName:find("companion pet", 1, true) or subClassName:find("battle pet", 1, true) or subClassName:find("宠物", 1, true) then
+		if
+			subClassName:find("companion pet", 1, true)
+			or subClassName:find("battle pet", 1, true)
+			or subClassName:find("宠物", 1, true)
+		then
 			return "PET"
 		end
 	end

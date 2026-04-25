@@ -9,9 +9,9 @@
 - `LootSelection.lua`
   当前区域、副本/难度选择树和菜单切换
 - `LootDataController.lua`
-  当前 selection 的掉落数据采集和缓存
+  当前 selection 的掉落数据采集、缓存，以及收藏态过滤后的 encounter/row 派生
 - `CollectionState.lua`
-  收集状态、隐藏已收藏和 encounter 级显示态
+  收集事实状态和会话显示态；不再直接持有 loot panel 的过滤 owner
 - `LootPanelRenderer.lua`
   `loot / sets` 两个 tab 的主渲染
 - `LootPanelRows.lua`
@@ -44,7 +44,7 @@
 
 ## 3. 数据链路图
 
-掉落面板的数据链路是“selection -> EJ/raw loot -> collection state -> 当前页消费的数据结构”。
+掉落面板的数据链路现在已经变成“selection -> EJ/raw loot -> collection state fact -> derive visibility -> 当前页消费的数据结构”。
 
 ```dot
 digraph LootDataFlow {
@@ -59,15 +59,16 @@ digraph LootDataFlow {
   Cache [label="lootDataCache"];
   API [label="APICollectCurrentInstanceLootData()"];
   Encounter [label="encounters + loot rows"];
-  Display [label="GetEncounterLootDisplayState()"];
+  Derive [label="BuildCurrentInstanceLootSummary()"];
+  Visible [label="encounter.filteredLoot /\nvisibleLoot /\nallRowsFiltered"];
   SetSummary [label="BuildCurrentInstanceSetSummary()"];
 
   Select -> Tree;
   Select -> Data;
   Data -> Cache;
   Data -> API -> Encounter;
-  Encounter -> Display;
-  Encounter -> SetSummary;
+  Encounter -> Derive -> Visible;
+  Visible -> SetSummary;
 }
 ```
 
@@ -136,6 +137,7 @@ digraph LootRenderFlow {
 - `selectedClassIDs`
 - `selectedLootTypes`
 - `hideCollectedFlags`
+  当前已经进入 `SelectionContext`，并由 `LootDataController` 派生成 `isVisible / hiddenReason`
 - `lastManualSelectionKey`
 - `lastManualTab`
 - `lastObservedCurrentInstance`
@@ -192,7 +194,26 @@ digraph LootRenderFlow {
 - `appearanceID`
 - `sourceID`
 
-## 7. 选择与采集补充图
+## 7. 收藏态过滤 contract
+
+当前实现已经把“收藏事实”和“收藏态过滤可见性”拆成两层：
+
+- `CollectionState.GetLootItemDisplayCollectionState(item)`
+  只负责单个 item 的事实/会话显示态
+- `LootDataController.BuildCurrentInstanceLootSummary(data, sourceContext)`
+  负责把 `hideCollectedFlags + selectedLootTypes + displayCollectionState` 派生成：
+  - `row.isCollected`
+  - `row.isVisible`
+  - `row.hiddenReason`
+  - `encounter.filteredLoot`
+  - `encounter.visibleLoot`
+  - `encounter.allRowsFiltered`
+- `LootSets.BuildCurrentInstanceSetSummary(...)`
+  改为消费 `visibleRows / visibleSourcesBySetID`，不再回退到 raw rows
+- `LootPanelRenderer`
+  只消费 encounter/group 上已经派生好的过滤结果，不再直接调用 `GetEncounterLootDisplayState()`
+
+## 8. 选择与采集补充图
 
 ```dot
 digraph LootSelectionAndData {
@@ -225,12 +246,13 @@ digraph LootSelectionAndData {
 
 每个首领先经过：
 
-- `CollectionState.GetEncounterLootDisplayState(encounter)`
+- `LootDataController.BuildCurrentInstanceLootSummary(data, sourceContext)`
 
 这一步会把原始 `encounter.loot` 收敛成：
 
 - `filteredLoot`
 - `visibleLoot`
+- `allRowsFiltered`
 - `fullyCollected`
 
 `LootPanelRenderer.RenderLootBranch()` 只消费 `visibleLoot`，并通过 `LootPanelRows.lua` 更新：
@@ -287,15 +309,16 @@ item 是否最终显示，主链路是：
 
 1. `LootPanelRenderer.RefreshLootPanel()`
 2. `LootDataController.CollectCurrentInstanceLootData()`
-3. `CollectionState.GetEncounterLootDisplayState()`
-4. `CollectionState.LootItemMatchesTypeFilter()`
-5. `LootPanelRenderer.RenderLootBranch()`
+3. `LootSelection.BuildSelectionContext()`
+4. `LootDataController.BuildCurrentInstanceLootSummary()`
+5. `CollectionState.BuildLootItemFilterState()`
+6. `LootPanelRenderer.RenderLootBranch()`
 
 因此“已收藏仍然显示”的根因通常只会落在：
 
 - 原始掉落数据不完整
 - `displayState` 没有进入 collected-like
-- `hideCollectedTransmog / Mounts / Pets` 没有命中
+- `SelectionContext.hideCollectedFlags` 没有正确进入派生链
 - `typeKey` 走错收藏品分支
 
 ### 11.1 实际状态 vs 显示态
@@ -309,18 +332,25 @@ item 是否最终显示，主链路是：
 
 ### 11.2 过滤规则
 
-`LootItemMatchesTypeFilter(item)` 的顺序是：
+`BuildLootItemFilterState(item, filterContext)` 的顺序是：
 
-1. 读取 `StorageGateway.GetSettings()`
-2. 检查 `selectedLootTypes`
+1. 读取 `filterContext.selectedLootTypes`
+2. 读取 `filterContext.hideCollectedFlags`
 3. 调 `GetLootItemDisplayCollectionState(item)`
 4. 判断是否属于 collected-like：
    - `collected`
    - `newly_collected`
 5. 按类型和设置决定是否隐藏：
-   - 幻化：`hideCollectedTransmog`
-   - 坐骑：`hideCollectedMounts`
-   - 宠物：`hideCollectedPets`
+   - 幻化：`hideCollectedFlags.transmog`
+   - 坐骑：`hideCollectedFlags.mount`
+   - 宠物：`hideCollectedFlags.pet`
+
+然后把结果继续派生成：
+
+- `row.isCollected`
+- `row.isVisible`
+- `row.hiddenReason`
+- `encounter.allRowsFiltered`
 
 ## 12. 首领击杀次数统计图
 
@@ -363,7 +393,7 @@ digraph LootBossKillCountFlow {
 - 鼠标提示里的 `xN` 次击杀信息
 - 基于击杀进度的折叠/展开辅助判断
 
-## 12. 隐藏已收藏排查图
+## 13. 隐藏已收藏排查图
 
 ```dot
 digraph LootCollectedVisibility {
@@ -373,19 +403,19 @@ digraph LootCollectedVisibility {
   edge [color="#BE123C" fontsize=9 fontname="Microsoft YaHei"];
 
   Problem [label="Collected item still visible"];
-  Display [label="GetEncounterLootDisplayState()"];
-  Filter [label="LootItemMatchesTypeFilter()"];
+  Summary [label="BuildCurrentInstanceLootSummary()"];
+  Filter [label="BuildLootItemFilterState()"];
   State [label="GetLootItemDisplayCollectionState()"];
   Real [label="ResolveLootItemCollectionState()"];
   Data [label="APICollectCurrentInstanceLootData()"];
-  Visible [label="visibleLoot"];
+  Visible [label="row.isVisible /\nvisibleLoot"];
 
-  Problem -> Display -> Visible;
-  Visible -> Filter -> State -> Real -> Data;
+  Problem -> Summary -> Visible;
+  Summary -> Filter -> State -> Real -> Data;
 }
 ```
 
-## 13. 常见排查
+## 14. 常见排查
 
 如果症状是：
 

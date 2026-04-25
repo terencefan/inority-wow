@@ -7,6 +7,27 @@ local dependencies = LootDataController._dependencies or {}
 local expansionByInstanceKey
 local expansionOrderByName
 
+local function BuildCollectionFilterSignature(selectionContext)
+	if type(selectionContext) ~= "table" then
+		return "types=ALL::transmog=0::mount=0::pet=0"
+	end
+
+	local selectedLootTypes = {}
+	for _, lootType in ipairs(selectionContext.selectedLootTypes or {}) do
+		selectedLootTypes[#selectedLootTypes + 1] = tostring(lootType)
+	end
+	table.sort(selectedLootTypes)
+
+	local hideCollectedFlags = selectionContext.hideCollectedFlags or {}
+	return string.format(
+		"types=%s::transmog=%d::mount=%d::pet=%d",
+		#selectedLootTypes > 0 and table.concat(selectedLootTypes, ",") or "ALL",
+		hideCollectedFlags.hideCollectedTransmog and 1 or 0,
+		hideCollectedFlags.hideCollectedMounts and 1 or 0,
+		hideCollectedFlags.hideCollectedPets and 1 or 0
+	)
+end
+
 local function BuildClassScopeKey(classIDs)
 	classIDs = type(classIDs) == "table" and classIDs or {}
 	if #classIDs == 0 then
@@ -170,7 +191,12 @@ function LootDataController.CollectCurrentInstanceLootData()
 	local lootDataCache = getLootDataCache and getLootDataCache() or nil
 	local data
 
-	if lootDataCache and lootDataCache.version == lootDataRulesVersion and lootDataCache.key == cacheKey and lootDataCache.data then
+	if
+		lootDataCache
+		and lootDataCache.version == lootDataRulesVersion
+		and lootDataCache.key == cacheKey
+		and lootDataCache.data
+	then
 		data = lootDataCache.data
 	else
 		data = apiCollect({
@@ -214,28 +240,53 @@ function LootDataController.BuildCurrentInstanceLootSummary(data, sourceContext)
 		}
 	end
 
-	local instanceName = tostring((sourceContext and sourceContext.instanceName) or data.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本"))
+	local instanceName = tostring(
+		(sourceContext and sourceContext.instanceName)
+			or data.instanceName
+			or T("LOOT_UNKNOWN_INSTANCE", "未知副本")
+	)
 	local difficultyName = tostring((sourceContext and sourceContext.difficultyName) or data.difficultyName or "")
 	local selectionKey = tostring((sourceContext and sourceContext.selectionKey) or data.selectionKey or "missing")
+	local selectionContext = type(sourceContext and sourceContext.selectionContext) == "table"
+			and sourceContext.selectionContext
+		or (type(dependencies.BuildSelectionContext) == "function" and dependencies.BuildSelectionContext() or {})
+	local filterSignature = BuildCollectionFilterSignature(selectionContext)
 	local summaryStore = addon.DerivedSummaryStore
-	local summaries = summaryStore and summaryStore.GetLootPanelDerivedSummaries and summaryStore.GetLootPanelDerivedSummaries(data) or nil
-	local cachedSummary = type(summaries and summaries.currentInstanceLootSummary) == "table" and summaries.currentInstanceLootSummary or nil
-	if summaryStore and summaryStore.MatchesCurrentInstanceLootSummary and summaryStore.MatchesCurrentInstanceLootSummary(cachedSummary, selectionKey, instanceName, difficultyName) then
+	local summaries = summaryStore
+			and summaryStore.GetLootPanelDerivedSummaries
+			and summaryStore.GetLootPanelDerivedSummaries(data)
+		or nil
+	local cachedSummary = type(summaries and summaries.currentInstanceLootSummary) == "table"
+			and summaries.currentInstanceLootSummary
+		or nil
+	if
+		summaryStore
+		and summaryStore.MatchesCurrentInstanceLootSummary
+		and summaryStore.MatchesCurrentInstanceLootSummary(cachedSummary, selectionKey, instanceName, difficultyName)
+		and tostring(cachedSummary.filterSignature or "") == filterSignature
+	then
 		return cachedSummary
 	end
 
 	local getLootItemSetIDs = dependencies.GetLootItemSetIDs
 	local getLootItemSourceID = dependencies.GetLootItemSourceID
+	local buildLootItemFilterState = dependencies.BuildLootItemFilterState
 	local summary = {
-		rulesVersion = summaryStore and summaryStore.GetRulesVersion and summaryStore.GetRulesVersion("currentInstanceLootSummary") or 0,
+		rulesVersion = summaryStore and summaryStore.GetRulesVersion and summaryStore.GetRulesVersion(
+			"currentInstanceLootSummary"
+		) or 0,
 		selectionKey = selectionKey,
 		state = data.error and "missing" or (data.missingItemData and "partial" or "ready"),
 		instanceName = instanceName,
 		difficultyName = difficultyName,
+		filterSignature = filterSignature,
+		selectionContext = selectionContext,
 		encounters = {},
 		rows = {},
+		visibleRows = {},
 		setMembership = BuildSelectionSetMembership(selectionKey),
 		sourcesBySetID = {},
+		visibleSourcesBySetID = {},
 	}
 
 	for _, encounter in ipairs(data.encounters or {}) do
@@ -245,10 +296,22 @@ function LootDataController.BuildCurrentInstanceLootSummary(data, sourceContext)
 			index = encounter.index,
 			name = encounterName,
 			loot = {},
+			filteredLoot = {},
+			visibleLoot = {},
+			fullyCollected = false,
+			allRowsFiltered = false,
 		}
 		for _, item in ipairs(encounter.loot or {}) do
 			local setIDs = type(getLootItemSetIDs) == "function" and (getLootItemSetIDs(item) or {}) or {}
 			local sourceID = type(getLootItemSourceID) == "function" and getLootItemSourceID(item) or item.sourceID
+			local filterState = type(buildLootItemFilterState) == "function"
+					and buildLootItemFilterState(item, selectionContext)
+				or {
+					displayState = nil,
+					isCollected = false,
+					isVisible = true,
+					hiddenReason = nil,
+				}
 			local lootRow = {
 				sourceID = sourceID,
 				itemID = item.itemID,
@@ -263,16 +326,41 @@ function LootDataController.BuildCurrentInstanceLootSummary(data, sourceContext)
 				difficultyName = difficultyName,
 				encounterName = encounterName,
 				setIDs = setIDs,
+				displayCollectionState = filterState.displayState,
+				isCollected = filterState.isCollected and true or false,
+				isVisible = filterState.isVisible and true or false,
+				hiddenReason = filterState.hiddenReason,
 			}
 			summary.rows[#summary.rows + 1] = lootRow
 			encounterSummary.loot[#encounterSummary.loot + 1] = lootRow
-
-			for _, setID in ipairs(setIDs) do
-				summary.sourcesBySetID[setID] = summary.sourcesBySetID[setID] or {}
-				summary.sourcesBySetID[setID][#summary.sourcesBySetID[setID] + 1] = lootRow
-				AddSelectionMembershipLink(summary.setMembership, sourceID, setID)
+			if filterState.hiddenReason ~= "type_filtered" then
+				encounterSummary.filteredLoot[#encounterSummary.filteredLoot + 1] = lootRow
+				for _, setID in ipairs(setIDs) do
+					summary.sourcesBySetID[setID] = summary.sourcesBySetID[setID] or {}
+					summary.sourcesBySetID[setID][#summary.sourcesBySetID[setID] + 1] = lootRow
+					AddSelectionMembershipLink(summary.setMembership, sourceID, setID)
+				end
+			end
+			if lootRow.isVisible then
+				encounterSummary.visibleLoot[#encounterSummary.visibleLoot + 1] = lootRow
+				summary.visibleRows[#summary.visibleRows + 1] = lootRow
+				for _, setID in ipairs(setIDs) do
+					summary.visibleSourcesBySetID[setID] = summary.visibleSourcesBySetID[setID] or {}
+					summary.visibleSourcesBySetID[setID][#summary.visibleSourcesBySetID[setID] + 1] = lootRow
+				end
 			end
 		end
+		if #encounterSummary.filteredLoot > 0 then
+			encounterSummary.fullyCollected = true
+			for _, lootRow in ipairs(encounterSummary.filteredLoot) do
+				if not lootRow.isCollected then
+					encounterSummary.fullyCollected = false
+					break
+				end
+			end
+		end
+		encounterSummary.allRowsFiltered =
+			#encounterSummary.filteredLoot > 0 and #encounterSummary.visibleLoot == 0
 		summary.encounters[#summary.encounters + 1] = encounterSummary
 	end
 
@@ -311,14 +399,18 @@ function LootDataController.GetExpansionForLockout(lockout)
 	end
 
 	local normalizeLockoutDisplayName = dependencies.NormalizeLockoutDisplayName
-	local normalizedLockoutName = normalizeLockoutDisplayName and normalizeLockoutDisplayName(instanceName) or instanceName
+	local normalizedLockoutName = normalizeLockoutDisplayName and normalizeLockoutDisplayName(instanceName)
+		or instanceName
 	for cacheKey, expansionName in pairs(expansionCache) do
 		local cacheTypeKey, cacheName = tostring(cacheKey):match("^(.-)::(.*)$")
 		if cacheTypeKey == instanceTypeKey then
-			local normalizedCacheName = normalizeLockoutDisplayName and normalizeLockoutDisplayName(cacheName) or cacheName
-			if normalizedCacheName == normalizedLockoutName
+			local normalizedCacheName = normalizeLockoutDisplayName and normalizeLockoutDisplayName(cacheName)
+				or cacheName
+			if
+				normalizedCacheName == normalizedLockoutName
 				or normalizedCacheName:find(normalizedLockoutName, 1, true)
-				or normalizedLockoutName:find(normalizedCacheName, 1, true) then
+				or normalizedLockoutName:find(normalizedCacheName, 1, true)
+			then
 				return expansionName
 			end
 		end

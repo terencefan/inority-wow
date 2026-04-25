@@ -110,7 +110,10 @@ local collected, total = SetDashboardBridge.GetSetProgress(7001)
 assert(collected == 1 and total == 1, "expected same-appearance collected state to count toward set progress")
 
 local missingPieces = LootSets.BuildSetMissingPieces(7001, nil)
-assert(type(missingPieces) == "table" and #missingPieces == 0, "expected collected cloak appearance to avoid false missing-piece rows")
+assert(
+	type(missingPieces) == "table" and #missingPieces == 0,
+	"expected collected cloak appearance to avoid false missing-piece rows"
+)
 
 _G.C_TransmogSets = originalTransmogSets
 _G.C_TransmogCollection = originalTransmogCollection

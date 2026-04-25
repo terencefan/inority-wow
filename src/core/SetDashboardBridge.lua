@@ -28,11 +28,7 @@ local function GetDashboardType(defaultValue)
 end
 
 local function GetCollapseKey(expansionName, defaultDashboardType)
-	return string.format(
-		"%s::%s",
-		tostring(GetDashboardType(defaultDashboardType)),
-		tostring(expansionName or "Other")
-	)
+	return string.format("%s::%s", tostring(GetDashboardType(defaultDashboardType)), tostring(expansionName or "Other"))
 end
 
 local function IsExpansionCollapsed(expansionName, defaultDashboardType)
@@ -404,7 +400,10 @@ function SetDashboardBridge.ConfigureRaidDashboardModule()
 				or tostring(setEntry and setEntry.name or ("Set " .. tostring(setEntry and setEntry.setID or "")))
 		end,
 		buildDistinctSetDisplayNames = function(sets)
-			return addon.LootSets and addon.LootSets.BuildDistinctSetDisplayNames and addon.LootSets.BuildDistinctSetDisplayNames(sets) or sets
+			return addon.LootSets
+					and addon.LootSets.BuildDistinctSetDisplayNames
+					and addon.LootSets.BuildDistinctSetDisplayNames(sets)
+				or sets
 		end,
 		isCollectSameAppearanceEnabled = function()
 			return true
