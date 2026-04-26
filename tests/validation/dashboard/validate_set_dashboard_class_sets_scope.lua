@@ -62,19 +62,19 @@ SetDashboard.Configure({
 					instanceName = "阿梅达希尔，梦境之愿",
 					expansionName = "巨龙时代",
 					expansionOrder = 9,
-				difficultyData = {
-					[14] = {
-						total = {
-							setPieces = {
-								piece1 = { setIDs = { 1002 } },
+					difficultyData = {
+						[14] = {
+							total = {
+								setPieces = {
+									piece1 = { setIDs = { 1002 } },
+								},
 							},
 						},
-					},
-					[16] = {
-						total = {
-							setPieces = {
-								piece1 = { setIDs = { 1001 } },
-							},
+						[16] = {
+							total = {
+								setPieces = {
+									piece1 = { setIDs = { 1001 } },
+								},
 							},
 						},
 					},
@@ -91,6 +91,9 @@ assert(#(data.expansions or {}) == 1, "expected only tier-mapped raid expansion 
 assert(tostring(data.expansions[1].expansionName) == "巨龙时代", "expected mapped expansion name")
 assert(#(data.expansions[1].rows or {}) == 1, "expected one tier row")
 assert(tostring(data.expansions[1].rows[1].label) == "T31", "expected tier row label")
-assert((data.expansions[1].rows[1].total and data.expansions[1].rows[1].total.totalSets or 0) == 1, "expected only highest-difficulty tier-mapped raid set to remain")
+assert(
+	(data.expansions[1].rows[1].total and data.expansions[1].rows[1].total.totalSets or 0) == 1,
+	"expected only highest-difficulty tier-mapped raid set to remain"
+)
 
 print("validated_set_dashboard_class_sets_scope=true")

@@ -5,7 +5,7 @@
 ## Scope
 
 - `ConfigPanelController.lua`: 主配置面板生命周期、导航、过滤 UI 和按钮区。
-- `ConfigDebugData.lua`: debug dump、SavedInstances 捕获、调试分段展示和主面板文本刷新。
+- `ConfigDebugData.lua`: unified log 面板控制器、focused dump 采集、`level / scope / session` 过滤、结构化导出与主区文本刷新。
 
 ## Notes
 

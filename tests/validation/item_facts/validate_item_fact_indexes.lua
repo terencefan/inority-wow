@@ -55,7 +55,10 @@ local replacement = StorageGateway.GetItemFactBySourceID(611)
 assert(replacement and tonumber(replacement.itemID) == 1001, "expected updated source index to resolve item 1001")
 
 local updatedAppearanceFacts = StorageGateway.GetItemFactsByAppearanceID(511)
-assert(type(updatedAppearanceFacts) == "table" and #updatedAppearanceFacts == 1, "expected updated appearance index to rebuild")
+assert(
+	type(updatedAppearanceFacts) == "table" and #updatedAppearanceFacts == 1,
+	"expected updated appearance index to rebuild"
+)
 assert(tonumber(updatedAppearanceFacts[1].itemID) == 1001, "expected rebuilt appearance entry for item 1001")
 
 StorageGateway.UpsertItemFact(1003, {

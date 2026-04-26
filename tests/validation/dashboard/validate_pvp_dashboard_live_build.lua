@@ -43,6 +43,9 @@ assert(data.message == nil, "expected live pvp build not to require scan cache")
 assert(#(data.expansions or {}) == 1, "expected one expansion in pvp live build")
 assert(tostring(data.expansions[1].expansionName) == "地心之战", "expected expansion name from live set data")
 assert(#(data.expansions[1].rows or {}) == 1, "expected one season row")
-assert((data.expansions[1].rows[1].total and data.expansions[1].rows[1].total.totalSets or 0) == 1, "expected one tracked pvp set")
+assert(
+	(data.expansions[1].rows[1].total and data.expansions[1].rows[1].total.totalSets or 0) == 1,
+	"expected one tracked pvp set"
+)
 
 print("validated_pvp_dashboard_live_build=true")

@@ -8,8 +8,7 @@ _G.EJ_GetNumTiers = function()
 	return 1
 end
 
-_G.EJ_SelectTier = function()
-end
+_G.EJ_SelectTier = function() end
 
 local entries = {
 	{ journalInstanceID = 557, journalName = "德拉诺", mapID = 1228, isRaid = true },

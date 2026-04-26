@@ -170,7 +170,12 @@ function LootDataController.CollectCurrentInstanceLootData()
 	local lootDataCache = getLootDataCache and getLootDataCache() or nil
 	local data
 
-	if lootDataCache and lootDataCache.version == lootDataRulesVersion and lootDataCache.key == cacheKey and lootDataCache.data then
+	if
+		lootDataCache
+		and lootDataCache.version == lootDataRulesVersion
+		and lootDataCache.key == cacheKey
+		and lootDataCache.data
+	then
 		data = lootDataCache.data
 	else
 		data = apiCollect({
@@ -214,20 +219,35 @@ function LootDataController.BuildCurrentInstanceLootSummary(data, sourceContext)
 		}
 	end
 
-	local instanceName = tostring((sourceContext and sourceContext.instanceName) or data.instanceName or T("LOOT_UNKNOWN_INSTANCE", "未知副本"))
+	local instanceName = tostring(
+		(sourceContext and sourceContext.instanceName)
+			or data.instanceName
+			or T("LOOT_UNKNOWN_INSTANCE", "未知副本")
+	)
 	local difficultyName = tostring((sourceContext and sourceContext.difficultyName) or data.difficultyName or "")
 	local selectionKey = tostring((sourceContext and sourceContext.selectionKey) or data.selectionKey or "missing")
 	local summaryStore = addon.DerivedSummaryStore
-	local summaries = summaryStore and summaryStore.GetLootPanelDerivedSummaries and summaryStore.GetLootPanelDerivedSummaries(data) or nil
-	local cachedSummary = type(summaries and summaries.currentInstanceLootSummary) == "table" and summaries.currentInstanceLootSummary or nil
-	if summaryStore and summaryStore.MatchesCurrentInstanceLootSummary and summaryStore.MatchesCurrentInstanceLootSummary(cachedSummary, selectionKey, instanceName, difficultyName) then
+	local summaries = summaryStore
+			and summaryStore.GetLootPanelDerivedSummaries
+			and summaryStore.GetLootPanelDerivedSummaries(data)
+		or nil
+	local cachedSummary = type(summaries and summaries.currentInstanceLootSummary) == "table"
+			and summaries.currentInstanceLootSummary
+		or nil
+	if
+		summaryStore
+		and summaryStore.MatchesCurrentInstanceLootSummary
+		and summaryStore.MatchesCurrentInstanceLootSummary(cachedSummary, selectionKey, instanceName, difficultyName)
+	then
 		return cachedSummary
 	end
 
 	local getLootItemSetIDs = dependencies.GetLootItemSetIDs
 	local getLootItemSourceID = dependencies.GetLootItemSourceID
 	local summary = {
-		rulesVersion = summaryStore and summaryStore.GetRulesVersion and summaryStore.GetRulesVersion("currentInstanceLootSummary") or 0,
+		rulesVersion = summaryStore and summaryStore.GetRulesVersion and summaryStore.GetRulesVersion(
+			"currentInstanceLootSummary"
+		) or 0,
 		selectionKey = selectionKey,
 		state = data.error and "missing" or (data.missingItemData and "partial" or "ready"),
 		instanceName = instanceName,
@@ -311,14 +331,18 @@ function LootDataController.GetExpansionForLockout(lockout)
 	end
 
 	local normalizeLockoutDisplayName = dependencies.NormalizeLockoutDisplayName
-	local normalizedLockoutName = normalizeLockoutDisplayName and normalizeLockoutDisplayName(instanceName) or instanceName
+	local normalizedLockoutName = normalizeLockoutDisplayName and normalizeLockoutDisplayName(instanceName)
+		or instanceName
 	for cacheKey, expansionName in pairs(expansionCache) do
 		local cacheTypeKey, cacheName = tostring(cacheKey):match("^(.-)::(.*)$")
 		if cacheTypeKey == instanceTypeKey then
-			local normalizedCacheName = normalizeLockoutDisplayName and normalizeLockoutDisplayName(cacheName) or cacheName
-			if normalizedCacheName == normalizedLockoutName
+			local normalizedCacheName = normalizeLockoutDisplayName and normalizeLockoutDisplayName(cacheName)
+				or cacheName
+			if
+				normalizedCacheName == normalizedLockoutName
 				or normalizedCacheName:find(normalizedLockoutName, 1, true)
-				or normalizedLockoutName:find(normalizedCacheName, 1, true) then
+				or normalizedLockoutName:find(normalizedCacheName, 1, true)
+			then
 				return expansionName
 			end
 		end

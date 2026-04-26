@@ -104,10 +104,11 @@ function StorageGateway.GetRuntimeLogs()
 	if type(normalize) == "function" then
 		db.runtimeLogs = normalize(db.runtimeLogs)
 	else
-		db.runtimeLogs = type(db.runtimeLogs) == "table" and db.runtimeLogs or {
-			persistenceEnabled = false,
-			sessions = {},
-		}
+		db.runtimeLogs = type(db.runtimeLogs) == "table" and db.runtimeLogs
+			or {
+				persistenceEnabled = false,
+				sessions = {},
+			}
 	end
 	return db.runtimeLogs
 end
@@ -488,7 +489,8 @@ local function EnsureDashboardSummaryContainer()
 		db.dashboardSummaries = normalize(db.dashboardSummaries)
 	else
 		db.dashboardSummaries = type(db.dashboardSummaries) == "table" and db.dashboardSummaries or { byScope = {} }
-		db.dashboardSummaries.byScope = type(db.dashboardSummaries.byScope) == "table" and db.dashboardSummaries.byScope or {}
+		db.dashboardSummaries.byScope = type(db.dashboardSummaries.byScope) == "table" and db.dashboardSummaries.byScope
+			or {}
 	end
 	return db.dashboardSummaries
 end
@@ -548,7 +550,9 @@ function StorageGateway.EnsureDashboardSummaryStore(instanceType)
 	end
 	store.instanceType = instanceType
 	store.collectSameAppearance = GetDashboardCollectSameAppearance()
-	store.rulesVersion = rules and rules.GetRulesVersion and rules.GetRulesVersion("dashboardSummaryScope") or tonumber(store.rulesVersion) or 0
+	store.rulesVersion = rules and rules.GetRulesVersion and rules.GetRulesVersion("dashboardSummaryScope")
+		or tonumber(store.rulesVersion)
+		or 0
 	container.byScope[summaryScopeKey] = store
 	return store, summaryScopeKey
 end
@@ -651,7 +655,9 @@ local function BuildLegacyDashboardCacheFromStore(store)
 		}
 
 		for difficultyID, difficultyMeta in pairs(instanceMeta.difficulties or {}) do
-			local totalBucket = store.buckets and store.buckets[difficultyMeta.bucketKeys and difficultyMeta.bucketKeys.total or ""] or nil
+			local totalBucket = store.buckets
+					and store.buckets[difficultyMeta.bucketKeys and difficultyMeta.bucketKeys.total or ""]
+				or nil
 			local difficultyEntry = {
 				progress = tonumber(difficultyMeta.progress) or 0,
 				encounters = tonumber(difficultyMeta.encounters) or 0,
@@ -659,7 +665,8 @@ local function BuildLegacyDashboardCacheFromStore(store)
 				total = BuildLegacyMetric(totalBucket),
 			}
 			for classFile, bucketKey in pairs(difficultyMeta.bucketKeys and difficultyMeta.bucketKeys.byClass or {}) do
-				difficultyEntry.byClass[classFile] = BuildLegacyMetric(store.buckets and store.buckets[bucketKey] or nil)
+				difficultyEntry.byClass[classFile] =
+					BuildLegacyMetric(store.buckets and store.buckets[bucketKey] or nil)
 			end
 			entry.difficultyData[tonumber(difficultyID) or 0] = difficultyEntry
 		end

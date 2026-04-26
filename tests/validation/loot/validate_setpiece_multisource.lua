@@ -72,7 +72,8 @@ RaidDashboard.Configure({
 		return item.setIDs or {}
 	end,
 	classMatchesSetInfo = function(classFile, setInfo)
-		return classFile == "PRIEST" and (tonumber(setInfo and setInfo.setID) == 357 or tonumber(setInfo and setInfo.setID) == 356)
+		return classFile == "PRIEST"
+			and (tonumber(setInfo and setInfo.setID) == 357 or tonumber(setInfo and setInfo.setID) == 356)
 	end,
 	getSetProgress = function()
 		return 0, 0
@@ -162,9 +163,14 @@ for _ in pairs(priestBucket.members and priestBucket.members.setPieces or {}) do
 	memberCount = memberCount + 1
 end
 
-print(string.format("snapshot_write_priest=%s/%s", tostring(priestMetric.setCollected), tostring(priestMetric.setTotal)))
+print(
+	string.format("snapshot_write_priest=%s/%s", tostring(priestMetric.setCollected), tostring(priestMetric.setTotal))
+)
 print(string.format("stored_member_count=%s", tostring(memberCount)))
 
-assert(_G.__snapshot_debug and _G.__snapshot_debug.summaryScopeKey == storedCache.summaryScopeKey, "expected new snapshot debug payload")
+assert(
+	_G.__snapshot_debug and _G.__snapshot_debug.summaryScopeKey == storedCache.summaryScopeKey,
+	"expected new snapshot debug payload"
+)
 assert(memberCount == 7, "expected stored priest bucket to keep 7 set-piece members")
 assert(priestMetric.setCollected == 7 and priestMetric.setTotal == 7, "expected priest dashboard metric 7/7")

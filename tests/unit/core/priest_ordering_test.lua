@@ -174,9 +174,15 @@ assert(RaidDashboard.UpdateSnapshot({
 }) == true)
 
 assert(snapshotDebug and snapshotDebug.summaryScopeKey, "expected dashboard debug snapshot")
-assert(snapshotDebug.summaryScopeKey == SummaryStore.BuildDashboardSummaryScopeKey("raid", false), "expected dashboard debug snapshot to use raid summary scope")
+assert(
+	snapshotDebug.summaryScopeKey == SummaryStore.BuildDashboardSummaryScopeKey("raid", false),
+	"expected dashboard debug snapshot to use raid summary scope"
+)
 
 local built = assert(RaidDashboard.BuildData())
-assert(built.classFiles and built.classFiles[1] == "PRIEST", "expected dashboard view class ordering to keep PRIEST first")
+assert(
+	built.classFiles and built.classFiles[1] == "PRIEST",
+	"expected dashboard view class ordering to keep PRIEST first"
+)
 
 print("priest_ordering_test passed")

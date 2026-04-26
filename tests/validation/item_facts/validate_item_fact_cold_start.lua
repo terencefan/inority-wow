@@ -44,6 +44,9 @@ local hotSourceFact = StorageGateway.GetItemFactBySourceID(801)
 assert(hotSourceFact and tonumber(hotSourceFact.itemID) == 2001, "expected warmed source lookup to resolve")
 
 local hotSetIDs = StorageGateway.GetSetIDsBySourceID(801)
-assert(type(hotSetIDs) == "table" and #hotSetIDs == 1 and tonumber(hotSetIDs[1]) == 9001, "expected warmed set lookup to resolve")
+assert(
+	type(hotSetIDs) == "table" and #hotSetIDs == 1 and tonumber(hotSetIDs[1]) == 9001,
+	"expected warmed set lookup to resolve"
+)
 
 print("validated_item_fact_cold_start=true")

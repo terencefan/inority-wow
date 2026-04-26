@@ -126,25 +126,33 @@ local function buildData(itemID)
 	}
 end
 
-assert(RaidDashboard.UpdateSnapshot({
-	instanceType = "raid",
-	instanceName = "Test Raid",
-	journalInstanceID = 1,
-	instanceOrder = 1,
-	difficultyID = 14,
-}, buildData(101), {
-	classFiles = { "PRIEST" },
-}) == true)
+assert(RaidDashboard.UpdateSnapshot(
+	{
+		instanceType = "raid",
+		instanceName = "Test Raid",
+		journalInstanceID = 1,
+		instanceOrder = 1,
+		difficultyID = 14,
+	},
+	buildData(101),
+	{
+		classFiles = { "PRIEST" },
+	}
+) == true)
 
-assert(RaidDashboard.UpdateSnapshot({
-	instanceType = "party",
-	instanceName = "Test Dungeon",
-	journalInstanceID = 2,
-	instanceOrder = 2,
-	difficultyID = 23,
-}, buildData(202), {
-	classFiles = { "PRIEST" },
-}) == true)
+assert(RaidDashboard.UpdateSnapshot(
+	{
+		instanceType = "party",
+		instanceName = "Test Dungeon",
+		journalInstanceID = 2,
+		instanceOrder = 2,
+		difficultyID = 23,
+	},
+	buildData(202),
+	{
+		classFiles = { "PRIEST" },
+	}
+) == true)
 
 assert(RaidDashboard.UpdateSnapshot({
 	instanceType = "party",
@@ -168,13 +176,19 @@ assert(next(stores.party.instances) ~= nil, "expected dungeon store instance")
 currentDashboardType = "raid"
 local raidData = RaidDashboard.BuildData()
 assert(#(raidData.rows or {}) > 0, "expected raid rows")
-assert(tostring(raidData.rows[2] and raidData.rows[2].instanceName or "") == "Test Raid", "expected raid dashboard to show raid entry")
+assert(
+	tostring(raidData.rows[2] and raidData.rows[2].instanceName or "") == "Test Raid",
+	"expected raid dashboard to show raid entry"
+)
 
 RaidDashboard.InvalidateCache()
 currentDashboardType = "party"
 local dungeonData = RaidDashboard.BuildData()
 assert(#(dungeonData.rows or {}) > 0, "expected dungeon rows")
-assert(tostring(dungeonData.rows[2] and dungeonData.rows[2].instanceName or "") == "Test Dungeon", "expected dungeon dashboard to show dungeon entry")
+assert(
+	tostring(dungeonData.rows[2] and dungeonData.rows[2].instanceName or "") == "Test Dungeon",
+	"expected dungeon dashboard to show dungeon entry"
+)
 for _, row in ipairs(dungeonData.rows or {}) do
 	assert(tostring(row.instanceName or "") ~= "Empty Dungeon", "expected empty dungeon row to be hidden")
 end

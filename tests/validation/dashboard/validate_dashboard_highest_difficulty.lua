@@ -175,7 +175,10 @@ local difficultyRow = instanceRow and instanceRow.difficultyRows and instanceRow
 
 assert(difficultyRow, "expected one raid difficulty row")
 assert(tonumber(difficultyRow.difficultyID) == 15, "expected highest populated difficulty to win")
-assert((difficultyRow.total and difficultyRow.total.setTotal or 0) == 1, "expected heroic snapshot data to be preserved")
+assert(
+	(difficultyRow.total and difficultyRow.total.setTotal or 0) == 1,
+	"expected heroic snapshot data to be preserved"
+)
 
 print("validated_dashboard_highest_difficulty=true")
 print(string.format("difficulty_id=%d", tonumber(difficultyRow.difficultyID) or 0))

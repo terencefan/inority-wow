@@ -101,10 +101,16 @@ local summary = LootSets.BuildCurrentInstanceLootSummary(data, {
 assert(type(summary) == "table", "expected loot summary table")
 assert(type(summary.rows) == "table" and #summary.rows == 2, "expected flattened loot rows")
 assert(type(summary.sourcesBySetID) == "table", "expected sourcesBySetID summary map")
-assert(type(summary.sourcesBySetID[7001]) == "table" and #summary.sourcesBySetID[7001] == 1, "expected set source bucket")
+assert(
+	type(summary.sourcesBySetID[7001]) == "table" and #summary.sourcesBySetID[7001] == 1,
+	"expected set source bucket"
+)
 assert(summary.rows[1].encounterName == "格鲁尔", "expected encounter name on flattened row")
 assert(summary.rows[1].difficultyName == "史诗", "expected difficulty on flattened row")
-assert(type(summary.rows[1].setIDs) == "table" and #summary.rows[1].setIDs == 1, "expected setIDs cached on flattened row")
+assert(
+	type(summary.rows[1].setIDs) == "table" and #summary.rows[1].setIDs == 1,
+	"expected setIDs cached on flattened row"
+)
 
 local callsAfterSummaryBuild = setIDLookupCalls
 
@@ -137,12 +143,27 @@ local setSummary = LootSets.BuildCurrentInstanceSetSummary(data, {
 
 assert(setIDLookupCalls == callsAfterSummaryBuild, "expected set summary to reuse prebuilt row setIDs")
 assert(type(data.derivedSummaries) == "table", "expected derivedSummaries container on set summary data")
-assert(data.derivedSummaries.currentInstanceLootSummary == summary, "expected loot summary retained in derivedSummaries")
-assert(type(data.derivedSummaries.currentInstanceSetEntryIndexCache) == "table", "expected set entry index cache in derivedSummaries")
-assert(type(data.derivedSummaries.currentInstanceSetSummaryCache) == "table", "expected set summary cache in derivedSummaries")
+assert(
+	data.derivedSummaries.currentInstanceLootSummary == summary,
+	"expected loot summary retained in derivedSummaries"
+)
+assert(
+	type(data.derivedSummaries.currentInstanceSetEntryIndexCache) == "table",
+	"expected set entry index cache in derivedSummaries"
+)
+assert(
+	type(data.derivedSummaries.currentInstanceSetSummaryCache) == "table",
+	"expected set summary cache in derivedSummaries"
+)
 assert(type(setSummary.classGroups) == "table" and #setSummary.classGroups == 2, "expected two class groups")
-assert(type(setSummary.classGroups[1].sets) == "table" and #setSummary.classGroups[1].sets == 1, "expected one summarized set for first class")
-assert(type(setSummary.classGroups[2].sets) == "table" and #setSummary.classGroups[2].sets == 1, "expected one summarized set for second class")
+assert(
+	type(setSummary.classGroups[1].sets) == "table" and #setSummary.classGroups[1].sets == 1,
+	"expected one summarized set for first class"
+)
+assert(
+	type(setSummary.classGroups[2].sets) == "table" and #setSummary.classGroups[2].sets == 1,
+	"expected one summarized set for second class"
+)
 assert(tonumber(setSummary.classGroups[1].sets[1].setID) == 7001, "expected summarized setID")
 assert(tonumber(setSummary.classGroups[2].sets[1].setID) == 7001, "expected same summarized setID for second class")
 assert(setInfoCalls == 1, "expected shared set entry index to resolve set info once")
@@ -181,8 +202,14 @@ local cachedSetSummary = LootSets.BuildCurrentInstanceSetSummary(data, {
 
 assert(cachedSetSummary == setSummary, "expected current instance set summary cache reuse")
 assert(setInfoCalls == setInfoCallsAfterFirstSummary, "expected cached set summary to skip repeated set info calls")
-assert(setProgressCalls == setProgressCallsAfterFirstSummary, "expected cached set summary to skip repeated set progress calls")
-assert(classMatchCalls == classMatchCallsAfterFirstSummary, "expected cached set summary to skip repeated class matching")
+assert(
+	setProgressCalls == setProgressCallsAfterFirstSummary,
+	"expected cached set summary to skip repeated set progress calls"
+)
+assert(
+	classMatchCalls == classMatchCallsAfterFirstSummary,
+	"expected cached set summary to skip repeated class matching"
+)
 
 _G.C_TransmogSets = originalTransmogSets
 

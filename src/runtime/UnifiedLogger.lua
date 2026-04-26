@@ -305,11 +305,60 @@ local function FilterLogs(entries, filters)
 	local hasLevelFilter = next(allowedLevels) ~= nil
 	local hasScopeFilter = next(allowedScopes) ~= nil
 	for _, entry in ipairs(entries or {}) do
-		if (not hasLevelFilter or allowedLevels[tostring(entry.level)]) and (not hasScopeFilter or allowedScopes[tostring(entry.scope)]) then
+		if
+			(not hasLevelFilter or allowedLevels[tostring(entry.level)])
+			and (not hasScopeFilter or allowedScopes[tostring(entry.scope)])
+		then
 			filtered[#filtered + 1] = entry
 		end
 	end
 	return filtered
+end
+
+local function BuildStartupLifecycleSection(entries)
+	local section = {
+		lastResetReason = "UnifiedLogger",
+		entryCount = 0,
+		entries = {},
+	}
+	for _, entry in ipairs(entries or {}) do
+		if
+			entry.scope == "runtime.events"
+			and (entry.event == "startup_lifecycle" or entry.event == "startup_lifecycle_reset")
+		then
+			local fields = entry.fields or {}
+			if entry.event == "startup_lifecycle_reset" then
+				section.lastResetReason = tostring(fields.lastResetReason or section.lastResetReason)
+			end
+			section.entries[#section.entries + 1] = {
+				at = date("%H:%M:%S", tonumber(entry.at) or time()),
+				step = tostring(fields.step or entry.event),
+				event = tostring(fields.event or entry.event),
+				detail = tostring(fields.detail or fields.lastResetReason or "-"),
+			}
+		end
+	end
+	section.entryCount = #(section.entries or {})
+	return section
+end
+
+local function BuildRuntimeErrorSection(entries, truncated)
+	local section = {
+		entries = {},
+		truncated = truncated and true or false,
+	}
+	for _, entry in ipairs(entries or {}) do
+		if entry.scope == "runtime.error" then
+			local fields = entry.fields or {}
+			section.entries[#section.entries + 1] = {
+				at = date("%H:%M:%S", tonumber(entry.at) or time()),
+				message = tostring(fields.message or entry.event or ""),
+				stack = tostring(fields.stack or ""),
+				repeatCount = tonumber(fields.repeatCount) or 1,
+			}
+		end
+	end
+	return section
 end
 
 function UnifiedLogger.BuildExport(options)
@@ -353,6 +402,14 @@ function UnifiedLogger.BuildExport(options)
 			aggregateWindowHits = state.aggregateWindowHits,
 			droppedCount = state.droppedCount,
 		},
+	}
+	export.sections = {
+		startupLifecycle = BuildStartupLifecycleSection(filtered),
+		runtimeErrors = BuildRuntimeErrorSection(filtered, export.summary.truncated),
+	}
+	export.summary.sectionCounts = {
+		startupLifecycle = export.sections.startupLifecycle.entryCount or 0,
+		runtimeErrors = #(export.sections.runtimeErrors.entries or {}),
 	}
 	return export
 end

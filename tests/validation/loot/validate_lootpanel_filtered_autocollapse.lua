@@ -29,7 +29,10 @@ local fullyCollectedAutoCollapsed = LootPanelRows.GetEncounterAutoCollapsed(
 	0,
 	false
 )
-assert(fullyCollectedAutoCollapsed == true, "expected fully collected encounter to auto-collapse without requiring a kill")
+assert(
+	fullyCollectedAutoCollapsed == true,
+	"expected fully collected encounter to auto-collapse without requiring a kill"
+)
 
 local killedAutoCollapsed = LootPanelRows.GetEncounterAutoCollapsed(
 	{ encounterID = 102, index = 1 },
@@ -56,20 +59,17 @@ local fullyCollectedResolved = LootPanelRenderer.ResolveEncounterCollapsedState(
 	false
 )
 assert(fullyCollectedResolved == true, "expected fully collected state to override manual expansion")
-assert(lootPanelState.collapsed[201] == true, "expected collapse state to persist as true for fully collected encounter")
-
-local manualResolved = LootPanelRenderer.ResolveEncounterCollapsedState(
-	{
-		collapsed = {},
-		manualCollapsed = {
-			[202] = false,
-		},
-	},
-	{ encounterID = 202 },
-	{ fullyCollected = false },
-	true,
-	true
+assert(
+	lootPanelState.collapsed[201] == true,
+	"expected collapse state to persist as true for fully collected encounter"
 )
+
+local manualResolved = LootPanelRenderer.ResolveEncounterCollapsedState({
+	collapsed = {},
+	manualCollapsed = {
+		[202] = false,
+	},
+}, { encounterID = 202 }, { fullyCollected = false }, true, true)
 assert(manualResolved == false, "expected manual collapse choice to still apply when encounter is not fully collected")
 
 print("validated_lootpanel_filtered_autocollapse=true")

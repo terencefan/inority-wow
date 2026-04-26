@@ -42,12 +42,17 @@ local state = API.BuildCurrentEncounterKillMap({
 		isCurrent = false,
 	},
 	setEncounterKillState = EncounterState.SetEncounterKillState,
-	mergeBossKillCache = function()
-	end,
+	mergeBossKillCache = function() end,
 })
 API.ResetMock()
 
-assert(next(state.byName or {}) == nil, "expected expired saved-instance lockout not to mark any encounter as killed for the current cycle")
-assert((tonumber(state.progressCount) or 0) == 0, "expected expired saved-instance progress to be ignored for current-cycle kill state")
+assert(
+	next(state.byName or {}) == nil,
+	"expected expired saved-instance lockout not to mark any encounter as killed for the current cycle"
+)
+assert(
+	(tonumber(state.progressCount) or 0) == 0,
+	"expected expired saved-instance progress to be ignored for current-cycle kill state"
+)
 
 print("validated_current_cycle_encounter_kill_map=true")

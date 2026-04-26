@@ -28,28 +28,19 @@ CollectionState.GetLootItemDisplayCollectionState = function(item)
 	return item.mockDisplayState
 end
 
-assert(
-	CollectionState.LootItemMatchesTypeFilter({
-		typeKey = "CLOTH",
-		mockDisplayState = "collected",
-	}) == true,
-	"expected collected transmog to remain visible"
-)
+assert(CollectionState.LootItemMatchesTypeFilter({
+	typeKey = "CLOTH",
+	mockDisplayState = "collected",
+}) == true, "expected collected transmog to remain visible")
 
-assert(
-	CollectionState.LootItemMatchesTypeFilter({
-		typeKey = "MOUNT",
-		mockDisplayState = "collected",
-	}) == false,
-	"expected collected mount hide toggle to still work"
-)
+assert(CollectionState.LootItemMatchesTypeFilter({
+	typeKey = "MOUNT",
+	mockDisplayState = "collected",
+}) == false, "expected collected mount hide toggle to still work")
 
-assert(
-	CollectionState.LootItemMatchesTypeFilter({
-		typeKey = "PET",
-		mockDisplayState = "collected",
-	}) == false,
-	"expected collected pet hide toggle to still work"
-)
+assert(CollectionState.LootItemMatchesTypeFilter({
+	typeKey = "PET",
+	mockDisplayState = "collected",
+}) == false, "expected collected pet hide toggle to still work")
 
 print("collected_transmog_visibility_test passed")

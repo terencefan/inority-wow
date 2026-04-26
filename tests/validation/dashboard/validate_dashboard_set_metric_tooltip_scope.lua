@@ -96,7 +96,10 @@ for _, line in ipairs(tooltipLines) do
 	end
 end
 
-assert(sawScopeNote, "expected tooltip to explain that the headline number counts current-instance set-piece drops only")
+assert(
+	sawScopeNote,
+	"expected tooltip to explain that the headline number counts current-instance set-piece drops only"
+)
 assert(sawDropCountLabel, "expected tooltip to label the headline metric as current-instance set-piece drops")
 assert(sawFullSetNote, "expected tooltip to explain that the lower section shows full-set progress")
 assert(sawFullSetProgress, "expected tooltip to render full-set progress separately from the headline drop count")

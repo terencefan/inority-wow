@@ -212,8 +212,14 @@ assert(totalMetric.collectibles == totalCollectibles, "expected instance total m
 
 assert((classMetric.setTotal or 0) == pieceCount, "expected class set total to match source map")
 assert((totalMetric.setTotal or 0) == pieceCount, "expected total set total to match source map")
-assert((expansionRow.byClass and expansionRow.byClass.PRIEST and expansionRow.byClass.PRIEST.setTotal or 0) == pieceCount, "expected expansion class set total to aggregate correctly")
-assert((expansionRow.total and expansionRow.total.setTotal or 0) == pieceCount, "expected expansion total set total to aggregate correctly")
+assert(
+	(expansionRow.byClass and expansionRow.byClass.PRIEST and expansionRow.byClass.PRIEST.setTotal or 0) == pieceCount,
+	"expected expansion class set total to aggregate correctly"
+)
+assert(
+	(expansionRow.total and expansionRow.total.setTotal or 0) == pieceCount,
+	"expected expansion total set total to aggregate correctly"
+)
 
 print("validated_dashboard_metric_views=true")
 print(string.format("instance_class_set_total=%d", classMetric.setTotal or 0))

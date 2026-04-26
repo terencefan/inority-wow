@@ -162,11 +162,15 @@ local function BuildCachedSetSourceCategories()
 					local bestDifficultyID = -1
 					for difficultyID, difficultyEntry in pairs(entry.difficultyData or {}) do
 						if type(difficultyEntry) == "table" then
-							local displayOrder = getRaidDifficultyDisplayOrder and getRaidDifficultyDisplayOrder(difficultyID) or 999
+							local displayOrder = getRaidDifficultyDisplayOrder
+									and getRaidDifficultyDisplayOrder(difficultyID)
+								or 999
 							local numericDifficultyID = tonumber(difficultyID) or 0
-							if not bestDifficultyEntry
+							if
+								not bestDifficultyEntry
 								or displayOrder < bestDisplayOrder
-								or (displayOrder == bestDisplayOrder and numericDifficultyID > bestDifficultyID) then
+								or (displayOrder == bestDisplayOrder and numericDifficultyID > bestDifficultyID)
+							then
 								bestDifficultyEntry = difficultyEntry
 								bestDisplayOrder = displayOrder
 								bestDifficultyID = numericDifficultyID
@@ -199,7 +203,10 @@ local function FindSelectionMatch(value, bucket)
 		end
 	end
 	for _, candidate in ipairs(bucket or {}) do
-		if candidate.normalizedName:find(normalizedValue, 1, true) or normalizedValue:find(candidate.normalizedName, 1, true) then
+		if
+			candidate.normalizedName:find(normalizedValue, 1, true)
+			or normalizedValue:find(candidate.normalizedName, 1, true)
+		then
 			return candidate
 		end
 	end

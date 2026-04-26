@@ -131,8 +131,7 @@ local function GetNormalizedAppearanceInfoBySource(sourceID)
 				or appearanceInfo.isValidForPlayer
 		end
 		if appearanceInfo.appearanceIsUsable == nil then
-			appearanceInfo.appearanceIsUsable = appearanceInfo.usable
-				or appearanceInfo.isUsable
+			appearanceInfo.appearanceIsUsable = appearanceInfo.usable or appearanceInfo.isUsable
 		end
 		return appearanceInfo
 	end
@@ -144,16 +143,18 @@ function CollectionState.ResolveLootItemCollectionState(item, includeDebug)
 	local itemInfo = item and (item.link or item.itemID)
 	local collectSameAppearance = true
 	local typeKey = item and item.typeKey
-	local debugInfo = includeDebug and {
-		itemName = item and item.name or nil,
-		itemLink = item and item.link or nil,
-		itemID = item and item.itemID or nil,
-		typeKey = typeKey,
-		slot = item and item.slot or nil,
-		itemType = item and item.itemType or nil,
-		itemSubType = item and item.itemSubType or nil,
-		collectSameAppearance = collectSameAppearance,
-	} or nil
+	local debugInfo = includeDebug
+			and {
+				itemName = item and item.name or nil,
+				itemLink = item and item.link or nil,
+				itemID = item and item.itemID or nil,
+				typeKey = typeKey,
+				slot = item and item.slot or nil,
+				itemType = item and item.itemType or nil,
+				itemSubType = item and item.itemSubType or nil,
+				collectSameAppearance = collectSameAppearance,
+			}
+		or nil
 
 	local function ReturnState(state, reason)
 		if debugInfo then
@@ -272,7 +273,8 @@ function CollectionState.ResolveLootItemCollectionState(item, includeDebug)
 		if debugInfo then
 			debugInfo.appearanceCollected = appearanceInfo and appearanceInfo.appearanceIsCollected and true or false
 			debugInfo.appearanceUsable = appearanceInfo and appearanceInfo.appearanceIsUsable and true or false
-			debugInfo.appearanceAnySourceValid = appearanceInfo and appearanceInfo.isAnySourceValidForPlayer and true or false
+			debugInfo.appearanceAnySourceValid = appearanceInfo and appearanceInfo.isAnySourceValidForPlayer and true
+				or false
 		end
 		if appearanceInfo then
 			if appearanceInfo.appearanceIsCollected then

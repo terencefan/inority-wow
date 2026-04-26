@@ -159,7 +159,9 @@ end
 local function GetDifficultyTooltipColor(difficultyName, difficultyID)
 	difficultyName = string.lower(tostring(difficultyName or ""))
 	difficultyID = tonumber(difficultyID) or 0
-	local qualityIndex = DifficultyRules.GetDifficultyColorQualityIndex and DifficultyRules.GetDifficultyColorQualityIndex(difficultyID) or nil
+	local qualityIndex = DifficultyRules.GetDifficultyColorQualityIndex
+			and DifficultyRules.GetDifficultyColorQualityIndex(difficultyID)
+		or nil
 	if qualityIndex and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[qualityIndex] then
 		return ITEM_QUALITY_COLORS[qualityIndex]
 	end
@@ -167,7 +169,12 @@ local function GetDifficultyTooltipColor(difficultyName, difficultyID)
 	if difficultyName:find("随机") or difficultyName:find("raid finder") then
 		return ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[2] or { hex = "|cff1eff00" }
 	end
-	if difficultyName:find("普通") or difficultyName:find("10人") or difficultyName:find("25人") or difficultyName:find("40人") then
+	if
+		difficultyName:find("普通")
+		or difficultyName:find("10人")
+		or difficultyName:find("25人")
+		or difficultyName:find("40人")
+	then
 		return ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[3] or { hex = "|cff0070dd" }
 	end
 	if difficultyName:find("英雄") then
@@ -191,8 +198,11 @@ end
 function TooltipUI.BuildTooltipDifficultyLabel(instanceInfo)
 	local lines = {}
 	for _, difficultyInfo in ipairs(instanceInfo and instanceInfo.difficulties or {}) do
-		local difficultyName = tostring(difficultyInfo and difficultyInfo.difficultyName or Translate("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度"))
-		local difficultyColor = GetDifficultyTooltipColor(difficultyName, difficultyInfo and difficultyInfo.difficultyID)
+		local difficultyName = tostring(
+			difficultyInfo and difficultyInfo.difficultyName or Translate("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度")
+		)
+		local difficultyColor =
+			GetDifficultyTooltipColor(difficultyName, difficultyInfo and difficultyInfo.difficultyID)
 		lines[#lines + 1] = string.format("%s%s|r", tostring(difficultyColor.hex or "|cffffffff"), difficultyName)
 	end
 	return table.concat(lines, "\n")
@@ -211,7 +221,8 @@ function TooltipUI.BuildTooltipCharacterCellText(instanceInfo, entry)
 	local lines = {}
 	local lockoutLookup = entry and entry.lockoutLookup or nil
 	for _, difficultyInfo in ipairs(instanceInfo and instanceInfo.difficulties or {}) do
-		local lookupKey = TooltipUI.BuildTooltipLockoutLookupKey(instanceInfo.name, instanceInfo.isRaid, difficultyInfo.difficultyID)
+		local lookupKey =
+			TooltipUI.BuildTooltipLockoutLookupKey(instanceInfo.name, instanceInfo.isRaid, difficultyInfo.difficultyID)
 		lines[#lines + 1] = FormatTooltipCellLockout(lockoutLookup and lockoutLookup[lookupKey] or nil)
 	end
 	return table.concat(lines, "\n")
@@ -272,7 +283,13 @@ end
 
 local function ResolveTooltipHeaderTextColor(className)
 	className = NormalizeTooltipClassToken(className)
-	if RAID_CLASS_COLORS and className and className ~= "" and className ~= "UNKNOWN" and RAID_CLASS_COLORS[className] then
+	if
+		RAID_CLASS_COLORS
+		and className
+		and className ~= ""
+		and className ~= "UNKNOWN"
+		and RAID_CLASS_COLORS[className]
+	then
 		local color = RAID_CLASS_COLORS[className]
 		return color.r or 1, color.g or 1, color.b or 1
 	end
@@ -372,7 +389,14 @@ function TooltipUI.ShowMinimapTooltip(owner)
 
 	if #visibleCharacters == 0 then
 		local line = tooltipFrame:AddLine(Translate("TOOLTIP_NO_TRACKED_CHARACTERS", "No tracked characters yet."))
-		tooltipFrame:SetCell(line, 1, Translate("TOOLTIP_NO_TRACKED_CHARACTERS", "No tracked characters yet."), nil, "LEFT", #columnArgs)
+		tooltipFrame:SetCell(
+			line,
+			1,
+			Translate("TOOLTIP_NO_TRACKED_CHARACTERS", "No tracked characters yet."),
+			nil,
+			"LEFT",
+			#columnArgs
+		)
 	else
 		local currentExpansion
 		for _, rowInfo in ipairs(tooltipRows) do
@@ -382,7 +406,8 @@ function TooltipUI.ShowMinimapTooltip(owner)
 				end
 				currentExpansion = rowInfo.expansionName
 				local groupLine = tooltipFrame:AddLine()
-				local label = colorizeExpansionLabel and colorizeExpansionLabel(currentExpansion) or tostring(currentExpansion)
+				local label = colorizeExpansionLabel and colorizeExpansionLabel(currentExpansion)
+					or tostring(currentExpansion)
 				tooltipFrame:SetCell(groupLine, 1, label, nil, "LEFT", #columnArgs)
 				tooltipFrame:SetLineColor(groupLine, 0.18, 0.18, 0.22, 0.9)
 			end
@@ -406,13 +431,41 @@ function TooltipUI.ShowMinimapTooltip(owner)
 
 	tooltipFrame:AddSeparator(6, 0, 0, 0, 0)
 	local hint = tooltipFrame:AddLine()
-	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_LEFT_CLICK", "Left-click: show or hide the transmog dashboard"), nil, "LEFT", #columnArgs)
+	tooltipFrame:SetCell(
+		hint,
+		1,
+		Translate("TOOLTIP_LEFT_CLICK", "Left-click: show or hide the transmog dashboard"),
+		nil,
+		"LEFT",
+		#columnArgs
+	)
 	hint = tooltipFrame:AddLine()
-	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_RIGHT_CLICK_LOOT", "Right-click: show or hide the loot panel"), nil, "LEFT", #columnArgs)
+	tooltipFrame:SetCell(
+		hint,
+		1,
+		Translate("TOOLTIP_RIGHT_CLICK_LOOT", "Right-click: show or hide the loot panel"),
+		nil,
+		"LEFT",
+		#columnArgs
+	)
 	hint = tooltipFrame:AddLine()
-	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_SHIFT_LEFT_CLICK", "Shift + Left-click: open the dashboard to the PVP set view"), nil, "LEFT", #columnArgs)
+	tooltipFrame:SetCell(
+		hint,
+		1,
+		Translate("TOOLTIP_SHIFT_LEFT_CLICK", "Shift + Left-click: open the dashboard to the PVP set view"),
+		nil,
+		"LEFT",
+		#columnArgs
+	)
 	hint = tooltipFrame:AddLine()
-	tooltipFrame:SetCell(hint, 1, Translate("TOOLTIP_CTRL_LEFT_CLICK", "Ctrl + Left-click: show or hide the config panel"), nil, "LEFT", #columnArgs)
+	tooltipFrame:SetCell(
+		hint,
+		1,
+		Translate("TOOLTIP_CTRL_LEFT_CLICK", "Ctrl + Left-click: show or hide the config panel"),
+		nil,
+		"LEFT",
+		#columnArgs
+	)
 
 	ApplyTooltipHeaderStyles(tooltipFrame, headerLine, realmLine, headerColumns)
 	tooltipFrame:Show()
@@ -425,4 +478,3 @@ function TooltipUI.ShowMinimapTooltip(owner)
 		end)
 	end
 end
-

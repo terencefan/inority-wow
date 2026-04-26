@@ -121,7 +121,6 @@ local function EnsureDebugSettings()
 		return nil, nil
 	end
 
-	db.debugTemp = type(db.debugTemp) == "table" and db.debugTemp or {}
 	local settings = db.settings or {}
 	settings.debugLogSections = settings.debugLogSections or {}
 	db.settings = settings
@@ -229,7 +228,13 @@ local function FormatEventChatMessage(event, arg1, arg2, arg3, arg4, arg5, addon
 		return string.format("event: %s message=%s", normalizedEvent, tostring(arg1 or ""))
 	end
 	if normalizedEvent == "ENCOUNTER_LOOT_RECEIVED" then
-		return string.format("event: %s encounterID=%s itemID=%s item=%s", normalizedEvent, tostring(arg1), tostring(arg2), tostring(arg3 or ""))
+		return string.format(
+			"event: %s encounterID=%s itemID=%s item=%s",
+			normalizedEvent,
+			tostring(arg1),
+			tostring(arg2),
+			tostring(arg3 or "")
+		)
 	end
 	if normalizedEvent == "ENCOUNTER_END" then
 		return string.format("event: %s boss=%s success=%s", normalizedEvent, tostring(arg2 or ""), tostring(arg5))
@@ -344,8 +349,7 @@ local function HandleDebugSlash(rawCommand)
 
 	if command == "debug" then
 		EnableDebugSections({
-			"startupLifecycleDebug",
-			"runtimeErrorDebug",
+			"runtimeLogs",
 			"rawSavedInstanceInfo",
 			"currentLootDebug",
 			"minimapClickDebug",
@@ -365,7 +369,11 @@ local function HandleDebugSlash(rawCommand)
 
 	if debugTargetType == "setboard" then
 		EnableDebugSections({ "setDashboardPreviewDebug" })
-		SetLastDebugDump(type(dependencies.CaptureSetDashboardPreviewDump) == "function" and dependencies.CaptureSetDashboardPreviewDump() or nil)
+		SetLastDebugDump(
+			type(dependencies.CaptureSetDashboardPreviewDump) == "function"
+					and dependencies.CaptureSetDashboardPreviewDump()
+				or nil
+		)
 		ShowDebugOutputPanel()
 		PrintMessage("Set dashboard preview debug collected. Press Ctrl+C to copy.")
 		return true
@@ -375,16 +383,18 @@ local function HandleDebugSlash(rawCommand)
 		EnableDebugSections({ "setCategoryDebug" })
 		local setQuery = debugTargetType == "sets" and debugTargetQuery or nil
 		local debugDump = type(dependencies.CaptureSetCategoryDebugDump) == "function"
-			and dependencies.CaptureSetCategoryDebugDump(setQuery)
+				and dependencies.CaptureSetCategoryDebugDump(setQuery)
 			or nil
 		SetLastDebugDump(debugDump)
 		ShowDebugOutputPanel()
 		if debugDump and debugDump.setCategoryDebug then
-			PrintMessage(string.format(
-				"Set category debug collected: matched %d / %d sets. Press Ctrl+C to copy.",
-				tonumber(debugDump.setCategoryDebug.matchedSetCount) or 0,
-				tonumber(debugDump.setCategoryDebug.totalSetCount) or 0
-			))
+			PrintMessage(
+				string.format(
+					"Set category debug collected: matched %d / %d sets. Press Ctrl+C to copy.",
+					tonumber(debugDump.setCategoryDebug.matchedSetCount) or 0,
+					tonumber(debugDump.setCategoryDebug.totalSetCount) or 0
+				)
+			)
 		end
 		return true
 	end
@@ -392,9 +402,11 @@ local function HandleDebugSlash(rawCommand)
 	if debugTargetType == "dungeon" or debugTargetType == "raid" then
 		EnableDebugSections({ "dungeonDashboardDebug" })
 		local instanceType = debugTargetType == "dungeon" and "party" or "raid"
-		SetLastDebugDump(type(dependencies.CaptureDungeonDashboardDebugDump) == "function"
-			and dependencies.CaptureDungeonDashboardDebugDump(debugTargetQuery, instanceType)
-			or nil)
+		SetLastDebugDump(
+			type(dependencies.CaptureDungeonDashboardDebugDump) == "function"
+					and dependencies.CaptureDungeonDashboardDebugDump(debugTargetQuery, instanceType)
+				or nil
+		)
 		ShowDebugOutputPanel()
 		PrintMessage(string.format("%s dashboard debug collected. Press Ctrl+C to copy.", debugTargetType))
 		return true
@@ -402,21 +414,26 @@ local function HandleDebugSlash(rawCommand)
 
 	if debugTargetType == "pvpsets" then
 		EnableDebugSections({ "pvpSetDebug" })
-		local debugDump = type(dependencies.CapturePvpSetDebugDump) == "function" and dependencies.CapturePvpSetDebugDump() or nil
+		local debugDump = type(dependencies.CapturePvpSetDebugDump) == "function"
+				and dependencies.CapturePvpSetDebugDump()
+			or nil
 		SetLastDebugDump(debugDump)
 		ShowDebugOutputPanel()
 		if debugDump and debugDump.pvpSetDebug then
-			PrintMessage(string.format(
-				"PVP set debug collected: matched %d / %d sets. Press Ctrl+C to copy.",
-				tonumber(debugDump.pvpSetDebug.matchedKeywordCount) or 0,
-				tonumber(debugDump.pvpSetDebug.totalSetCount) or 0
-			))
+			PrintMessage(
+				string.format(
+					"PVP set debug collected: matched %d / %d sets. Press Ctrl+C to copy.",
+					tonumber(debugDump.pvpSetDebug.matchedKeywordCount) or 0,
+					tonumber(debugDump.pvpSetDebug.totalSetCount) or 0
+				)
+			)
 		end
 		return true
 	end
 
 	if debugTargetType == "loot" then
 		ReplaceDebugSections({
+			"runtimeLogs",
 			"currentLootDebug",
 			"lootPanelSelectionDebug",
 			"lootApiRawDebug",
@@ -460,8 +477,13 @@ function EventsCommandController.RegisterCoreEvents(frame, addonName)
 					dependencies.PruneExpiredBossKillCaches()
 				end)
 			end
-			if not (type(dependencies.getResetInstancesHooked) == "function" and dependencies.getResetInstancesHooked())
-				and hooksecurefunc and ResetInstances then
+			if
+				not (
+					type(dependencies.getResetInstancesHooked) == "function" and dependencies.getResetInstancesHooked()
+				)
+				and hooksecurefunc
+				and ResetInstances
+			then
 				hooksecurefunc("ResetInstances", function()
 					if type(dependencies.HandleManualInstanceReset) == "function" then
 						dependencies.HandleManualInstanceReset()
@@ -488,7 +510,11 @@ function EventsCommandController.RegisterCoreEvents(frame, addonName)
 						return BuildSavedInstancesSignature()
 					end)
 					lastSavedInstancesSignature = signature
-					AppendStartupLifecycleDebug("saved_instances_signature_cached", event, string.format("numSaved=%d", numSaved))
+					AppendStartupLifecycleDebug(
+						"saved_instances_signature_cached",
+						event,
+						string.format("numSaved=%d", numSaved)
+					)
 				end
 			end
 			MeasureStep("create_minimap_button_done", event, function()
@@ -501,10 +527,18 @@ function EventsCommandController.RegisterCoreEvents(frame, addonName)
 			AppendStartupLifecycleDebug("event_received", event, string.format("numSaved=%d", numSaved))
 			if waitingForInitialInstanceInfo then
 				waitingForInitialInstanceInfo = nil
-				AppendStartupLifecycleDebug("initial_instance_info_received", event, string.format("numSaved=%d", numSaved))
+				AppendStartupLifecycleDebug(
+					"initial_instance_info_received",
+					event,
+					string.format("numSaved=%d", numSaved)
+				)
 			end
 			if lastSavedInstancesSignature and lastSavedInstancesSignature == signature then
-				AppendStartupLifecycleDebug("update_instance_info_skipped_unchanged", event, string.format("numSaved=%d", numSaved))
+				AppendStartupLifecycleDebug(
+					"update_instance_info_skipped_unchanged",
+					event,
+					string.format("numSaved=%d", numSaved)
+				)
 				return
 			end
 			lastSavedInstancesSignature = signature
@@ -525,12 +559,22 @@ function EventsCommandController.RegisterCoreEvents(frame, addonName)
 			ScheduleCoalescedPanelTextRefresh(event, string.format("numSaved=%d", numSaved))
 		elseif event == "GET_ITEM_INFO_RECEIVED" then
 			local lootDataCache = GetLootDataCache()
-			local shouldRefreshLootPanel = lootDataCache and lootDataCache.data and lootDataCache.data.missingItemData and true or false
+			local shouldRefreshLootPanel = lootDataCache
+					and lootDataCache.data
+					and lootDataCache.data.missingItemData
+					and true
+				or false
 			if shouldRefreshLootPanel then
 				addon.dashboardBulkScanItemInfoDirty = true
 				dependencies.InvalidateLootDataCache()
 				local lootPanel = GetLootPanel()
-				if lootPanel and lootPanel:IsShown() and not addon.lootItemInfoRefreshPending and C_Timer and C_Timer.After then
+				if
+					lootPanel
+					and lootPanel:IsShown()
+					and not addon.lootItemInfoRefreshPending
+					and C_Timer
+					and C_Timer.After
+				then
 					addon.lootItemInfoRefreshPending = true
 					C_Timer.After(0.05, function()
 						addon.lootItemInfoRefreshPending = nil

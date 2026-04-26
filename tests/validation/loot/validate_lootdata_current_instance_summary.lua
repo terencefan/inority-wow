@@ -63,10 +63,16 @@ assert(type(summary) == "table", "expected summary table")
 assert(type(data.derivedSummaries) == "table", "expected derivedSummaries container")
 assert(type(data.derivedSummaries.meta) == "table", "expected derivedSummaries meta")
 assert(data.derivedSummaries.meta.layer == "summaries", "expected summaries layer metadata")
-assert(data.derivedSummaries.currentInstanceLootSummary == summary, "expected current instance loot summary stored in derivedSummaries")
+assert(
+	data.derivedSummaries.currentInstanceLootSummary == summary,
+	"expected current instance loot summary stored in derivedSummaries"
+)
 assert(type(summary.rows) == "table" and #summary.rows == 2, "expected flattened rows")
 assert(type(summary.encounters) == "table" and #summary.encounters == 1, "expected summarized encounters")
-assert(type(summary.encounters[1].loot) == "table" and #summary.encounters[1].loot == 2, "expected encounter loot rows in summary")
+assert(
+	type(summary.encounters[1].loot) == "table" and #summary.encounters[1].loot == 2,
+	"expected encounter loot rows in summary"
+)
 assert(summary.encounters[1].name == "格鲁尔", "expected encounter name in encounter summary")
 assert(type(summary.sourcesBySetID[7001]) == "table" and #summary.sourcesBySetID[7001] == 1, "expected set bucket")
 assert(summary.rows[1].encounterName == "格鲁尔", "expected encounter name copied to row")

@@ -218,20 +218,33 @@ function LootSelection.BuildLootPanelSelectionKey(selection)
 	if selection.key and selection.key ~= "" then
 		return selection.key
 	end
-	return string.format("%s::%s::%s", tostring(selection.journalInstanceID or 0), tostring(selection.instanceName or "Unknown"), tostring(selection.difficultyID or 0))
+	return string.format(
+		"%s::%s::%s",
+		tostring(selection.journalInstanceID or 0),
+		tostring(selection.instanceName or "Unknown"),
+		tostring(selection.difficultyID or 0)
+	)
 end
 
 function LootSelection.BuildLootDataCacheKey(selectedInstance)
 	local selectionKey = LootSelection.BuildLootPanelSelectionKey(selectedInstance)
 	local lootPanelState = GetLootPanelState()
 	local selectedClassIDs = GetSelectedLootClassIDs()
-	return string.format("v%d::%s::%s::%s", tonumber(dependencies.lootDataRulesVersion) or 0, selectionKey, tostring(lootPanelState.classScopeMode or "selected"), table.concat(selectedClassIDs, ","))
+	return string.format(
+		"v%d::%s::%s::%s",
+		tonumber(dependencies.lootDataRulesVersion) or 0,
+		selectionKey,
+		tostring(lootPanelState.classScopeMode or "selected"),
+		table.concat(selectedClassIDs, ",")
+	)
 end
 
 function LootSelection.AreNumericListsEquivalent(a, b)
 	a = type(a) == "table" and a or {}
 	b = type(b) == "table" and b or {}
-	if #a ~= #b then return false end
+	if #a ~= #b then
+		return false
+	end
 	local counts = {}
 	for _, value in ipairs(a) do
 		local normalized = tonumber(value)
@@ -239,16 +252,27 @@ function LootSelection.AreNumericListsEquivalent(a, b)
 	end
 	for _, value in ipairs(b) do
 		local normalized = tonumber(value)
-		if not counts[normalized] then return false end
+		if not counts[normalized] then
+			return false
+		end
 		counts[normalized] = counts[normalized] - 1
-		if counts[normalized] == 0 then counts[normalized] = nil end
+		if counts[normalized] == 0 then
+			counts[normalized] = nil
+		end
 	end
 	return next(counts) == nil
 end
 
 function LootSelection.BuildLootPanelSelectionSignature(selection)
-	if not selection then return "current" end
-	return string.format("%s::%s::%s", tostring(selection.journalInstanceID or 0), tostring(selection.instanceName or "Unknown"), tostring(selection.difficultyID or 0))
+	if not selection then
+		return "current"
+	end
+	return string.format(
+		"%s::%s::%s",
+		tostring(selection.journalInstanceID or 0),
+		tostring(selection.instanceName or "Unknown"),
+		tostring(selection.difficultyID or 0)
+	)
 end
 
 function LootSelection.BuildLootPanelSelectionDeduplicationKey(selection)
@@ -296,7 +320,12 @@ end
 function LootSelection.GetLootPanelInstanceExpansionInfo(selection)
 	if not selection then
 		local fallbackExpansion = "Other"
-		return { expansionName = fallbackExpansion, expansionOrder = GetExpansionOrder(fallbackExpansion), instanceOrder = 999, raidOrder = 999 }
+		return {
+			expansionName = fallbackExpansion,
+			expansionOrder = GetExpansionOrder(fallbackExpansion),
+			instanceOrder = 999,
+			raidOrder = 999,
+		}
 	end
 
 	local expansionName = GetNormalizedExpansionName(selection.expansionName)
@@ -309,18 +338,29 @@ function LootSelection.GetLootPanelInstanceExpansionInfo(selection)
 			local candidateJournalInstanceID = tonumber(candidate.journalInstanceID) or 0
 			local candidateInstanceName = tostring(candidate.instanceName or "")
 			local candidateInstanceType = tostring(candidate.instanceType or "")
-			local matchesJournalInstance = selectionJournalInstanceID > 0 and candidateJournalInstanceID == selectionJournalInstanceID
-			local matchesNameFallback = selectionJournalInstanceID <= 0 and selectionInstanceName ~= "" and candidateInstanceName == selectionInstanceName and (selectionInstanceType == "" or candidateInstanceType == selectionInstanceType)
+			local matchesJournalInstance = selectionJournalInstanceID > 0
+				and candidateJournalInstanceID == selectionJournalInstanceID
+			local matchesNameFallback = selectionJournalInstanceID <= 0
+				and selectionInstanceName ~= ""
+				and candidateInstanceName == selectionInstanceName
+				and (selectionInstanceType == "" or candidateInstanceType == selectionInstanceType)
 			if not candidate.isCurrent and (matchesJournalInstance or matchesNameFallback) then
 				expansionName = expansionName or GetNormalizedExpansionName(candidate.expansionName)
 				raidOrder = raidOrder or tonumber(candidate.instanceOrder)
-				if expansionName and raidOrder then break end
+				if expansionName and raidOrder then
+					break
+				end
 			end
 		end
 	end
 
 	expansionName = GetNormalizedExpansionName(expansionName or "Other")
-	return { expansionName = expansionName, expansionOrder = GetExpansionOrder(expansionName), instanceOrder = raidOrder or 999, raidOrder = raidOrder or 999 }
+	return {
+		expansionName = expansionName,
+		expansionOrder = GetExpansionOrder(expansionName),
+		instanceOrder = raidOrder or 999,
+		raidOrder = raidOrder or 999,
+	}
 end
 
 function LootSelection.BuildLootPanelInstanceSelections()
@@ -329,8 +369,19 @@ function LootSelection.BuildLootPanelInstanceSelections()
 	local currentInstanceType = currentDebugInfo and currentDebugInfo.instanceType or nil
 	local currentInstanceTypeString = tostring(currentInstanceType or "")
 	if currentJournalInstanceID and currentInstanceTypeString ~= "" and currentInstanceTypeString ~= "none" then
-		local currentInstanceName = (EJ_GetInstanceInfo and EJ_GetInstanceInfo(currentJournalInstanceID)) or (currentDebugInfo and currentDebugInfo.instanceName) or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")
-		local currentSelection = { key = "current", label = currentInstanceName, instanceName = currentInstanceName, journalInstanceID = currentJournalInstanceID, instanceType = currentInstanceType, difficultyID = currentDebugInfo and tonumber(currentDebugInfo.difficultyID) or 0, difficultyName = currentDebugInfo and currentDebugInfo.difficultyName or nil, isCurrent = true }
+		local currentInstanceName = (EJ_GetInstanceInfo and EJ_GetInstanceInfo(currentJournalInstanceID))
+			or (currentDebugInfo and currentDebugInfo.instanceName)
+			or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")
+		local currentSelection = {
+			key = "current",
+			label = currentInstanceName,
+			instanceName = currentInstanceName,
+			journalInstanceID = currentJournalInstanceID,
+			instanceType = currentInstanceType,
+			difficultyID = currentDebugInfo and tonumber(currentDebugInfo.difficultyID) or 0,
+			difficultyName = currentDebugInfo and currentDebugInfo.difficultyName or nil,
+			isCurrent = true,
+		}
 		selections[#selections + 1] = currentSelection
 		seenSignatures[LootSelection.BuildLootPanelSelectionDeduplicationKey(currentSelection)] = true
 	end
@@ -346,12 +397,30 @@ function LootSelection.BuildLootPanelInstanceSelections()
 					local instanceIndex = 1
 					while true do
 						local journalInstanceID, instanceName = EJ_GetInstanceByIndex(instanceIndex, isRaid)
-						if not journalInstanceID or not instanceName then break end
+						if not journalInstanceID or not instanceName then
+							break
+						end
 						local _, _, _, _, _, _, _, _, _, journalMapID = EJ_GetInstanceInfo(journalInstanceID)
 						for _, difficulty in ipairs(GetJournalInstanceDifficultyOptions(journalInstanceID, isRaid)) do
 							local entry = {
-								instanceName = instanceName, journalInstanceID = journalInstanceID, instanceType = isRaid and "raid" or "party", instanceID = tonumber(journalMapID) or 0, instanceOrder = instanceIndex, difficultyID = tonumber(difficulty.difficultyID) or 0, difficultyName = difficulty.difficultyName, progress = 0, encounters = 0, expansionName = expansionName,
-								label = string.format("%s (%s)", tostring(instanceName), tostring(difficulty.difficultyName or Translate("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度"))),
+								instanceName = instanceName,
+								journalInstanceID = journalInstanceID,
+								instanceType = isRaid and "raid" or "party",
+								instanceID = tonumber(journalMapID) or 0,
+								instanceOrder = instanceIndex,
+								difficultyID = tonumber(difficulty.difficultyID) or 0,
+								difficultyName = difficulty.difficultyName,
+								progress = 0,
+								encounters = 0,
+								expansionName = expansionName,
+								label = string.format(
+									"%s (%s)",
+									tostring(instanceName),
+									tostring(
+										difficulty.difficultyName
+											or Translate("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度")
+									)
+								),
 							}
 							entry.key = LootSelection.BuildLootPanelSelectionKey(entry)
 							local signature = LootSelection.BuildLootPanelSelectionSignature(entry)
@@ -380,14 +449,21 @@ end
 function LootSelection.GetSelectedLootPanelInstance()
 	local selections = LootSelection.BuildLootPanelInstanceSelections()
 	local lootPanelState = GetLootPanelState()
-	if #selections == 0 then lootPanelState.selectedInstanceKey = nil return nil, selections end
+	if #selections == 0 then
+		lootPanelState.selectedInstanceKey = nil
+		return nil, selections
+	end
 	local selectedKey = lootPanelState.selectedInstanceKey
 	if selectedKey then
 		for _, selection in ipairs(selections) do
 			if LootSelection.BuildLootPanelSelectionKey(selection) == selectedKey then
-				if selection.isCurrent or selection.instanceType ~= "raid" then return selection, selections end
+				if selection.isCurrent or selection.instanceType ~= "raid" then
+					return selection, selections
+				end
 				for _, validOption in ipairs(GetJournalInstanceDifficultyOptions(selection.journalInstanceID, true)) do
-					if tonumber(validOption.difficultyID) == tonumber(selection.difficultyID) then return selection, selections end
+					if tonumber(validOption.difficultyID) == tonumber(selection.difficultyID) then
+						return selection, selections
+					end
 				end
 				break
 			end
@@ -417,14 +493,19 @@ function LootSelection.PreferCurrentLootPanelSelectionOnOpen()
 	end
 
 	local currentIdentity = BuildCurrentInstanceIdentity()
-	local currentChanged = currentSelection and not AreCurrentInstanceIdentitiesEqual(lootPanelState.lastObservedCurrentInstance, currentIdentity)
+	local currentChanged = currentSelection
+		and not AreCurrentInstanceIdentitiesEqual(lootPanelState.lastObservedCurrentInstance, currentIdentity)
 	local preferredSelection = nil
 
 	if currentChanged and currentSelection then
 		preferredSelection = currentSelection
 	end
 
-	if not preferredSelection and type(lootPanelState.lastManualSelectionKey) == "string" and lootPanelState.lastManualSelectionKey ~= "" then
+	if
+		not preferredSelection
+		and type(lootPanelState.lastManualSelectionKey) == "string"
+		and lootPanelState.lastManualSelectionKey ~= ""
+	then
 		preferredSelection = FindSelectionByKey(selections, lootPanelState.lastManualSelectionKey)
 	end
 
@@ -478,7 +559,9 @@ function LootSelection.BuildLootPanelInstanceMenu(button)
 		if selection.isCurrent then
 			items[#items + 1] = {
 				text = Translate("LOOT_CURRENT_AREA", "当前区域"),
-				checked = selectedInstance and LootSelection.BuildLootPanelSelectionKey(selectedInstance) == LootSelection.BuildLootPanelSelectionKey(selection),
+				checked = selectedInstance
+					and LootSelection.BuildLootPanelSelectionKey(selectedInstance)
+						== LootSelection.BuildLootPanelSelectionKey(selection),
 				func = function()
 					SelectInstance(selection)
 					InvalidateLootDataCache()
@@ -563,14 +646,16 @@ function LootSelection.BuildLootPanelInstanceMenu(button)
 			local difficultyItems = {}
 			for _, selection in ipairs(instance.difficulties) do
 				local selectionKey = LootSelection.BuildLootPanelSelectionKey(selection)
-				local difficultyText = selection.difficultyName or Translate("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度")
+				local difficultyText = selection.difficultyName
+					or Translate("LOCKOUT_UNKNOWN_DIFFICULTY", "未知难度")
 				difficultyText = ColorizeDifficultyLabel(difficultyText, selection.difficultyID)
 				if selection.observed then
 					difficultyText = string.format("|cffff4040*|r %s", tostring(difficultyText))
 				end
 				difficultyItems[#difficultyItems + 1] = {
 					text = difficultyText,
-					checked = selectedInstance and LootSelection.BuildLootPanelSelectionKey(selectedInstance) == selectionKey,
+					checked = selectedInstance
+						and LootSelection.BuildLootPanelSelectionKey(selectedInstance) == selectionKey,
 					func = function()
 						SelectInstance(selection)
 						InvalidateLootDataCache()
@@ -579,7 +664,9 @@ function LootSelection.BuildLootPanelInstanceMenu(button)
 			end
 
 			instanceItems[#instanceItems + 1] = {
-				text = addon.ColorizeInstanceTypeLabel and addon.ColorizeInstanceTypeLabel(instance.name, instance.instanceType) or tostring(instance.name or ""),
+				text = addon.ColorizeInstanceTypeLabel
+						and addon.ColorizeInstanceTypeLabel(instance.name, instance.instanceType)
+					or tostring(instance.name or ""),
 				hasArrow = true,
 				notCheckable = true,
 				menuList = difficultyItems,
@@ -610,9 +697,11 @@ function LootSelection.OpenLootPanelForDashboardSelection(selection)
 	local targetInstanceName = tostring(selection.instanceName or "")
 
 	for _, candidate in ipairs(LootSelection.BuildLootPanelInstanceSelections() or {}) do
-		if tonumber(candidate.journalInstanceID) == targetJournalInstanceID
+		if
+			tonumber(candidate.journalInstanceID) == targetJournalInstanceID
 			and tonumber(candidate.difficultyID) == targetDifficultyID
-			and tostring(candidate.instanceName or "") == targetInstanceName then
+			and tostring(candidate.instanceName or "") == targetInstanceName
+		then
 			lootPanelState.selectedInstanceKey = LootSelection.BuildLootPanelSelectionKey(candidate)
 			lootPanelState.lastManualSelectionKey = lootPanelState.selectedInstanceKey
 			SetLootPanelTab("loot")
@@ -751,7 +840,12 @@ function LootSelection.ShowLootPanelInstanceProgressTooltip(owner)
 
 	GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
 	GameTooltip:ClearLines()
-	GameTooltip:AddLine(selectedInstance.label or selectedInstance.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本"), 1, 0.82, 0)
+	GameTooltip:AddLine(
+		selectedInstance.label or selectedInstance.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本"),
+		1,
+		0.82,
+		0
+	)
 
 	local characters = GetSortedCharacters((db and db.characters) or {})
 	local hasAnyRows = false
@@ -762,18 +856,34 @@ function LootSelection.ShowLootPanelInstanceProgressTooltip(owner)
 		if lockout then
 			local progressText = LootSelection.RenderLockoutProgress(lockout)
 			local suffix = lockout.extended and " Ext" or ""
-			local detail = lockout.difficultyName and lockout.difficultyName ~= ""
-				and string.format("%s %s%s", tostring(lockout.difficultyName), progressText, suffix)
+			local detail = lockout.difficultyName
+					and lockout.difficultyName ~= ""
+					and string.format("%s %s%s", tostring(lockout.difficultyName), progressText, suffix)
 				or string.format("%s%s", progressText, suffix)
 			GameTooltip:AddDoubleLine(characterLabel, detail, 1, 1, 1, 0.82, 0.82, 0.82)
 		else
-			GameTooltip:AddDoubleLine(characterLabel, Translate("LOCKOUT_NOT_TRACKED", "未记录"), 1, 1, 1, 0.55, 0.55, 0.55)
+			GameTooltip:AddDoubleLine(
+				characterLabel,
+				Translate("LOCKOUT_NOT_TRACKED", "未记录"),
+				1,
+				1,
+				1,
+				0.55,
+				0.55,
+				0.55
+			)
 		end
 		hasAnyRows = true
 	end
 
 	if not hasAnyRows then
-		GameTooltip:AddLine(Translate("TOOLTIP_NO_TRACKED_CHARACTERS", "No tracked characters yet."), 0.8, 0.8, 0.8, true)
+		GameTooltip:AddLine(
+			Translate("TOOLTIP_NO_TRACKED_CHARACTERS", "No tracked characters yet."),
+			0.8,
+			0.8,
+			0.8,
+			true
+		)
 	end
 
 	GameTooltip:Show()

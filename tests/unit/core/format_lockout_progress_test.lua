@@ -2,10 +2,20 @@ local function get_difficulty_suffix(lockout)
 	local difficulty_name = string.lower(tostring(lockout.difficultyName or ""))
 	local difficulty_id = tonumber(lockout.difficultyID) or 0
 
-	if difficulty_id == 16 or difficulty_id == 8 or difficulty_name:find("mythic") or difficulty_name:find("史诗") then
+	if
+		difficulty_id == 16
+		or difficulty_id == 8
+		or difficulty_name:find("mythic")
+		or difficulty_name:find("史诗")
+	then
 		return "M"
 	end
-	if difficulty_id == 15 or difficulty_id == 2 or difficulty_name:find("heroic") or difficulty_name:find("英雄") then
+	if
+		difficulty_id == 15
+		or difficulty_id == 2
+		or difficulty_name:find("heroic")
+		or difficulty_name:find("英雄")
+	then
 		return "H"
 	end
 

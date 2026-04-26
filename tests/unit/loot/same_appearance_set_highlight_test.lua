@@ -73,7 +73,10 @@ local item = {
 
 local equivalentSetIDs = LootSets.GetEquivalentLootItemSetIDs(item)
 assert(#equivalentSetIDs == 1, string.format("expected one equivalent setID, got %d", #equivalentSetIDs))
-assert(equivalentSetIDs[1] == 7001, string.format("expected equivalent setID 7001, got %s", tostring(equivalentSetIDs[1])))
+assert(
+	equivalentSetIDs[1] == 7001,
+	string.format("expected equivalent setID 7001, got %s", tostring(equivalentSetIDs[1]))
+)
 assert(LootSets.IsLootItemIncompleteSetPiece(item) == true, "expected same-appearance priest set piece to highlight")
 
 local summary = LootSets.BuildCurrentInstanceLootSummary({
@@ -89,7 +92,13 @@ local summary = LootSets.BuildCurrentInstanceLootSummary({
 	},
 }, {})
 
-assert(type(summary.sourcesBySetID[7001]) == "table", "expected current-instance set mapping for same-appearance set source")
-assert(#summary.sourcesBySetID[7001] == 1, string.format("expected one mapped source row, got %d", #(summary.sourcesBySetID[7001] or {})))
+assert(
+	type(summary.sourcesBySetID[7001]) == "table",
+	"expected current-instance set mapping for same-appearance set source"
+)
+assert(
+	#summary.sourcesBySetID[7001] == 1,
+	string.format("expected one mapped source row, got %d", #(summary.sourcesBySetID[7001] or {}))
+)
 
 print("same_appearance_set_highlight_test passed")
