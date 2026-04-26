@@ -48,7 +48,10 @@ local setIDs = SetDashboardBridge.GetLootItemSetIDs(item)
 assert(type(setIDs) == "table" and #setIDs == 2, "expected setIDs from transmog API")
 
 local storedFact = StorageGateway.GetItemFact(4001)
-assert(storedFact and type(storedFact.setIDs) == "table" and #storedFact.setIDs == 2, "expected setIDs persisted into itemFacts")
+assert(
+	storedFact and type(storedFact.setIDs) == "table" and #storedFact.setIDs == 2,
+	"expected setIDs persisted into itemFacts"
+)
 
 local indexedSetIDs = StorageGateway.GetSetIDsBySourceID(901)
 assert(type(indexedSetIDs) == "table" and #indexedSetIDs == 2, "expected persisted setIDs to populate source index")

@@ -34,6 +34,15 @@ local function GetDB()
 	return nil
 end
 
+local function EnsureRuntimeDebugSnapshots()
+	local state = addon.RuntimeDebugSnapshots
+	if type(state) ~= "table" then
+		state = {}
+		addon.RuntimeDebugSnapshots = state
+	end
+	return state
+end
+
 local function GetConfigPanel()
 	if type(dependencies.getConfigPanel) == "function" then
 		return dependencies.getConfigPanel()
@@ -271,17 +280,13 @@ local function RecordScanProfileSummary(scanState, stageLabel, expansionName)
 	end
 	local pending = EnsurePendingMissingSelections(scanState)
 	local pendingCount = pending and #pending.order or 0
-	local db = GetDB()
-	if not db then
-		return
-	end
-	db.debugTemp = type(db.debugTemp) == "table" and db.debugTemp or {}
-	local debugEntry = db.debugTemp.bulkScanProfileDebug
+	local snapshots = EnsureRuntimeDebugSnapshots()
+	local debugEntry = snapshots.bulkScanProfileDebug
 	if type(debugEntry) ~= "table" then
 		debugEntry = {
 			entries = {},
 		}
-		db.debugTemp.bulkScanProfileDebug = debugEntry
+		snapshots.bulkScanProfileDebug = debugEntry
 	end
 	debugEntry.entries = type(debugEntry.entries) == "table" and debugEntry.entries or {}
 	debugEntry.lastStage = tostring(stageLabel or "unknown")

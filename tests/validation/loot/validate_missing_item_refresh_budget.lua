@@ -8,7 +8,10 @@ LootPanelRenderer.ResetMissingItemRefreshState()
 
 assert(LootPanelRenderer.GetMissingItemRefreshAttempts() == 0, "expected missing-item retry state to start empty")
 assert(LootPanelRenderer.GetMissingItemRefreshDelaySeconds() == 3, "expected missing-item retry delay to be 3 seconds")
-assert(LootPanelRenderer.GetMissingItemRefreshMaxAttempts() == 40, "expected missing-item retry budget to allow longer refresh polling")
+assert(
+	LootPanelRenderer.GetMissingItemRefreshMaxAttempts() == 40,
+	"expected missing-item retry budget to allow longer refresh polling"
+)
 
 for attempt = 1, LootPanelRenderer.GetMissingItemRefreshMaxAttempts() do
 	local shouldSchedule = LootPanelRenderer.EvaluateMissingItemRefresh({
@@ -16,7 +19,10 @@ for attempt = 1, LootPanelRenderer.GetMissingItemRefreshMaxAttempts() do
 		selectionKey = "raid::1",
 	})
 	assert(shouldSchedule == true, string.format("expected attempt %d to schedule a retry", attempt))
-	assert(LootPanelRenderer.GetMissingItemRefreshAttempts() == attempt, string.format("expected attempt count %d", attempt))
+	assert(
+		LootPanelRenderer.GetMissingItemRefreshAttempts() == attempt,
+		string.format("expected attempt count %d", attempt)
+	)
 end
 
 do

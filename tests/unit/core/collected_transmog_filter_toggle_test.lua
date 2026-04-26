@@ -29,30 +29,21 @@ CollectionState.GetLootItemDisplayCollectionState = function(item)
 	return item.mockDisplayState
 end
 
-assert(
-	CollectionState.LootItemMatchesTypeFilter({
-		typeKey = "CLOTH",
-		mockDisplayState = "collected",
-	}) == false,
-	"expected collected transmog to be hidden when hideCollectedTransmog is enabled"
-)
+assert(CollectionState.LootItemMatchesTypeFilter({
+	typeKey = "CLOTH",
+	mockDisplayState = "collected",
+}) == false, "expected collected transmog to be hidden when hideCollectedTransmog is enabled")
 
-assert(
-	CollectionState.LootItemMatchesTypeFilter({
-		typeKey = "CLOTH",
-		mockDisplayState = "newly_collected",
-	}) == false,
-	"expected newly collected transmog to be hidden when hideCollectedTransmog is enabled"
-)
+assert(CollectionState.LootItemMatchesTypeFilter({
+	typeKey = "CLOTH",
+	mockDisplayState = "newly_collected",
+}) == false, "expected newly collected transmog to be hidden when hideCollectedTransmog is enabled")
 
 settings.hideCollectedTransmog = false
 
-assert(
-	CollectionState.LootItemMatchesTypeFilter({
-		typeKey = "CLOTH",
-		mockDisplayState = "collected",
-	}) == true,
-	"expected collected transmog to remain visible when hideCollectedTransmog is disabled"
-)
+assert(CollectionState.LootItemMatchesTypeFilter({
+	typeKey = "CLOTH",
+	mockDisplayState = "collected",
+}) == true, "expected collected transmog to remain visible when hideCollectedTransmog is disabled")
 
 print("collected_transmog_filter_toggle_test passed")

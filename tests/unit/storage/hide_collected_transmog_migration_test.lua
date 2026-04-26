@@ -8,7 +8,10 @@ local legacySettings = Storage.NormalizeSettings({
 	hideCollectedTransmog = true,
 })
 
-assert(legacySettings.hideCollectedTransmog == false, "expected legacy forced hideCollectedTransmog=true to migrate back to false")
+assert(
+	legacySettings.hideCollectedTransmog == false,
+	"expected legacy forced hideCollectedTransmog=true to migrate back to false"
+)
 assert(legacySettings.hideCollectedTransmogExplicit == false, "expected migrated legacy setting to remain non-explicit")
 
 local explicitSettings = Storage.NormalizeSettings({

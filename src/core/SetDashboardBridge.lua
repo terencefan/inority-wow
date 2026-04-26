@@ -14,6 +14,15 @@ local function GetDB()
 	return type(dependencies.getDB) == "function" and dependencies.getDB() or nil
 end
 
+local function EnsureRuntimeDebugSnapshots()
+	local state = addon.RuntimeDebugSnapshots
+	if type(state) ~= "table" then
+		state = {}
+		addon.RuntimeDebugSnapshots = state
+	end
+	return state
+end
+
 local function GetDashboardPanel()
 	return type(dependencies.getDashboardPanel) == "function" and dependencies.getDashboardPanel() or nil
 end
@@ -28,11 +37,7 @@ local function GetDashboardType(defaultValue)
 end
 
 local function GetCollapseKey(expansionName, defaultDashboardType)
-	return string.format(
-		"%s::%s",
-		tostring(GetDashboardType(defaultDashboardType)),
-		tostring(expansionName or "Other")
-	)
+	return string.format("%s::%s", tostring(GetDashboardType(defaultDashboardType)), tostring(expansionName or "Other"))
 end
 
 local function IsExpansionCollapsed(expansionName, defaultDashboardType)
@@ -353,11 +358,7 @@ function SetDashboardBridge.ConfigureRaidDashboardModule()
 			return ToggleExpansionCollapsed(expansionName, "raid", invalidateRaidDashboard)
 		end,
 		captureDashboardSnapshotWriteDebug = function(debugInfo)
-			local db = GetDB()
-			if db then
-				db.debugTemp = db.debugTemp or {}
-				db.debugTemp.dashboardSnapshotWriteDebug = debugInfo
-			end
+			EnsureRuntimeDebugSnapshots().dashboardSnapshotWriteDebug = debugInfo
 		end,
 		getExpansionInfoForInstance = dependencies.GetLootPanelInstanceExpansionInfo,
 		getExpansionOrder = function(expansionName)
@@ -404,7 +405,10 @@ function SetDashboardBridge.ConfigureRaidDashboardModule()
 				or tostring(setEntry and setEntry.name or ("Set " .. tostring(setEntry and setEntry.setID or "")))
 		end,
 		buildDistinctSetDisplayNames = function(sets)
-			return addon.LootSets and addon.LootSets.BuildDistinctSetDisplayNames and addon.LootSets.BuildDistinctSetDisplayNames(sets) or sets
+			return addon.LootSets
+					and addon.LootSets.BuildDistinctSetDisplayNames
+					and addon.LootSets.BuildDistinctSetDisplayNames(sets)
+				or sets
 		end,
 		isCollectSameAppearanceEnabled = function()
 			return true

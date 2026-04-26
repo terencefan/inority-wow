@@ -222,7 +222,10 @@ local function FindSetCategorySelectionMatch(value, bucket)
 		end
 	end
 	for _, candidate in ipairs(bucket or {}) do
-		if candidate.normalizedName:find(normalizedValue, 1, true) or normalizedValue:find(candidate.normalizedName, 1, true) then
+		if
+			candidate.normalizedName:find(normalizedValue, 1, true)
+			or normalizedValue:find(candidate.normalizedName, 1, true)
+		then
 			return candidate
 		end
 	end
@@ -276,7 +279,7 @@ end
 local function JsonEscapeString(value)
 	value = tostring(value or "")
 	value = value:gsub("\\", "\\\\")
-	value = value:gsub("\"", "\\\"")
+	value = value:gsub('"', '\\"')
 	value = value:gsub("\r", "\\r")
 	value = value:gsub("\n", "\\n")
 	value = value:gsub("\t", "\\t")
@@ -295,10 +298,10 @@ local function EncodeJsonValue(value)
 		return tostring(value)
 	end
 	if valueType == "string" then
-		return "\"" .. JsonEscapeString(value) .. "\""
+		return '"' .. JsonEscapeString(value) .. '"'
 	end
 	if valueType ~= "table" then
-		return "\"" .. JsonEscapeString(tostring(value)) .. "\""
+		return '"' .. JsonEscapeString(tostring(value)) .. '"'
 	end
 
 	if IsArrayTable(value) then
@@ -316,7 +319,7 @@ local function EncodeJsonValue(value)
 	table.sort(keys)
 	local parts = {}
 	for _, key in ipairs(keys) do
-		parts[#parts + 1] = string.format("\"%s\":%s", JsonEscapeString(key), EncodeJsonValue(value[key]))
+		parts[#parts + 1] = string.format('"%s":%s', JsonEscapeString(key), EncodeJsonValue(value[key]))
 	end
 	return "{" .. table.concat(parts, ",") .. "}"
 end
@@ -343,4 +346,3 @@ local function HasAnySectionEnabled()
 	return false
 end
 DebugTools.HasAnySectionEnabled = HasAnySectionEnabled
-

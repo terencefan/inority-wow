@@ -4,18 +4,18 @@ local DebugTools = addon.DebugTools or {}
 addon.DebugTools = DebugTools
 
 local dependencies = setmetatable({}, {
-    __index = function(_, key)
-        local current = DebugTools._dependencies or {}
-        return current[key]
-    end,
+	__index = function(_, key)
+		local current = DebugTools._dependencies or {}
+		return current[key]
+	end,
 })
 
 local function Translate(key, fallback)
-    local translate = dependencies.T or addon.T
-    if translate then
-        return translate(key, fallback)
-    end
-    return fallback or key
+	local translate = dependencies.T or addon.T
+	if translate then
+		return translate(key, fallback)
+	end
+	return fallback or key
 end
 
 local FormatBoolean = DebugTools.FormatBoolean
@@ -41,7 +41,7 @@ end
 
 function DebugTools.FormatUnifiedLogExport(export)
 	if type(export) ~= "table" or type(export.logs) ~= "table" then
-		return Translate("DEBUG_EMPTY", "No unified logs yet.\nOpen /img debug and click \"Collect Logs\".")
+		return Translate("DEBUG_EMPTY", 'No unified logs yet.\nOpen /img debug and click "Collect Logs".')
 	end
 
 	local session = export.session or {}
@@ -103,7 +103,7 @@ end
 
 function DebugTools.FormatDebugDump(dump)
 	if not dump then
-		return Translate("DEBUG_EMPTY", "No debug logs yet.\nOpen /img debug and click \"Collect Logs\".")
+		return Translate("DEBUG_EMPTY", 'No debug logs yet.\nOpen /img debug and click "Collect Logs".')
 	end
 	if not HasAnySectionEnabled() then
 		return Translate("DEBUG_EMPTY_SELECTION", "请先至少选择一个日志分段。")
@@ -112,8 +112,6 @@ function DebugTools.FormatDebugDump(dump)
 	local renderLockoutProgress = dependencies.renderLockoutProgress
 	local lines = {}
 	local runtimeLogs = dump.runtimeLogs or {}
-	local startupLifecycleDebug = dump.startupLifecycleDebug or {}
-	local runtimeErrorDebug = dump.runtimeErrorDebug or {}
 	local rawInstances = dump.rawSavedInstanceInfo and dump.rawSavedInstanceInfo.instances or {}
 	local normalizedLockouts = dump.normalizedLockouts and dump.normalizedLockouts.lockouts or {}
 	local currentLootDebug = dump.currentLootDebug or {}
@@ -133,48 +131,12 @@ function DebugTools.FormatDebugDump(dump)
 	local dungeonDashboardDebug = dump.dungeonDashboardDebug or {}
 	local setCategoryDebug = dump.setCategoryDebug or {}
 
-	lines[#lines + 1] = Translate("DEBUG_COPY_HINT", "Tip: click \"Collect Logs\" to auto-select the text, then press Ctrl+C to copy.")
+	lines[#lines + 1] =
+		Translate("DEBUG_COPY_HINT", 'Tip: click "Collect Logs" to auto-select the text, then press Ctrl+C to copy.')
 	lines[#lines + 1] = ""
-	if runtimeLogs.exportVersion and (IsSectionEnabled("startupLifecycleDebug") or IsSectionEnabled("runtimeErrorDebug")) then
-		lines[#lines + 1] = "== Runtime Logs Export =="
-		lines[#lines + 1] = string.format("exportVersion = %s", tostring(runtimeLogs.exportVersion))
-		lines[#lines + 1] = string.format("generatedAt = %s", tostring(runtimeLogs.generatedAt))
-		lines[#lines + 1] = string.format("sessionID = %s", tostring(runtimeLogs.session and runtimeLogs.session.sessionID or ""))
-		lines[#lines + 1] = string.format("persistenceEnabled = %s", tostring(runtimeLogs.session and runtimeLogs.session.persistenceEnabled and true or false))
-		lines[#lines + 1] = string.format("truncated = %s", tostring(runtimeLogs.summary and runtimeLogs.summary.truncated and true or false))
-		lines[#lines + 1] = string.format("Copy JSON = %s", tostring(runtimeLogs.exportVersion))
-		lines[#lines + 1] = string.format("agentExportHeader = %s", tostring(runtimeLogs.agentExport and "[MogTracker Agent Log Export v1]" or ""))
+	if runtimeLogs.exportVersion and IsSectionEnabled("runtimeLogs") then
+		lines[#lines + 1] = DebugTools.FormatUnifiedLogExport(runtimeLogs)
 		lines[#lines + 1] = ""
-	end
-	if IsSectionEnabled("startupLifecycleDebug") then
-		local startupEntries = startupLifecycleDebug.entries or {}
-		lines[#lines + 1] = "== Startup Lifecycle Debug =="
-		lines[#lines + 1] = string.format("entryCount = %d", #startupEntries)
-		lines[#lines + 1] = string.format("lastResetReason = %s", tostring(startupLifecycleDebug.lastResetReason))
-		lines[#lines + 1] = ""
-		for _, entry in ipairs(startupEntries) do
-			lines[#lines + 1] = string.format(
-				"[%s] %s | event=%s | detail=%s",
-				tostring(entry.at or "?"),
-				tostring(entry.step or "unknown"),
-				tostring(entry.event or "-"),
-				tostring(entry.detail or "-")
-			)
-		end
-		lines[#lines + 1] = ""
-	end
-	if IsSectionEnabled("runtimeErrorDebug") then
-		local errorEntries = runtimeErrorDebug.entries or {}
-		lines[#lines + 1] = "== Runtime Error Debug =="
-		lines[#lines + 1] = string.format("entryCount = %d", #errorEntries)
-		lines[#lines + 1] = string.format("truncated = %s", tostring(runtimeErrorDebug.truncated and true or false))
-		lines[#lines + 1] = ""
-		for index, entry in ipairs(errorEntries) do
-			lines[#lines + 1] = string.format("[%d] at=%s | repeats=%s", index, tostring(entry.at or "?"), tostring(entry.repeatCount or 1))
-			lines[#lines + 1] = string.format("  message = %s", tostring(entry.message or ""))
-			lines[#lines + 1] = string.format("  stack = %s", tostring(entry.stack or ""))
-			lines[#lines + 1] = ""
-		end
 	end
 	if IsSectionEnabled("rawSavedInstanceInfo") then
 		lines[#lines + 1] = "== Raw GetSavedInstanceInfo =="
@@ -229,12 +191,22 @@ function DebugTools.FormatDebugDump(dump)
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "-- Current Instance Lock Encounters --"
 		for _, encounter in ipairs(currentLootDebug.currentInstanceEncounters or {}) do
-			lines[#lines + 1] = string.format("[%d] %s | killed=%s", tonumber(encounter.index) or 0, tostring(encounter.name), FormatBoolean(encounter.isKilled))
+			lines[#lines + 1] = string.format(
+				"[%d] %s | killed=%s",
+				tonumber(encounter.index) or 0,
+				tostring(encounter.name),
+				FormatBoolean(encounter.isKilled)
+			)
 		end
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "-- Saved Instance Encounters --"
 		for _, encounter in ipairs(currentLootDebug.savedInstanceEncounters or {}) do
-			lines[#lines + 1] = string.format("[%d] %s | killed=%s", tonumber(encounter.index) or 0, tostring(encounter.name), FormatBoolean(encounter.isKilled))
+			lines[#lines + 1] = string.format(
+				"[%d] %s | killed=%s",
+				tonumber(encounter.index) or 0,
+				tostring(encounter.name),
+				FormatBoolean(encounter.isKilled)
+			)
 		end
 	end
 
@@ -242,7 +214,8 @@ function DebugTools.FormatDebugDump(dump)
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Minimap Tooltip Debug =="
 		lines[#lines + 1] = string.format("currentCharacterKey = %s", tostring(minimapTooltipDebug.currentCharacterKey))
-		lines[#lines + 1] = string.format("currentCharacterFound = %s", FormatBoolean(minimapTooltipDebug.currentCharacterFound))
+		lines[#lines + 1] =
+			string.format("currentCharacterFound = %s", FormatBoolean(minimapTooltipDebug.currentCharacterFound))
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "-- Header Characters --"
 		for _, header in ipairs(minimapTooltipDebug.headerCharacters or {}) do
@@ -265,11 +238,8 @@ function DebugTools.FormatDebugDump(dump)
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "-- Current Character Lockouts --"
 		local currentCharacter = minimapTooltipDebug.currentCharacter or {}
-		lines[#lines + 1] = string.format(
-			"name = %s | key = %s",
-			tostring(currentCharacter.name),
-			tostring(currentCharacter.key)
-		)
+		lines[#lines + 1] =
+			string.format("name = %s | key = %s", tostring(currentCharacter.name), tostring(currentCharacter.key))
 		for _, lockout in ipairs(currentCharacter.lockouts or {}) do
 			lines[#lines + 1] = string.format(
 				"%s | diff=%s (%s) | raid=%s | progress=%d/%d | reset=%s | ext=%s",
@@ -296,7 +266,14 @@ function DebugTools.FormatDebugDump(dump)
 				FormatBoolean(row.isRaid),
 				tostring(row.expansionName or "Other"),
 				tostring(row.lookupKey or ""),
-				match and string.format("%d/%d reset=%s", tonumber(match.progress) or 0, tonumber(match.encounters) or 0, tostring(match.resetSeconds or 0)) or "MISS"
+				match
+						and string.format(
+							"%d/%d reset=%s",
+							tonumber(match.progress) or 0,
+							tonumber(match.encounters) or 0,
+							tostring(match.resetSeconds or 0)
+						)
+					or "MISS"
 			)
 		end
 		if #(minimapTooltipDebug.tooltipRows or {}) == 0 then
@@ -304,23 +281,35 @@ function DebugTools.FormatDebugDump(dump)
 		end
 	end
 
-	if IsSectionEnabled("lootPanelSelectionDebug") and (lootPanelSelectionDebug.currentDebugInfo or lootPanelSelectionDebug.selectedInstanceKey or #(lootPanelSelectionDebug.selections or {}) > 0) then
+	if
+		IsSectionEnabled("lootPanelSelectionDebug")
+		and (
+			lootPanelSelectionDebug.currentDebugInfo
+			or lootPanelSelectionDebug.selectedInstanceKey
+			or #(lootPanelSelectionDebug.selections or {}) > 0
+		)
+	then
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Loot Panel Selection Debug =="
 		lines[#lines + 1] = EncodeJsonValue(lootPanelSelectionDebug)
 	end
 
-	if IsSectionEnabled("bulkScanQueueDebug") and (
-		bulkScanQueueDebug.targetInstanceName
-		or #(bulkScanQueueDebug.matchingSelections or {}) > 0
-		or #(bulkScanQueueDebug.matchingRaidQueueSelections or {}) > 0
-	) then
+	if
+		IsSectionEnabled("bulkScanQueueDebug")
+		and (
+			bulkScanQueueDebug.targetInstanceName
+			or #(bulkScanQueueDebug.matchingSelections or {}) > 0
+			or #(bulkScanQueueDebug.matchingRaidQueueSelections or {}) > 0
+		)
+	then
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Bulk Scan Queue Debug =="
 		lines[#lines + 1] = string.format("targetInstanceName = %s", tostring(bulkScanQueueDebug.targetInstanceName))
-		lines[#lines + 1] = string.format("targetJournalInstanceID = %s", tostring(bulkScanQueueDebug.targetJournalInstanceID))
+		lines[#lines + 1] =
+			string.format("targetJournalInstanceID = %s", tostring(bulkScanQueueDebug.targetJournalInstanceID))
 		lines[#lines + 1] = string.format("targetDifficultyID = %s", tostring(bulkScanQueueDebug.targetDifficultyID))
-		lines[#lines + 1] = string.format("targetDifficultyName = %s", tostring(bulkScanQueueDebug.targetDifficultyName))
+		lines[#lines + 1] =
+			string.format("targetDifficultyName = %s", tostring(bulkScanQueueDebug.targetDifficultyName))
 		lines[#lines + 1] = string.format("selectionTreeCount = %s", tostring(bulkScanQueueDebug.selectionTreeCount))
 		lines[#lines + 1] = string.format("raidQueueCount = %s", tostring(bulkScanQueueDebug.raidQueueCount))
 		lines[#lines + 1] = ""
@@ -524,7 +513,8 @@ function DebugTools.FormatDebugDump(dump)
 			lines[#lines + 1] = ""
 			lines[#lines + 1] = "== Loot Set Primary Appearances Debug =="
 			for _, setEntry in ipairs(setSummaryDebug.setAppearances or {}) do
-				lines[#lines + 1] = string.format("setID=%s | name=%s", tostring(setEntry.setID), tostring(setEntry.name))
+				lines[#lines + 1] =
+					string.format("setID=%s | name=%s", tostring(setEntry.setID), tostring(setEntry.name))
 				for _, appearance in ipairs(setEntry.appearances or {}) do
 					lines[#lines + 1] = string.format(
 						"  sourceID=%s | name=%s | slot=%s | slotName=%s | collected=%s | equipLoc=%s | itemLink=%s | icon=%s",
@@ -542,13 +532,17 @@ function DebugTools.FormatDebugDump(dump)
 		end
 	end
 
-	if IsSectionEnabled("dashboardSetPieceDebug") and (dashboardSetPieceDebug.classFiles or dashboardSetPieceDebug.items) then
+	if
+		IsSectionEnabled("dashboardSetPieceDebug")
+		and (dashboardSetPieceDebug.classFiles or dashboardSetPieceDebug.items)
+	then
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Dashboard Set Piece Metric Debug =="
 		lines[#lines + 1] = string.format("instanceName = %s", tostring(dashboardSetPieceDebug.instanceName))
 		lines[#lines + 1] = string.format("difficultyID = %s", tostring(dashboardSetPieceDebug.difficultyID))
 		lines[#lines + 1] = string.format("difficultyName = %s", tostring(dashboardSetPieceDebug.difficultyName))
-		lines[#lines + 1] = string.format("classFiles = %s", table.concat(dashboardSetPieceDebug.classFiles or {}, ", "))
+		lines[#lines + 1] =
+			string.format("classFiles = %s", table.concat(dashboardSetPieceDebug.classFiles or {}, ", "))
 		lines[#lines + 1] = string.format("itemCount = %s", tostring(dashboardSetPieceDebug.itemCount or 0))
 		lines[#lines + 1] = ""
 		for _, item in ipairs(dashboardSetPieceDebug.items or {}) do
@@ -601,13 +595,17 @@ function DebugTools.FormatDebugDump(dump)
 		lines[#lines + 1] = string.format("journalInstanceID = %s", tostring(lootApiRawDebug.journalInstanceID))
 		lines[#lines + 1] = string.format("difficultyID = %s", tostring(lootApiRawDebug.difficultyID))
 		lines[#lines + 1] = string.format("difficultyName = %s", tostring(lootApiRawDebug.difficultyName))
-		lines[#lines + 1] = string.format("selectedClassIDs = %s", table.concat(lootApiRawDebug.selectedClassIDs or {}, ","))
-		lines[#lines + 1] = string.format("lootFilterClassIDs = %s", table.concat(lootApiRawDebug.lootFilterClassIDs or {}, ","))
+		lines[#lines + 1] =
+			string.format("selectedClassIDs = %s", table.concat(lootApiRawDebug.selectedClassIDs or {}, ","))
+		lines[#lines + 1] =
+			string.format("lootFilterClassIDs = %s", table.concat(lootApiRawDebug.lootFilterClassIDs or {}, ","))
 		lines[#lines + 1] = string.format("missingItemData = %s", FormatBoolean(lootApiRawDebug.missingItemData))
-		lines[#lines + 1] = string.format("totalLootAcrossFilterRuns = %s", tostring(lootApiRawDebug.totalLootAcrossFilterRuns))
+		lines[#lines + 1] =
+			string.format("totalLootAcrossFilterRuns = %s", tostring(lootApiRawDebug.totalLootAcrossFilterRuns))
 		lines[#lines + 1] = string.format("totalLootAllClasses = %s", tostring(lootApiRawDebug.totalLootAllClasses))
 		lines[#lines + 1] = string.format("journalReportsLoot = %s", FormatBoolean(lootApiRawDebug.journalReportsLoot))
-		lines[#lines + 1] = string.format("zeroLootRetrySuggested = %s", FormatBoolean(lootApiRawDebug.zeroLootRetrySuggested))
+		lines[#lines + 1] =
+			string.format("zeroLootRetrySuggested = %s", FormatBoolean(lootApiRawDebug.zeroLootRetrySuggested))
 		for _, missingItem in ipairs(lootApiRawDebug.missingItems or {}) do
 			lines[#lines + 1] = string.format(
 				"missingItem itemID=%s | encounterID=%s | reason=%s | name=%s",
@@ -619,7 +617,11 @@ function DebugTools.FormatDebugDump(dump)
 		end
 		for _, run in ipairs(lootApiRawDebug.filterRuns or {}) do
 			lines[#lines + 1] = ""
-			lines[#lines + 1] = string.format("-- Filter Run classID=%s | totalLoot=%s --", tostring(run.classID), tostring(run.totalLoot))
+			lines[#lines + 1] = string.format(
+				"-- Filter Run classID=%s | totalLoot=%s --",
+				tostring(run.classID),
+				tostring(run.totalLoot)
+			)
 			for _, item in ipairs(run.items or {}) do
 				lines[#lines + 1] = string.format(
 					"lootIndex=%s | encounterID=%s | itemID=%s | name=%s | slot=%s | armorType=%s | accepted=%s | duplicate=%s | lootKey=%s",
@@ -653,17 +655,28 @@ function DebugTools.FormatDebugDump(dump)
 		end
 	end
 
-	if IsSectionEnabled("lootPanelRegressionRawDebug") and (lootPanelRegressionRawDebug.instanceName or #(lootPanelRegressionRawDebug.bosses or {}) > 0) then
+	if
+		IsSectionEnabled("lootPanelRegressionRawDebug")
+		and (lootPanelRegressionRawDebug.instanceName or #(lootPanelRegressionRawDebug.bosses or {}) > 0)
+	then
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Loot Panel Regression Raw =="
 		lines[#lines + 1] = string.format("instanceName = %s", tostring(lootPanelRegressionRawDebug.instanceName))
 		lines[#lines + 1] = string.format("instanceType = %s", tostring(lootPanelRegressionRawDebug.instanceType))
 		lines[#lines + 1] = string.format("difficultyID = %s", tostring(lootPanelRegressionRawDebug.difficultyID))
 		lines[#lines + 1] = string.format("difficultyName = %s", tostring(lootPanelRegressionRawDebug.difficultyName))
-		lines[#lines + 1] = string.format("journalInstanceID = %s", tostring(lootPanelRegressionRawDebug.journalInstanceID))
-		lines[#lines + 1] = string.format("selectedInstanceKey = %s", tostring(lootPanelRegressionRawDebug.selectedInstanceKey))
-		lines[#lines + 1] = string.format("selectedClassIDs = %s", table.concat(lootPanelRegressionRawDebug.selectedClassIDs or {}, ","))
-		lines[#lines + 1] = string.format("selectedClassFiles = %s", table.concat(lootPanelRegressionRawDebug.selectedClassFiles or {}, ","))
+		lines[#lines + 1] =
+			string.format("journalInstanceID = %s", tostring(lootPanelRegressionRawDebug.journalInstanceID))
+		lines[#lines + 1] =
+			string.format("selectedInstanceKey = %s", tostring(lootPanelRegressionRawDebug.selectedInstanceKey))
+		lines[#lines + 1] = string.format(
+			"selectedClassIDs = %s",
+			table.concat(lootPanelRegressionRawDebug.selectedClassIDs or {}, ",")
+		)
+		lines[#lines + 1] = string.format(
+			"selectedClassFiles = %s",
+			table.concat(lootPanelRegressionRawDebug.selectedClassFiles or {}, ",")
+		)
 		for _, boss in ipairs(lootPanelRegressionRawDebug.bosses or {}) do
 			lines[#lines + 1] = ""
 			lines[#lines + 1] = string.format(
@@ -699,7 +712,8 @@ function DebugTools.FormatDebugDump(dump)
 					end
 				end
 			end
-			lines[#lines + 1] = string.format("allClasses | totalLoot=%s", tostring(boss.allClasses and boss.allClasses.totalLoot or 0))
+			lines[#lines + 1] =
+				string.format("allClasses | totalLoot=%s", tostring(boss.allClasses and boss.allClasses.totalLoot or 0))
 			if not boss.allClasses or #(boss.allClasses.items or {}) == 0 then
 				lines[#lines + 1] = "  - none"
 			else
@@ -722,11 +736,16 @@ function DebugTools.FormatDebugDump(dump)
 	end
 
 	local collectionStateDebug = dump.collectionStateDebug or {}
-	if IsSectionEnabled("collectionStateDebug") and (collectionStateDebug.collectSameAppearance ~= nil or #(collectionStateDebug.items or {}) > 0) then
+	if
+		IsSectionEnabled("collectionStateDebug")
+		and (collectionStateDebug.collectSameAppearance ~= nil or #(collectionStateDebug.items or {}) > 0)
+	then
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Loot Collection State Debug =="
-		lines[#lines + 1] = string.format("collectSameAppearance = %s", FormatBoolean(collectionStateDebug.collectSameAppearance))
-		lines[#lines + 1] = string.format("hideCollectedTransmog = %s", FormatBoolean(collectionStateDebug.hideCollectedTransmog))
+		lines[#lines + 1] =
+			string.format("collectSameAppearance = %s", FormatBoolean(collectionStateDebug.collectSameAppearance))
+		lines[#lines + 1] =
+			string.format("hideCollectedTransmog = %s", FormatBoolean(collectionStateDebug.hideCollectedTransmog))
 		lines[#lines + 1] = ""
 		for _, item in ipairs(collectionStateDebug.items or {}) do
 			lines[#lines + 1] = string.format(
@@ -770,22 +789,37 @@ function DebugTools.FormatDebugDump(dump)
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Dashboard Snapshot Debug =="
 		lines[#lines + 1] = string.format("instanceName = %s", tostring(dashboardSnapshotDebug.instanceName))
-		lines[#lines + 1] = string.format("storedCacheVersion = %s", tostring(dashboardSnapshotDebug.storedCacheVersion))
-		lines[#lines + 1] = string.format("matchedEntryRulesVersion = %s", tostring(dashboardSnapshotDebug.matchedEntryRulesVersion))
-		lines[#lines + 1] = string.format("matchedEntryCollectSameAppearance = %s", FormatBoolean(dashboardSnapshotDebug.matchedEntryCollectSameAppearance))
-		lines[#lines + 1] = string.format("selectedJournalInstanceID = %s", tostring(dashboardSnapshotDebug.selectedJournalInstanceID))
+		lines[#lines + 1] =
+			string.format("storedCacheVersion = %s", tostring(dashboardSnapshotDebug.storedCacheVersion))
+		lines[#lines + 1] =
+			string.format("matchedEntryRulesVersion = %s", tostring(dashboardSnapshotDebug.matchedEntryRulesVersion))
+		lines[#lines + 1] = string.format(
+			"matchedEntryCollectSameAppearance = %s",
+			FormatBoolean(dashboardSnapshotDebug.matchedEntryCollectSameAppearance)
+		)
+		lines[#lines + 1] =
+			string.format("selectedJournalInstanceID = %s", tostring(dashboardSnapshotDebug.selectedJournalInstanceID))
 		lines[#lines + 1] = string.format("selectedRaidKey = %s", tostring(dashboardSnapshotDebug.selectedRaidKey))
 		lines[#lines + 1] = string.format("selectedTierTag = %s", tostring(dashboardSnapshotDebug.selectedTierTag))
 		lines[#lines + 1] = string.format("difficultyID = %s", tostring(dashboardSnapshotDebug.difficultyID))
 		lines[#lines + 1] = string.format("difficultyName = %s", tostring(dashboardSnapshotDebug.difficultyName))
 		lines[#lines + 1] = string.format("entryFound = %s", FormatBoolean(dashboardSnapshotDebug.entryFound))
-		lines[#lines + 1] = string.format("difficultyEntryFound = %s", FormatBoolean(dashboardSnapshotDebug.difficultyEntryFound))
-		lines[#lines + 1] = string.format("matchedEntryInstanceName = %s", tostring(dashboardSnapshotDebug.matchedEntryInstanceName))
-		lines[#lines + 1] = string.format("matchedEntryJournalInstanceID = %s", tostring(dashboardSnapshotDebug.matchedEntryJournalInstanceID))
-		lines[#lines + 1] = string.format("matchedEntryRaidKey = %s", tostring(dashboardSnapshotDebug.matchedEntryRaidKey))
-		lines[#lines + 1] = string.format("matchedEntryExpansionName = %s", tostring(dashboardSnapshotDebug.matchedEntryExpansionName))
-		lines[#lines + 1] = string.format("matchedEntryRaidOrder = %s", tostring(dashboardSnapshotDebug.matchedEntryRaidOrder))
-		lines[#lines + 1] = string.format("matchedEntryTierTag = %s", tostring(dashboardSnapshotDebug.matchedEntryTierTag))
+		lines[#lines + 1] =
+			string.format("difficultyEntryFound = %s", FormatBoolean(dashboardSnapshotDebug.difficultyEntryFound))
+		lines[#lines + 1] =
+			string.format("matchedEntryInstanceName = %s", tostring(dashboardSnapshotDebug.matchedEntryInstanceName))
+		lines[#lines + 1] = string.format(
+			"matchedEntryJournalInstanceID = %s",
+			tostring(dashboardSnapshotDebug.matchedEntryJournalInstanceID)
+		)
+		lines[#lines + 1] =
+			string.format("matchedEntryRaidKey = %s", tostring(dashboardSnapshotDebug.matchedEntryRaidKey))
+		lines[#lines + 1] =
+			string.format("matchedEntryExpansionName = %s", tostring(dashboardSnapshotDebug.matchedEntryExpansionName))
+		lines[#lines + 1] =
+			string.format("matchedEntryRaidOrder = %s", tostring(dashboardSnapshotDebug.matchedEntryRaidOrder))
+		lines[#lines + 1] =
+			string.format("matchedEntryTierTag = %s", tostring(dashboardSnapshotDebug.matchedEntryTierTag))
 		lines[#lines + 1] = ""
 		for _, classEntry in ipairs(dashboardSnapshotDebug.byClass or {}) do
 			lines[#lines + 1] = string.format(
@@ -796,10 +830,7 @@ function DebugTools.FormatDebugDump(dump)
 				tostring(classEntry.rawSetPieceCount or 0),
 				table.concat(classEntry.setIDs or {}, ",")
 			)
-			lines[#lines + 1] = string.format(
-				"  setPieceKeys=%s",
-				table.concat(classEntry.setPieceKeys or {}, ",")
-			)
+			lines[#lines + 1] = string.format("  setPieceKeys=%s", table.concat(classEntry.setPieceKeys or {}, ","))
 			for _, setEntry in ipairs(classEntry.sets or {}) do
 				lines[#lines + 1] = string.format(
 					"  setID=%s | name=%s | label=%s | progress=%s/%s",
@@ -841,11 +872,15 @@ function DebugTools.FormatDebugDump(dump)
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Dashboard Snapshot Write Debug =="
 		lines[#lines + 1] = string.format("instanceName = %s", tostring(dashboardSnapshotWriteDebug.instanceName))
-		lines[#lines + 1] = string.format("journalInstanceID = %s", tostring(dashboardSnapshotWriteDebug.journalInstanceID))
+		lines[#lines + 1] =
+			string.format("journalInstanceID = %s", tostring(dashboardSnapshotWriteDebug.journalInstanceID))
 		lines[#lines + 1] = string.format("difficultyID = %s", tostring(dashboardSnapshotWriteDebug.difficultyID))
 		lines[#lines + 1] = string.format("difficultyName = %s", tostring(dashboardSnapshotWriteDebug.difficultyName))
 		lines[#lines + 1] = string.format("rulesVersion = %s", tostring(dashboardSnapshotWriteDebug.rulesVersion))
-		lines[#lines + 1] = string.format("collectSameAppearance = %s", FormatBoolean(dashboardSnapshotWriteDebug.collectSameAppearance))
+		lines[#lines + 1] = string.format(
+			"collectSameAppearance = %s",
+			FormatBoolean(dashboardSnapshotWriteDebug.collectSameAppearance)
+		)
 		lines[#lines + 1] = ""
 		for _, classEntry in ipairs(dashboardSnapshotWriteDebug.byClass or {}) do
 			lines[#lines + 1] = string.format(
@@ -855,10 +890,7 @@ function DebugTools.FormatDebugDump(dump)
 				tostring(classEntry.setPieceTotal or 0),
 				table.concat(classEntry.setIDs or {}, ",")
 			)
-			lines[#lines + 1] = string.format(
-				"  setPieceKeys=%s",
-				table.concat(classEntry.setPieceKeys or {}, ",")
-			)
+			lines[#lines + 1] = string.format("  setPieceKeys=%s", table.concat(classEntry.setPieceKeys or {}, ","))
 		end
 		if dashboardSnapshotWriteDebug.total then
 			lines[#lines + 1] = ""
@@ -874,15 +906,20 @@ function DebugTools.FormatDebugDump(dump)
 		end
 	end
 
-	if IsSectionEnabled("pvpSetDebug") and ((pvpSetDebug.totalSetCount or 0) > 0 or (pvpSetDebug.error and pvpSetDebug.error ~= "")) then
+	if
+		IsSectionEnabled("pvpSetDebug")
+		and ((pvpSetDebug.totalSetCount or 0) > 0 or (pvpSetDebug.error and pvpSetDebug.error ~= ""))
+	then
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== PVP Set Debug =="
 		if pvpSetDebug.error and pvpSetDebug.error ~= "" then
 			lines[#lines + 1] = string.format("error = %s", tostring(pvpSetDebug.error))
 		else
 			lines[#lines + 1] = string.format("totalSetCount = %s", tostring(pvpSetDebug.totalSetCount or 0))
-			lines[#lines + 1] = string.format("matchedKeywordCount = %s", tostring(pvpSetDebug.matchedKeywordCount or 0))
-			lines[#lines + 1] = string.format("unmatchedSampleCount = %s", tostring(pvpSetDebug.unmatchedSampleCount or 0))
+			lines[#lines + 1] =
+				string.format("matchedKeywordCount = %s", tostring(pvpSetDebug.matchedKeywordCount or 0))
+			lines[#lines + 1] =
+				string.format("unmatchedSampleCount = %s", tostring(pvpSetDebug.unmatchedSampleCount or 0))
 			lines[#lines + 1] = string.format("keywords = %s", table.concat(pvpSetDebug.keywords or {}, ", "))
 			lines[#lines + 1] = ""
 			lines[#lines + 1] = "-- Keyword Matches --"
@@ -923,7 +960,8 @@ function DebugTools.FormatDebugDump(dump)
 			lines[#lines + 1] = string.format("error = %s", tostring(dungeonDashboardDebug.error))
 		end
 		if dungeonDashboardDebug.dashboardInstanceType then
-			lines[#lines + 1] = string.format("dashboardInstanceType = %s", tostring(dungeonDashboardDebug.dashboardInstanceType))
+			lines[#lines + 1] =
+				string.format("dashboardInstanceType = %s", tostring(dungeonDashboardDebug.dashboardInstanceType))
 		end
 		if dungeonDashboardDebug.instanceQuery then
 			lines[#lines + 1] = string.format("instanceQuery = %s", tostring(dungeonDashboardDebug.instanceQuery))
@@ -1010,7 +1048,10 @@ function DebugTools.FormatDebugDump(dump)
 		end
 	end
 
-	if IsSectionEnabled("setCategoryDebug") and ((setCategoryDebug.totalSetCount or 0) > 0 or (setCategoryDebug.error and setCategoryDebug.error ~= "")) then
+	if
+		IsSectionEnabled("setCategoryDebug")
+		and ((setCategoryDebug.totalSetCount or 0) > 0 or (setCategoryDebug.error and setCategoryDebug.error ~= ""))
+	then
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Set Category Debug =="
 		if setCategoryDebug.error and setCategoryDebug.error ~= "" then
@@ -1052,16 +1093,25 @@ function DebugTools.FormatDebugDump(dump)
 	end
 
 	local setDashboardPreviewDebug = dump.setDashboardPreviewDebug or {}
-	if (setDashboardPreviewDebug.payloadJson and setDashboardPreviewDebug.payloadJson ~= "") or (setDashboardPreviewDebug.error and setDashboardPreviewDebug.error ~= "") then
+	if
+		(setDashboardPreviewDebug.payloadJson and setDashboardPreviewDebug.payloadJson ~= "")
+		or (setDashboardPreviewDebug.error and setDashboardPreviewDebug.error ~= "")
+	then
 		lines[#lines + 1] = ""
 		lines[#lines + 1] = "== Set Dashboard Preview Debug =="
 		if setDashboardPreviewDebug.error and setDashboardPreviewDebug.error ~= "" then
 			lines[#lines + 1] = string.format("error = %s", tostring(setDashboardPreviewDebug.error))
 		else
-			lines[#lines + 1] = string.format("tabOrder = %s", table.concat(setDashboardPreviewDebug.tabOrder or {}, ", "))
-			lines[#lines + 1] = string.format("classFiles = %s", table.concat(setDashboardPreviewDebug.classFiles or {}, ", "))
-			lines[#lines + 1] = string.format("classSetRows = %s", table.concat(setDashboardPreviewDebug.classSetRows or {}, ", "))
-			lines[#lines + 1] = string.format("missingTargetTiers = %s", table.concat(setDashboardPreviewDebug.missingTargetTiers or {}, ", "))
+			lines[#lines + 1] =
+				string.format("tabOrder = %s", table.concat(setDashboardPreviewDebug.tabOrder or {}, ", "))
+			lines[#lines + 1] =
+				string.format("classFiles = %s", table.concat(setDashboardPreviewDebug.classFiles or {}, ", "))
+			lines[#lines + 1] =
+				string.format("classSetRows = %s", table.concat(setDashboardPreviewDebug.classSetRows or {}, ", "))
+			lines[#lines + 1] = string.format(
+				"missingTargetTiers = %s",
+				table.concat(setDashboardPreviewDebug.missingTargetTiers or {}, ", ")
+			)
 			lines[#lines + 1] = ""
 			lines[#lines + 1] = "-- JSON Payload --"
 			lines[#lines + 1] = tostring(setDashboardPreviewDebug.payloadJson or "")
@@ -1070,5 +1120,3 @@ function DebugTools.FormatDebugDump(dump)
 
 	return table.concat(lines, "\n")
 end
-
-

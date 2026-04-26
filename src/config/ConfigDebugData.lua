@@ -99,12 +99,13 @@ local function ShallowCopy(source)
 end
 
 local function EnsureUnifiedLogFilters(panel)
-	panel.unifiedLogFilters = panel.unifiedLogFilters or {
-		levels = {},
-		scopes = {},
-		sessionEnabled = true,
-		viewMode = "preview",
-	}
+	panel.unifiedLogFilters = panel.unifiedLogFilters
+		or {
+			levels = {},
+			scopes = {},
+			sessionEnabled = true,
+			viewMode = "preview",
+		}
 	for _, level in ipairs(DEFAULT_LOG_LEVELS) do
 		if panel.unifiedLogFilters.levels[level] == nil then
 			panel.unifiedLogFilters.levels[level] = true
@@ -168,9 +169,7 @@ local function BuildFilteredRuntimeExport(runtimeLogs, filters)
 	end
 
 	for _, entry in ipairs(runtimeLogs.logs or {}) do
-		if hasSession
-			and allowLevel[tostring(entry.level or "")]
-			and allowScope[tostring(entry.scope or "")] then
+		if hasSession and allowLevel[tostring(entry.level or "")] and allowScope[tostring(entry.scope or "")] then
 			filteredLogs[#filteredLogs + 1] = entry
 		end
 	end
@@ -262,7 +261,8 @@ local function SetPanelViewMode(mode)
 end
 
 local function GetExpansionForLockout(lockout)
-	return type(dependencies.GetExpansionForLockout) == "function" and dependencies.GetExpansionForLockout(lockout) or "Other"
+	return type(dependencies.GetExpansionForLockout) == "function" and dependencies.GetExpansionForLockout(lockout)
+		or "Other"
 end
 
 local function GetExpansionOrder(expansionName)
@@ -285,7 +285,10 @@ function ConfigDebugData.CaptureAndShowDebugDump()
 	if RequestRaidInfo then
 		RequestRaidInfo()
 	end
-	local debugDump = addon.DebugTools and addon.DebugTools.CaptureEncounterDebugDump and addon.DebugTools.CaptureEncounterDebugDump() or nil
+	local debugDump = addon.DebugTools
+			and addon.DebugTools.CaptureEncounterDebugDump
+			and addon.DebugTools.CaptureEncounterDebugDump()
+		or nil
 	SetLastDebugDump(debugDump)
 	if panel then
 		EnsureUnifiedLogFilters(panel).viewMode = "preview"
@@ -306,7 +309,12 @@ function ConfigDebugData.CaptureAndShowDebugDump()
 		MogTrackerDebugPanelScrollChild:HighlightText()
 	end
 	if debugDump then
-		PrintMessage(string.format(T("MESSAGE_DEBUG_CAPTURED", "Debug logs collected and selected (%d instances). Press Ctrl+C to copy."), #debugDump.lastEncounterDump.instances))
+		PrintMessage(
+			string.format(
+				T("MESSAGE_DEBUG_CAPTURED", "Debug logs collected and selected (%d instances). Press Ctrl+C to copy."),
+				#debugDump.lastEncounterDump.instances
+			)
+		)
 	end
 end
 
@@ -323,11 +331,15 @@ function ConfigDebugData.InitializeDebugPanel()
 	ApplyDefaultFrameStyle(panel)
 	panel:SetSize(860, 560)
 	MogTrackerDebugPanelTitle:SetText(T("DEBUG_PANEL_TITLE", "统一日志面板"))
-	MogTrackerDebugPanelSubtitle:SetText(T("DEBUG_PANEL_SUBTITLE", "Unified Logger / Debug Export · 只能通过 /img debug ... 打开。"))
+	MogTrackerDebugPanelSubtitle:SetText(
+		T("DEBUG_PANEL_SUBTITLE", "Unified Logger / Debug Export · 只能通过 /img debug ... 打开。")
+	)
 	MogTrackerDebugPanelSectionsHeader:SetText(T("DEBUG_SECTION_HEADER", "筛选与会话"))
 	MogTrackerDebugPanelListHeader:SetText(T("DEBUG_HEADER", "统一日志主区"))
 	local addonVersion = GetAddonMetadata(dependencies.addonName, "Version") or "0.0.0"
-	MogTrackerDebugPanelFooter:SetText(string.format("%s · v%s", T("DEBUG_PANEL_FOOTER", "/img debug · Unified Log Panel"), tostring(addonVersion)))
+	MogTrackerDebugPanelFooter:SetText(
+		string.format("%s · v%s", T("DEBUG_PANEL_FOOTER", "/img debug · Unified Log Panel"), tostring(addonVersion))
+	)
 	MogTrackerDebugPanelRefreshButton:SetText(T("BUTTON_COLLECT_DEBUG", "Collect Logs"))
 	MogTrackerDebugPanelRefreshViewButton:SetText(T("BUTTON_REFRESH_VIEW", "Refresh View"))
 	MogTrackerDebugPanelCopyJsonButton:SetText(T("BUTTON_COPY_JSON", "Copy JSON"))
@@ -341,8 +353,12 @@ function ConfigDebugData.InitializeDebugPanel()
 	MogTrackerDebugPanelScrollChild:SetTextInsets(4, 4, 4, 4)
 	MogTrackerDebugPanelScrollChild:EnableMouse(true)
 	MogTrackerDebugPanelScrollChild:SetMaxLetters(0)
-	MogTrackerDebugPanelScrollChild:SetScript("OnMouseUp", function(self) self:SetFocus() end)
-	MogTrackerDebugPanelScrollChild:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+	MogTrackerDebugPanelScrollChild:SetScript("OnMouseUp", function(self)
+		self:SetFocus()
+	end)
+	MogTrackerDebugPanelScrollChild:SetScript("OnEscapePressed", function(self)
+		self:ClearFocus()
+	end)
 	MogTrackerDebugPanelScrollFrame:SetScrollChild(MogTrackerDebugPanelScrollChild)
 
 	MogTrackerDebugPanelRefreshButton:SetScript("OnClick", function()
@@ -367,8 +383,12 @@ function ConfigDebugData.InitializeDebugPanel()
 	panel:EnableMouse(true)
 	panel:SetMovable(true)
 	panel:RegisterForDrag("LeftButton")
-	panel:SetScript("OnDragStart", function(self) self:StartMoving() end)
-	panel:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+	panel:SetScript("OnDragStart", function(self)
+		self:StartMoving()
+	end)
+	panel:SetScript("OnDragStop", function(self)
+		self:StopMovingOrSizing()
+	end)
 
 	panel.initialized = true
 	ApplyElvUISkin()
@@ -407,11 +427,19 @@ function ConfigDebugData.CaptureSavedInstances()
 		if (not character.name or character.name == "") and existingCharacter.name and existingCharacter.name ~= "" then
 			character.name = existingCharacter.name
 		end
-		if (not character.realm or character.realm == "") and existingCharacter.realm and existingCharacter.realm ~= "" then
+		if
+			(not character.realm or character.realm == "")
+			and existingCharacter.realm
+			and existingCharacter.realm ~= ""
+		then
 			character.realm = existingCharacter.realm
 		end
-		if (not character.className or character.className == "" or character.className == "UNKNOWN")
-			and existingCharacter.className and existingCharacter.className ~= "" and existingCharacter.className ~= "UNKNOWN" then
+		if
+			(not character.className or character.className == "" or character.className == "UNKNOWN")
+			and existingCharacter.className
+			and existingCharacter.className ~= ""
+			and existingCharacter.className ~= "UNKNOWN"
+		then
 			character.className = existingCharacter.className
 		end
 	end
@@ -433,7 +461,9 @@ function ConfigDebugData.CaptureSavedInstances()
 		local totalEncounters, progressCount = ExtractSavedInstanceProgress(returns)
 		local shouldPersistLockout = instanceName and (locked or (tonumber(progressCount) or 0) > 0)
 		if shouldPersistLockout then
-			local cycleInfo = addon.BuildBossKillCycleInfo and addon.BuildBossKillCycleInfo(instanceName, instanceID, difficultyID, resetSeconds, capturedAt) or nil
+			local cycleInfo = addon.BuildBossKillCycleInfo
+					and addon.BuildBossKillCycleInfo(instanceName, instanceID, difficultyID, resetSeconds, capturedAt)
+				or nil
 			local lockoutEntry = {
 				name = instanceName,
 				id = instanceID,
@@ -457,11 +487,13 @@ function ConfigDebugData.CaptureSavedInstances()
 			local progress = tonumber(lockout and lockout.progress) or 0
 			local cycleResetAtMinute = tonumber(lockout and lockout.cycleResetAtMinute) or 0
 			local expiredMinutes = capturedAtMinute - cycleResetAtMinute
-			if progress > 0
+			if
+				progress > 0
 				and cycleResetAtMinute > 0
 				and cycleResetAtMinute <= capturedAtMinute
 				and expiredMinutes <= EXPIRED_LOCKOUT_GRACE_MINUTES
-				and not (lockout and lockout.isPreviousCycleSnapshot) then
+				and not (lockout and lockout.isPreviousCycleSnapshot)
+			then
 				local previousLockout = {
 					name = lockout.name,
 					id = lockout.id,
@@ -483,21 +515,35 @@ function ConfigDebugData.CaptureSavedInstances()
 
 	CarryPreviousCycleLockouts(existingCharacter and existingCharacter.lockouts or {})
 	character.bossKillCounts = addon.NormalizeBossKillCountsForCharacter
-		and addon.NormalizeBossKillCountsForCharacter(existingCharacter and existingCharacter.bossKillCounts or {}, character.lockouts, capturedAt)
+			and addon.NormalizeBossKillCountsForCharacter(
+				existingCharacter and existingCharacter.bossKillCounts or {},
+				character.lockouts,
+				capturedAt
+			)
 		or (existingCharacter and existingCharacter.bossKillCounts or {})
 	table.sort(character.lockouts, function(a, b)
 		local aExpansion = GetExpansionForLockout(a)
 		local bExpansion = GetExpansionForLockout(b)
-		if aExpansion ~= bExpansion then return GetExpansionOrder(aExpansion) < GetExpansionOrder(bExpansion) end
-		if a.isRaid ~= b.isRaid then return a.isRaid end
-		if a.resetSeconds ~= b.resetSeconds then return a.resetSeconds < b.resetSeconds end
+		if aExpansion ~= bExpansion then
+			return GetExpansionOrder(aExpansion) < GetExpansionOrder(bExpansion)
+		end
+		if a.isRaid ~= b.isRaid then
+			return a.isRaid
+		end
+		if a.resetSeconds ~= b.resetSeconds then
+			return a.resetSeconds < b.resetSeconds
+		end
 		return (a.name or "") < (b.name or "")
 	end)
 	table.sort(character.previousCycleLockouts, function(a, b)
 		local aExpansion = GetExpansionForLockout(a)
 		local bExpansion = GetExpansionForLockout(b)
-		if aExpansion ~= bExpansion then return GetExpansionOrder(aExpansion) < GetExpansionOrder(bExpansion) end
-		if a.isRaid ~= b.isRaid then return a.isRaid end
+		if aExpansion ~= bExpansion then
+			return GetExpansionOrder(aExpansion) < GetExpansionOrder(bExpansion)
+		end
+		if a.isRaid ~= b.isRaid then
+			return a.isRaid
+		end
 		return (a.name or "") < (b.name or "")
 	end)
 	db.characters[key] = character
@@ -510,7 +556,9 @@ end
 
 function ConfigDebugData.RefreshPanelText()
 	local panel = GetDebugPanel()
-	if not panel then return end
+	if not panel then
+		return
+	end
 	local dump = GetLastDebugDump() or {}
 	local filters = EnsureUnifiedLogFilters(panel)
 	local export = BuildFilteredRuntimeExport(dump.runtimeLogs, filters)
@@ -522,7 +570,9 @@ end
 
 function ConfigDebugData.UpdateDebugLogSectionUI(settings)
 	local panel = GetDebugPanel()
-	if not panel then return end
+	if not panel then
+		return
+	end
 	settings = settings or {}
 	settings.debugLogSections = settings.debugLogSections or {}
 	local dump = GetLastDebugDump() or {}
@@ -532,9 +582,36 @@ function ConfigDebugData.UpdateDebugLogSectionUI(settings)
 	local scopes = BuildAvailableScopes(runtimeLogs)
 	local export = BuildFilteredRuntimeExport(runtimeLogs, filters)
 
-	EnsureFilterLabel(panel, "level", T("DEBUG_LEVEL_HEADER", "Level"), "TOPLEFT", panel, "TOPLEFT", layout.leftColumnX, -92)
-	EnsureFilterLabel(panel, "scope", T("DEBUG_SCOPE_HEADER", "Scope"), "TOPLEFT", panel, "TOPLEFT", layout.leftColumnX, -190)
-	EnsureFilterLabel(panel, "session", T("DEBUG_SESSION_HEADER", "Session"), "TOPLEFT", panel, "TOPLEFT", layout.leftColumnX, -286)
+	EnsureFilterLabel(
+		panel,
+		"level",
+		T("DEBUG_LEVEL_HEADER", "Level"),
+		"TOPLEFT",
+		panel,
+		"TOPLEFT",
+		layout.leftColumnX,
+		-92
+	)
+	EnsureFilterLabel(
+		panel,
+		"scope",
+		T("DEBUG_SCOPE_HEADER", "Scope"),
+		"TOPLEFT",
+		panel,
+		"TOPLEFT",
+		layout.leftColumnX,
+		-190
+	)
+	EnsureFilterLabel(
+		panel,
+		"session",
+		T("DEBUG_SESSION_HEADER", "Session"),
+		"TOPLEFT",
+		panel,
+		"TOPLEFT",
+		layout.leftColumnX,
+		-286
+	)
 
 	panel.levelButtons = panel.levelButtons or {}
 	for index, level in ipairs(DEFAULT_LOG_LEVELS) do
@@ -549,7 +626,13 @@ function ConfigDebugData.UpdateDebugLogSectionUI(settings)
 		local columnIndex = (index - 1) % 2
 		local rowIndex = math.floor((index - 1) / 2)
 		button:ClearAllPoints()
-		button:SetPoint("TOPLEFT", panel, "TOPLEFT", layout.leftColumnX + (columnIndex * 92), layout.levelTopY - (rowIndex * 24))
+		button:SetPoint(
+			"TOPLEFT",
+			panel,
+			"TOPLEFT",
+			layout.leftColumnX + (columnIndex * 92),
+			layout.levelTopY - (rowIndex * 24)
+		)
 		button.text:SetText(level)
 		button.text:SetWidth(64)
 		button.text:SetJustifyH("LEFT")
@@ -615,11 +698,13 @@ function ConfigDebugData.UpdateDebugLogSectionUI(settings)
 	panel.sessionButton.text:Show()
 
 	local sessionInfo = EnsureSessionInfoText(panel)
-	sessionInfo:SetText(string.format(
-		"sessionID = %s\npersistenceEnabled = %s\ntotalLogs = %s\ntruncated = %s",
-		tostring(export and export.session and export.session.sessionID or ""),
-		tostring(export and export.session and export.session.persistenceEnabled and true or false),
-		tostring(export and export.summary and export.summary.totalLogs or 0),
-		tostring(export and export.summary and export.summary.truncated and true or false)
-	))
+	sessionInfo:SetText(
+		string.format(
+			"sessionID = %s\npersistenceEnabled = %s\ntotalLogs = %s\ntruncated = %s",
+			tostring(export and export.session and export.session.sessionID or ""),
+			tostring(export and export.session and export.session.persistenceEnabled and true or false),
+			tostring(export and export.summary and export.summary.totalLogs or 0),
+			tostring(export and export.summary and export.summary.truncated and true or false)
+		)
+	)
 end

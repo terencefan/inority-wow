@@ -5,9 +5,18 @@ addon.RaidDashboard = RaidDashboard
 
 local Shared = addon.RaidDashboardShared or {}
 local SummaryStore = addon.DerivedSummaryStore
-local DASHBOARD_RULES_VERSION = SummaryStore and SummaryStore.GetRulesVersion and SummaryStore.GetRulesVersion("raidDashboardStoredEntry") or 19
-local DASHBOARD_STORE_RULES_VERSION = SummaryStore and SummaryStore.GetRulesVersion and SummaryStore.GetRulesVersion("dashboardSummaryScope") or 1
-local DASHBOARD_VIEW_RULES_VERSION = SummaryStore and SummaryStore.GetRulesVersion and SummaryStore.GetRulesVersion("raidDashboardViewCache") or DASHBOARD_RULES_VERSION
+local DASHBOARD_RULES_VERSION = SummaryStore
+		and SummaryStore.GetRulesVersion
+		and SummaryStore.GetRulesVersion("raidDashboardStoredEntry")
+	or 19
+local DASHBOARD_STORE_RULES_VERSION = SummaryStore
+		and SummaryStore.GetRulesVersion
+		and SummaryStore.GetRulesVersion("dashboardSummaryScope")
+	or 1
+local DASHBOARD_VIEW_RULES_VERSION = SummaryStore
+		and SummaryStore.GetRulesVersion
+		and SummaryStore.GetRulesVersion("raidDashboardViewCache")
+	or DASHBOARD_RULES_VERSION
 local DASHBOARD_RECONCILE_MEMBER_BUDGET = 80
 local DASHBOARD_RECONCILE_BUCKET_BUDGET = 4
 local unpackResults = table.unpack or unpack
@@ -455,7 +464,8 @@ local function BuildScanStats(selection, data, computedClassFiles)
 			if not collectibleKey and #itemSetIDs > 0 then
 				collectibleKey = BuildCollectibleKey(item)
 			end
-			local collectionState = (collectibleKey or #itemSetIDs > 0) and GetLootItemCollectionState(item) or "unknown"
+			local collectionState = (collectibleKey or #itemSetIDs > 0) and GetLootItemCollectionState(item)
+				or "unknown"
 			local applicableClassFiles = GetApplicableClassFiles(item, collectibleKey, computedClassFiles)
 			local eligibleSetClassFiles = GetEligibleDashboardClassFiles(item, computedClassFiles)
 
@@ -499,7 +509,13 @@ local function BuildScanStats(selection, data, computedClassFiles)
 				if matchedAnySet then
 					MarkSetPiece(stats.total, pieceKey, collectionState, item, matchedSetIDs)
 					for classFile in pairs(classMatchedSet) do
-						MarkSetPiece(stats.byClass[classFile], pieceKey, collectionState, item, classMatchedSetIDs[classFile])
+						MarkSetPiece(
+							stats.byClass[classFile],
+							pieceKey,
+							collectionState,
+							item,
+							classMatchedSetIDs[classFile]
+						)
 					end
 				end
 			end
@@ -518,7 +534,8 @@ local function NormalizeStoredEntry(entry, selection, expansionInfo)
 	entry.raidKey = entry.instanceKey
 	entry.instanceType = tostring(selection and selection.instanceType or "raid")
 	entry.journalInstanceID = tonumber(selection and selection.journalInstanceID) or 0
-	entry.instanceName = tostring(selection and selection.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "Unknown Instance"))
+	entry.instanceName =
+		tostring(selection and selection.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "Unknown Instance"))
 	entry.expansionName = tostring(expansionInfo.expansionName or "Other")
 	entry.expansionOrder = tonumber(expansionInfo.expansionOrder) or 999
 	entry.instanceOrder = tonumber(expansionInfo.instanceOrder) or tonumber(expansionInfo.raidOrder) or 999
@@ -570,7 +587,13 @@ local function ResolveCollectibleCollectedFromKey(collectibleKey)
 		local state = GetLootItemCollectionState({ typeKey = "PET", itemID = numericID })
 		return state == "collected" or state == "newly_collected"
 	end
-	if itemType == "APPEARANCE" and numericID and C_TransmogCollection and C_TransmogCollection.GetAllAppearanceSources and C_TransmogCollection.GetAppearanceSourceInfo then
+	if
+		itemType == "APPEARANCE"
+		and numericID
+		and C_TransmogCollection
+		and C_TransmogCollection.GetAllAppearanceSources
+		and C_TransmogCollection.GetAppearanceSourceInfo
+	then
 		for _, sourceID in ipairs(C_TransmogCollection.GetAllAppearanceSources(numericID) or {}) do
 			local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
 			if sourceInfo and sourceInfo.isCollected then
@@ -579,7 +602,12 @@ local function ResolveCollectibleCollectedFromKey(collectibleKey)
 		end
 		return false
 	end
-	if itemType == "SOURCE" and numericID and C_TransmogCollection and C_TransmogCollection.GetAppearanceInfoBySource then
+	if
+		itemType == "SOURCE"
+		and numericID
+		and C_TransmogCollection
+		and C_TransmogCollection.GetAppearanceInfoBySource
+	then
 		local appearanceInfo = C_TransmogCollection.GetAppearanceInfoBySource(numericID)
 		if appearanceInfo and appearanceInfo.appearanceIsCollected ~= nil then
 			return appearanceInfo.appearanceIsCollected and true or false
@@ -637,7 +665,8 @@ local function RefreshExpansionRowsFromCachedRows(rows, classFiles)
 	local totalBuckets
 	local function FinalizeCurrentExpansion()
 		if currentExpansionRow and bucketsByClass and totalBuckets then
-			local summary = BuildExpansionMatrixEntry(currentExpansionRow.expansionName, classFiles, bucketsByClass, totalBuckets)
+			local summary =
+				BuildExpansionMatrixEntry(currentExpansionRow.expansionName, classFiles, bucketsByClass, totalBuckets)
 			currentExpansionRow.byClass = summary.byClass
 			currentExpansionRow.total = summary.total
 		end
@@ -656,7 +685,9 @@ local function RefreshExpansionRowsFromCachedRows(rows, classFiles)
 			for _, difficultyRowInfo in ipairs(rowInfo.difficultyRows or {}) do
 				RefreshDifficultyEntryCollectionStates(difficultyRowInfo)
 				for _, classFile in ipairs(classFiles or {}) do
-					bucketsByClass[classFile][#bucketsByClass[classFile] + 1] = difficultyRowInfo.byClass and difficultyRowInfo.byClass[classFile] or nil
+					bucketsByClass[classFile][#bucketsByClass[classFile] + 1] = difficultyRowInfo.byClass
+							and difficultyRowInfo.byClass[classFile]
+						or nil
 				end
 				totalBuckets[#totalBuckets + 1] = difficultyRowInfo.total
 			end
@@ -751,7 +782,8 @@ local function BuildSnapshotWriteDebug(selection, difficultyID, computedClassFil
 	table.sort(debugInfo.total.setPieceKeys)
 
 	for _, classFile in ipairs(computedClassFiles or {}) do
-		local classBucket = EnsureStatBucket(difficultyEntry and difficultyEntry.byClass and difficultyEntry.byClass[classFile])
+		local classBucket =
+			EnsureStatBucket(difficultyEntry and difficultyEntry.byClass and difficultyEntry.byClass[classFile])
 		local classRow = {
 			classFile = classFile,
 			setPieceCollected = 0,
@@ -793,7 +825,9 @@ local function ResolveEncounterProgress(selection, data)
 end
 
 local function BuildInstanceMatrixEntry(entry, difficultyID, classFiles)
-	local difficultyEntry = type(entry.difficultyData and entry.difficultyData[difficultyID]) == "table" and entry.difficultyData[difficultyID] or {}
+	local difficultyEntry = type(entry.difficultyData and entry.difficultyData[difficultyID]) == "table"
+			and entry.difficultyData[difficultyID]
+		or {}
 	local byClass = {}
 	for _, classFile in ipairs(classFiles) do
 		local classEntry = EnsureStatBucket(difficultyEntry.byClass and difficultyEntry.byClass[classFile])
@@ -830,7 +864,13 @@ local function BuildInstanceMatrixEntry(entry, difficultyID, classFiles)
 		progress = tonumber(difficultyEntry.progress) or 0,
 		encounters = tonumber(difficultyEntry.encounters) or 0,
 		byClass = byClass,
-		total = BuildMetricView(totalEntry, totalSetCollected, totalSetTotal, totalCollectibleCollected, totalCollectibleTotal),
+		total = BuildMetricView(
+			totalEntry,
+			totalSetCollected,
+			totalSetTotal,
+			totalCollectibleCollected,
+			totalCollectibleTotal
+		),
 	}
 end
 
@@ -960,10 +1000,13 @@ function RaidDashboard.UpdateSnapshot(selection, data, context)
 	end
 
 	for existingKey, existingEntry in pairs(storedCache.entries or {}) do
-		if existingKey ~= instanceKey
+		if
+			existingKey ~= instanceKey
 			and tostring(existingEntry and existingEntry.instanceType or "") == selectionInstanceType
 			and tonumber(existingEntry and existingEntry.journalInstanceID) == tonumber(selection.journalInstanceID)
-			and tostring(existingEntry and existingEntry.instanceName or "") == tostring(selection.instanceName or "") then
+			and tostring(existingEntry and existingEntry.instanceName or "")
+				== tostring(selection.instanceName or "")
+		then
 			storedCache.entries[existingKey] = nil
 		end
 	end
@@ -1024,9 +1067,7 @@ function RaidDashboard.RefreshCollectionStates()
 	end
 
 	local cache = RaidDashboard.cache
-	if cache
-		and MatchesViewCache(cache, cache.classSignature, cache.instanceType)
-		and type(cache.rows) == "table" then
+	if cache and MatchesViewCache(cache, cache.classSignature, cache.instanceType) and type(cache.rows) == "table" then
 		RefreshExpansionRowsFromCachedRows(cache.rows, cache.classFiles or {})
 	end
 
@@ -1039,8 +1080,7 @@ function RaidDashboard.BuildData()
 	local classFiles = GetSelectableClasses()
 	local classSignature = table.concat(classFiles, ",")
 	local dashboardInstanceType = GetDashboardInstanceType()
-	if cache
-		and MatchesViewCache(cache, classSignature, dashboardInstanceType) then
+	if cache and MatchesViewCache(cache, classSignature, dashboardInstanceType) then
 		return cache
 	end
 	local storedCache = GetStoredCache()
@@ -1051,7 +1091,10 @@ function RaidDashboard.BuildData()
 			local expansionInfo = GetExpansionInfoForInstance(entry)
 			entry.expansionName = tostring(expansionInfo.expansionName or entry.expansionName or "Other")
 			entry.expansionOrder = tonumber(expansionInfo.expansionOrder) or tonumber(entry.expansionOrder) or 999
-			entry.instanceOrder = tonumber(expansionInfo.instanceOrder) or tonumber(entry.instanceOrder) or tonumber(entry.raidOrder) or 999
+			entry.instanceOrder = tonumber(expansionInfo.instanceOrder)
+				or tonumber(entry.instanceOrder)
+				or tonumber(entry.raidOrder)
+				or 999
 			entry.raidOrder = tonumber(entry.instanceOrder) or tonumber(entry.raidOrder) or 999
 			storedEntries[#storedEntries + 1] = entry
 		end
@@ -1080,7 +1123,8 @@ function RaidDashboard.BuildData()
 	local expansionTotalBuckets = nil
 	local function FinalizeCurrentExpansion()
 		if currentExpansionHeaderIndex and currentExpansion and expansionBucketsByClass and expansionTotalBuckets then
-			local summary = BuildExpansionMatrixEntry(currentExpansion, classFiles, expansionBucketsByClass, expansionTotalBuckets)
+			local summary =
+				BuildExpansionMatrixEntry(currentExpansion, classFiles, expansionBucketsByClass, expansionTotalBuckets)
 			if rows[currentExpansionHeaderIndex] then
 				rows[currentExpansionHeaderIndex].byClass = summary.byClass
 				rows[currentExpansionHeaderIndex].total = summary.total
@@ -1112,7 +1156,8 @@ function RaidDashboard.BuildData()
 			local matrixEntry = GetHighestDifficultyMatrixEntry(entry, classFiles)
 			if matrixEntry then
 				for _, classFile in ipairs(classFiles) do
-					expansionBucketsByClass[classFile][#expansionBucketsByClass[classFile] + 1] = matrixEntry.byClass[classFile]
+					expansionBucketsByClass[classFile][#expansionBucketsByClass[classFile] + 1] =
+						matrixEntry.byClass[classFile]
 				end
 				expansionTotalBuckets[#expansionTotalBuckets + 1] = matrixEntry.total
 				if not IsExpansionCollapsed(entry.expansionName) then
@@ -1139,7 +1184,8 @@ function RaidDashboard.BuildData()
 					local matrixEntry = BuildInstanceMatrixEntry(entry, difficultyID, classFiles)
 					if MatrixEntryHasAnyValue(matrixEntry, classFiles) then
 						for _, classFile in ipairs(classFiles) do
-							expansionBucketsByClass[classFile][#expansionBucketsByClass[classFile] + 1] = matrixEntry.byClass[classFile]
+							expansionBucketsByClass[classFile][#expansionBucketsByClass[classFile] + 1] =
+								matrixEntry.byClass[classFile]
 						end
 						expansionTotalBuckets[#expansionTotalBuckets + 1] = matrixEntry.total
 						if not IsExpansionCollapsed(entry.expansionName) then
@@ -1192,14 +1238,19 @@ function RaidDashboard.BuildData()
 		rows = rows,
 		message = nil,
 	}
-return RaidDashboard.cache
+	return RaidDashboard.cache
 end
 
 local function StoreBuildSummaryScopeKey(instanceType)
 	if SummaryStore and SummaryStore.BuildDashboardSummaryScopeKey then
 		return SummaryStore.BuildDashboardSummaryScopeKey(instanceType, IsCollectSameAppearanceEnabled())
 	end
-	return string.format("%s::rv%d::csa%d", tostring(instanceType or "raid"), DASHBOARD_STORE_RULES_VERSION, IsCollectSameAppearanceEnabled() and 1 or 0)
+	return string.format(
+		"%s::rv%d::csa%d",
+		tostring(instanceType or "raid"),
+		DASHBOARD_STORE_RULES_VERSION,
+		IsCollectSameAppearanceEnabled() and 1 or 0
+	)
 end
 
 local function StoreMatchesStoredCache(store, instanceType)
@@ -1406,7 +1457,8 @@ local function StoreBuildScanStats(selection, data, computedClassFiles)
 			if not collectibleKey and #itemSetIDs > 0 then
 				collectibleKey = BuildCollectibleKey(item)
 			end
-			local collectionState = (collectibleKey or #itemSetIDs > 0) and GetLootItemCollectionState(item) or "unknown"
+			local collectionState = (collectibleKey or #itemSetIDs > 0) and GetLootItemCollectionState(item)
+				or "unknown"
 			local applicableClassFiles = GetApplicableClassFiles(item, collectibleKey, computedClassFiles)
 			local eligibleSetClassFiles = GetEligibleDashboardClassFiles(item, computedClassFiles)
 
@@ -1506,11 +1558,20 @@ local function StoreBuildBucket(summaryScopeKey, bucketKey, metadata, rawMetric)
 end
 
 local function StoreAddInstanceMembership(membershipIndex, instanceKey, bucketKey)
-	if not (type(membershipIndex) == "table" and type(instanceKey) == "string" and instanceKey ~= "" and type(bucketKey) == "string" and bucketKey ~= "") then
+	if
+		not (
+			type(membershipIndex) == "table"
+			and type(instanceKey) == "string"
+			and instanceKey ~= ""
+			and type(bucketKey) == "string"
+			and bucketKey ~= ""
+		)
+	then
 		return
 	end
 
-	membershipIndex.byInstanceKey = type(membershipIndex.byInstanceKey) == "table" and membershipIndex.byInstanceKey or {}
+	membershipIndex.byInstanceKey = type(membershipIndex.byInstanceKey) == "table" and membershipIndex.byInstanceKey
+		or {}
 	local bucketMap = membershipIndex.byInstanceKey[instanceKey]
 	if type(bucketMap) ~= "table" then
 		bucketMap = {}
@@ -1520,11 +1581,20 @@ local function StoreAddInstanceMembership(membershipIndex, instanceKey, bucketKe
 end
 
 local function StoreRemoveInstanceMembership(membershipIndex, instanceKey, bucketKey)
-	if not (type(membershipIndex) == "table" and type(instanceKey) == "string" and instanceKey ~= "" and type(bucketKey) == "string" and bucketKey ~= "") then
+	if
+		not (
+			type(membershipIndex) == "table"
+			and type(instanceKey) == "string"
+			and instanceKey ~= ""
+			and type(bucketKey) == "string"
+			and bucketKey ~= ""
+		)
+	then
 		return
 	end
 
-	local bucketMap = type(membershipIndex.byInstanceKey) == "table" and membershipIndex.byInstanceKey[instanceKey] or nil
+	local bucketMap = type(membershipIndex.byInstanceKey) == "table" and membershipIndex.byInstanceKey[instanceKey]
+		or nil
 	if type(bucketMap) ~= "table" then
 		return
 	end
@@ -1540,7 +1610,11 @@ local function StoreAddBucketMembership(store, bucket)
 		return
 	end
 
-	StoreAddInstanceMembership(store.membershipIndex, tostring(bucket.instanceKey or ""), tostring(bucket.bucketKey or ""))
+	StoreAddInstanceMembership(
+		store.membershipIndex,
+		tostring(bucket.instanceKey or ""),
+		tostring(bucket.bucketKey or "")
+	)
 end
 
 local function StoreRemoveBucketMembership(store, bucket)
@@ -1548,7 +1622,11 @@ local function StoreRemoveBucketMembership(store, bucket)
 		return
 	end
 
-	StoreRemoveInstanceMembership(store.membershipIndex, tostring(bucket.instanceKey or ""), tostring(bucket.bucketKey or ""))
+	StoreRemoveInstanceMembership(
+		store.membershipIndex,
+		tostring(bucket.instanceKey or ""),
+		tostring(bucket.bucketKey or "")
+	)
 end
 
 local function StoreRemoveBucketFromQueue(queue, bucketKey)
@@ -1612,10 +1690,13 @@ local function StoreEnsureInstanceMeta(store, selection, expansionInfo)
 	instanceMeta.instanceKey = instanceKey
 	instanceMeta.instanceType = tostring(selection and selection.instanceType or store.instanceType or "raid")
 	instanceMeta.journalInstanceID = tonumber(selection and selection.journalInstanceID) or 0
-	instanceMeta.instanceName = tostring(selection and selection.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "Unknown Instance"))
+	instanceMeta.instanceName =
+		tostring(selection and selection.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "Unknown Instance"))
 	instanceMeta.expansionName = tostring(expansionInfo and expansionInfo.expansionName or "Other")
 	instanceMeta.expansionOrder = tonumber(expansionInfo and expansionInfo.expansionOrder) or 999
-	instanceMeta.instanceOrder = tonumber(expansionInfo and expansionInfo.instanceOrder) or tonumber(expansionInfo and expansionInfo.raidOrder) or 999
+	instanceMeta.instanceOrder = tonumber(expansionInfo and expansionInfo.instanceOrder)
+		or tonumber(expansionInfo and expansionInfo.raidOrder)
+		or 999
 	instanceMeta.raidOrder = instanceMeta.instanceOrder
 	instanceMeta.difficulties = type(instanceMeta.difficulties) == "table" and instanceMeta.difficulties or {}
 	store.instances[instanceKey] = instanceMeta
@@ -1743,14 +1824,19 @@ local function StoreMatrixEntryHasAnyValue(entry, classFiles)
 end
 
 local function StoreBuildInstanceMatrixEntry(store, instanceMeta, difficultyID, classFiles)
-	local difficultyMeta = type(instanceMeta and instanceMeta.difficulties) == "table" and instanceMeta.difficulties[difficultyID] or nil
+	local difficultyMeta = type(instanceMeta and instanceMeta.difficulties) == "table"
+			and instanceMeta.difficulties[difficultyID]
+		or nil
 	if type(difficultyMeta) ~= "table" then
 		return nil
 	end
 
 	local byClass = {}
 	for _, classFile in ipairs(classFiles or {}) do
-		local bucketKey = difficultyMeta.bucketKeys and difficultyMeta.bucketKeys.byClass and difficultyMeta.bucketKeys.byClass[classFile] or nil
+		local bucketKey = difficultyMeta.bucketKeys
+				and difficultyMeta.bucketKeys.byClass
+				and difficultyMeta.bucketKeys.byClass[classFile]
+			or nil
 		byClass[classFile] = StoreBuildMetricView(store.buckets and store.buckets[bucketKey] or nil)
 	end
 
@@ -1767,7 +1853,9 @@ local function StoreBuildInstanceMatrixEntry(store, instanceMeta, difficultyID, 
 		encounters = tonumber(difficultyMeta.encounters) or 0,
 		state = tostring(difficultyMeta.state or "ready"),
 		byClass = byClass,
-		total = StoreBuildMetricView(store.buckets and store.buckets[difficultyMeta.bucketKeys and difficultyMeta.bucketKeys.total or ""] or nil),
+		total = StoreBuildMetricView(
+			store.buckets and store.buckets[difficultyMeta.bucketKeys and difficultyMeta.bucketKeys.total or ""] or nil
+		),
 	}
 end
 
@@ -1849,8 +1937,10 @@ local function StoreRecalculateBucketCounts(bucket)
 		return
 	end
 	bucket.counts = bucket.counts or {}
-	bucket.counts.setCollected, bucket.counts.setTotal = SummarizeSetPieces(bucket.members and bucket.members.setPieces or nil)
-	bucket.counts.collectibleCollected, bucket.counts.collectibleTotal = SummarizeCollectibles(bucket.members and bucket.members.collectibles or nil)
+	bucket.counts.setCollected, bucket.counts.setTotal =
+		SummarizeSetPieces(bucket.members and bucket.members.setPieces or nil)
+	bucket.counts.collectibleCollected, bucket.counts.collectibleTotal =
+		SummarizeCollectibles(bucket.members and bucket.members.collectibles or nil)
 end
 
 local function StoreEnsureQueueEntry(queue, bucket)
@@ -1883,7 +1973,10 @@ local function StoreEnsureQueueEntry(queue, bucket)
 	else
 		entry.section = "collectibles"
 		entry.memberIndex = math.max(1, tonumber(entry.memberIndex) or 1)
-		entry.nextMemberKey = bucket.memberOrder and bucket.memberOrder.collectibles and bucket.memberOrder.collectibles[entry.memberIndex] or nil
+		entry.nextMemberKey = bucket.memberOrder
+				and bucket.memberOrder.collectibles
+				and bucket.memberOrder.collectibles[entry.memberIndex]
+			or nil
 	end
 	return entry
 end
@@ -1946,7 +2039,8 @@ local function StoreProcessBucketReconcile(store, bucket, queueEntry, memberBudg
 
 	while processed < memberBudget and queueEntry.nextMemberKey do
 		local section = tostring(queueEntry.section or "setPieces")
-		local member = bucket.members and bucket.members[section] and bucket.members[section][queueEntry.nextMemberKey] or nil
+		local member = bucket.members and bucket.members[section] and bucket.members[section][queueEntry.nextMemberKey]
+			or nil
 		if member then
 			local nextState = StoreResolveMemberCollectionState(member)
 			if member.collectionState ~= nextState then
@@ -2049,7 +2143,8 @@ function RaidDashboard.UpdateSnapshot(selection, data, context)
 	end)
 	AccumulateSnapshotProfile(profile, "snapshotProgressMs", progressMs)
 	local bucketBuildMs, totalBucketKey, totalBucket, bucketKeysByClass = MeasureMilliseconds(function()
-		local builtTotalBucketKey = StoreBuildBucketKey(selectionInstanceType, selection.journalInstanceID, difficultyID, "TOTAL", "ALL")
+		local builtTotalBucketKey =
+			StoreBuildBucketKey(selectionInstanceType, selection.journalInstanceID, difficultyID, "TOTAL", "ALL")
 		local builtTotalBucket = StoreBuildBucket(summaryScopeKey, builtTotalBucketKey, {
 			instanceKey = instanceKey,
 			instanceType = selectionInstanceType,
@@ -2064,7 +2159,13 @@ function RaidDashboard.UpdateSnapshot(selection, data, context)
 
 		local builtBucketKeysByClass = {}
 		for _, classFile in ipairs(computedClassFiles) do
-			local bucketKey = StoreBuildBucketKey(selectionInstanceType, selection.journalInstanceID, difficultyID, "CLASS", classFile)
+			local bucketKey = StoreBuildBucketKey(
+				selectionInstanceType,
+				selection.journalInstanceID,
+				difficultyID,
+				"CLASS",
+				classFile
+			)
 			local bucket = StoreBuildBucket(summaryScopeKey, bucketKey, {
 				instanceKey = instanceKey,
 				instanceType = selectionInstanceType,
@@ -2191,7 +2292,8 @@ function RaidDashboard.RefreshCollectionStates()
 					StoreRemoveBucketFromQueue(store.reconcileQueue, bucketKey)
 				else
 					local queueEntry = StoreEnsureQueueEntry(store.reconcileQueue, bucket)
-					local used, changed, completed = StoreProcessBucketReconcile(store, bucket, queueEntry, memberBudget)
+					local used, changed, completed =
+						StoreProcessBucketReconcile(store, bucket, queueEntry, memberBudget)
 					memberBudget = memberBudget - used
 					if completed then
 						bucketBudget = bucketBudget - 1
@@ -2225,16 +2327,21 @@ function RaidDashboard.BuildData()
 	local classSignature = table.concat(classFiles, ",")
 	local dashboardInstanceType = GetDashboardInstanceType()
 	local store = GetStoredCache(dashboardInstanceType)
-	local summaryScopeKey = store and tostring(store.summaryScopeKey or "") or StoreBuildSummaryScopeKey(dashboardInstanceType)
+	local summaryScopeKey = store and tostring(store.summaryScopeKey or "")
+		or StoreBuildSummaryScopeKey(dashboardInstanceType)
 	local revision = store and tonumber(store.revision) or 0
 
-	if RaidDashboard.cache and StoreMatchesViewCache(RaidDashboard.cache, classSignature, dashboardInstanceType, summaryScopeKey, revision) then
+	if
+		RaidDashboard.cache
+		and StoreMatchesViewCache(RaidDashboard.cache, classSignature, dashboardInstanceType, summaryScopeKey, revision)
+	then
 		return RaidDashboard.cache
 	end
 
 	if not StoreMatchesStoredCache(store, dashboardInstanceType) then
-		local plannedRows = addon.RaidDashboardShared and addon.RaidDashboardShared.GetDashboardBulkScanExpansionRows
-			and addon.RaidDashboardShared.GetDashboardBulkScanExpansionRows(dashboardInstanceType)
+		local plannedRows = addon.RaidDashboardShared
+				and addon.RaidDashboardShared.GetDashboardBulkScanExpansionRows
+				and addon.RaidDashboardShared.GetDashboardBulkScanExpansionRows(dashboardInstanceType)
 			or {}
 		local rows = {}
 		table.sort(plannedRows, function(a, b)
@@ -2267,8 +2374,9 @@ function RaidDashboard.BuildData()
 		return RaidDashboard.cache
 	end
 
-	local plannedExpansionRows = addon.RaidDashboardShared and addon.RaidDashboardShared.GetDashboardBulkScanExpansionRows
-		and addon.RaidDashboardShared.GetDashboardBulkScanExpansionRows(dashboardInstanceType)
+	local plannedExpansionRows = addon.RaidDashboardShared
+			and addon.RaidDashboardShared.GetDashboardBulkScanExpansionRows
+			and addon.RaidDashboardShared.GetDashboardBulkScanExpansionRows(dashboardInstanceType)
 		or {}
 
 	local expansionGroupsByName = {}
@@ -2325,57 +2433,64 @@ function RaidDashboard.BuildData()
 		}
 
 		for _, instanceMeta in ipairs(expansionGroup.instances) do
-		local difficultyRows = {}
-		if dashboardInstanceType == "raid" then
-			local matrixEntry = StoreGetHighestDifficultyMatrixEntry(store, instanceMeta, classFiles)
-			if matrixEntry then
-				for _, classFile in ipairs(classFiles) do
-					expansionBucketsByClass[classFile][#expansionBucketsByClass[classFile] + 1] = matrixEntry.byClass[classFile]
-				end
-				expansionTotalBuckets[#expansionTotalBuckets + 1] = matrixEntry.total
-				difficultyRows[1] = matrixEntry
-			end
-		else
-			local difficultyIDs = {}
-			for difficultyID, difficultyMeta in pairs(instanceMeta.difficulties or {}) do
-				if type(difficultyMeta) == "table" and tostring(difficultyMeta.state or "ready") ~= "stale" then
-					difficultyIDs[#difficultyIDs + 1] = tonumber(difficultyID) or 0
-				end
-			end
-			table.sort(difficultyIDs, function(a, b)
-				local orderA = GetDifficultyDisplayOrder(a)
-				local orderB = GetDifficultyDisplayOrder(b)
-				if orderA ~= orderB then
-					return orderA < orderB
-				end
-				return a < b
-			end)
-			for _, difficultyID in ipairs(difficultyIDs) do
-				local matrixEntry = StoreBuildInstanceMatrixEntry(store, instanceMeta, difficultyID, classFiles)
-				if StoreMatrixEntryHasAnyValue(matrixEntry, classFiles) then
+			local difficultyRows = {}
+			if dashboardInstanceType == "raid" then
+				local matrixEntry = StoreGetHighestDifficultyMatrixEntry(store, instanceMeta, classFiles)
+				if matrixEntry then
 					for _, classFile in ipairs(classFiles) do
-						expansionBucketsByClass[classFile][#expansionBucketsByClass[classFile] + 1] = matrixEntry.byClass[classFile]
+						expansionBucketsByClass[classFile][#expansionBucketsByClass[classFile] + 1] =
+							matrixEntry.byClass[classFile]
 					end
 					expansionTotalBuckets[#expansionTotalBuckets + 1] = matrixEntry.total
-					difficultyRows[#difficultyRows + 1] = matrixEntry
+					difficultyRows[1] = matrixEntry
 				end
+			else
+				local difficultyIDs = {}
+				for difficultyID, difficultyMeta in pairs(instanceMeta.difficulties or {}) do
+					if type(difficultyMeta) == "table" and tostring(difficultyMeta.state or "ready") ~= "stale" then
+						difficultyIDs[#difficultyIDs + 1] = tonumber(difficultyID) or 0
+					end
+				end
+				table.sort(difficultyIDs, function(a, b)
+					local orderA = GetDifficultyDisplayOrder(a)
+					local orderB = GetDifficultyDisplayOrder(b)
+					if orderA ~= orderB then
+						return orderA < orderB
+					end
+					return a < b
+				end)
+				for _, difficultyID in ipairs(difficultyIDs) do
+					local matrixEntry = StoreBuildInstanceMatrixEntry(store, instanceMeta, difficultyID, classFiles)
+					if StoreMatrixEntryHasAnyValue(matrixEntry, classFiles) then
+						for _, classFile in ipairs(classFiles) do
+							expansionBucketsByClass[classFile][#expansionBucketsByClass[classFile] + 1] =
+								matrixEntry.byClass[classFile]
+						end
+						expansionTotalBuckets[#expansionTotalBuckets + 1] = matrixEntry.total
+						difficultyRows[#difficultyRows + 1] = matrixEntry
+					end
+				end
+			end
+
+			if #difficultyRows > 0 then
+				rows[#rows + 1] = {
+					type = "instance",
+					instanceType = instanceMeta.instanceType,
+					expansionName = instanceMeta.expansionName,
+					tierTag = GetInstanceGroupTag(instanceMeta),
+					instanceName = instanceMeta.instanceName,
+					journalInstanceID = instanceMeta.journalInstanceID,
+					difficultyRows = difficultyRows,
+				}
 			end
 		end
 
-		if #difficultyRows > 0 then
-			rows[#rows + 1] = {
-				type = "instance",
-				instanceType = instanceMeta.instanceType,
-				expansionName = instanceMeta.expansionName,
-				tierTag = GetInstanceGroupTag(instanceMeta),
-				instanceName = instanceMeta.instanceName,
-				journalInstanceID = instanceMeta.journalInstanceID,
-				difficultyRows = difficultyRows,
-			}
-		end
-		end
-
-		local summary = StoreBuildExpansionMatrixEntry(expansionGroup.expansionName, classFiles, expansionBucketsByClass, expansionTotalBuckets)
+		local summary = StoreBuildExpansionMatrixEntry(
+			expansionGroup.expansionName,
+			classFiles,
+			expansionBucketsByClass,
+			expansionTotalBuckets
+		)
 		rows[currentExpansionHeaderIndex].byClass = summary.byClass
 		rows[currentExpansionHeaderIndex].total = summary.total
 	end
@@ -2392,5 +2507,3 @@ function RaidDashboard.BuildData()
 	}
 	return RaidDashboard.cache
 end
-
-

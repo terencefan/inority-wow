@@ -66,26 +66,26 @@ local function Translate(key, fallback)
 end
 
 local RAID_DIFFICULTY_RULES = {
-	[ID.DUNGEON_MYTHIC_KEYSTONE] = { displayOrder = 1 },  -- Dungeon: Mythic Keystone / Challenge
-	[ID.DUNGEON_MYTHIC] = { displayOrder = 2 },  -- Dungeon: Mythic
-	[ID.DUNGEON_HEROIC] = { displayOrder = 3 },  -- Dungeon: Heroic
-	[ID.DUNGEON_NORMAL] = { displayOrder = 4 },  -- Dungeon: Normal
+	[ID.DUNGEON_MYTHIC_KEYSTONE] = { displayOrder = 1 }, -- Dungeon: Mythic Keystone / Challenge
+	[ID.DUNGEON_MYTHIC] = { displayOrder = 2 }, -- Dungeon: Mythic
+	[ID.DUNGEON_HEROIC] = { displayOrder = 3 }, -- Dungeon: Heroic
+	[ID.DUNGEON_NORMAL] = { displayOrder = 4 }, -- Dungeon: Normal
 
 	[ID.RAID_MYTHIC] = { displayOrder = 0 }, -- Raid: Mythic
 	[ID.RAID_HEROIC] = { displayOrder = 1 }, -- Raid: Heroic
-	[ID.RAID_NORMAL] = { displayOrder = 2 },  -- Raid: Normal
+	[ID.RAID_NORMAL] = { displayOrder = 2 }, -- Raid: Normal
 
-	[ID.RAID_40] = { displayOrder = 8 },  -- Raid: 40-player
+	[ID.RAID_40] = { displayOrder = 8 }, -- Raid: 40-player
 	[ID.RAID_25_HEROIC] = { displayOrder = 11 }, -- Raid: 25-player Heroic
-	[ID.RAID_25_NORMAL] = { displayOrder = 12 },  -- Raid: 25-player Normal
-	[ID.RAID_10_HEROIC] = { displayOrder = 13 },  -- Raid: 10-player Heroic
-	[ID.RAID_10_NORMAL] = { displayOrder = 14 },  -- Raid: 10-player Normal
+	[ID.RAID_25_NORMAL] = { displayOrder = 12 }, -- Raid: 25-player Normal
+	[ID.RAID_10_HEROIC] = { displayOrder = 13 }, -- Raid: 10-player Heroic
+	[ID.RAID_10_NORMAL] = { displayOrder = 14 }, -- Raid: 10-player Normal
 
-	[ID.RAID_TIMEWALKING] = { displayOrder = 9 },  -- Raid: Timewalking / special raid variant
+	[ID.RAID_TIMEWALKING] = { displayOrder = 9 }, -- Raid: Timewalking / special raid variant
 	[ID.RAID_SPECIAL_TIMEWALKING] = { displayOrder = 10 }, -- Raid: Timewalking / special raid variant
 
-	[ID.RAID_LEGACY_LFR] = { displayOrder = 19 },  -- Raid: LFR (legacy/random family)
-	[ID.RAID_LFR] = { displayOrder = 20 },  -- Raid: LFR / Random
+	[ID.RAID_LEGACY_LFR] = { displayOrder = 19 }, -- Raid: LFR (legacy/random family)
+	[ID.RAID_LFR] = { displayOrder = 20 }, -- Raid: LFR / Random
 }
 
 DifficultyRules.RAID_DIFFICULTY_RULES = RAID_DIFFICULTY_RULES
@@ -137,10 +137,20 @@ function DifficultyRules.GetDifficultyColorQualityIndex(difficultyID)
 	if difficultyID == ID.RAID_NORMAL or difficultyID == ID.RAID_10_NORMAL or difficultyID == ID.RAID_25_NORMAL then
 		return 3
 	end
-	if difficultyID == ID.RAID_HEROIC or difficultyID == ID.DUNGEON_HEROIC or difficultyID == ID.RAID_10_HEROIC or difficultyID == ID.RAID_25_HEROIC then
+	if
+		difficultyID == ID.RAID_HEROIC
+		or difficultyID == ID.DUNGEON_HEROIC
+		or difficultyID == ID.RAID_10_HEROIC
+		or difficultyID == ID.RAID_25_HEROIC
+	then
 		return 4
 	end
-	if difficultyID == ID.RAID_MYTHIC or difficultyID == ID.DUNGEON_MYTHIC or difficultyID == ID.DUNGEON_MYTHIC_KEYSTONE or difficultyID == ID.RAID_40 then
+	if
+		difficultyID == ID.RAID_MYTHIC
+		or difficultyID == ID.DUNGEON_MYTHIC
+		or difficultyID == ID.DUNGEON_MYTHIC_KEYSTONE
+		or difficultyID == ID.RAID_40
+	then
 		return 5
 	end
 	return 1
@@ -154,13 +164,28 @@ function DifficultyRules.GetDifficultyColorCode(difficultyID)
 	if difficultyID == ID.RAID_LFR or difficultyID == ID.RAID_LEGACY_LFR then
 		return COLOR_HEX.LFR
 	end
-	if difficultyID == ID.RAID_NORMAL or difficultyID == ID.RAID_10_NORMAL or difficultyID == ID.RAID_25_NORMAL or difficultyID == ID.DUNGEON_NORMAL then
+	if
+		difficultyID == ID.RAID_NORMAL
+		or difficultyID == ID.RAID_10_NORMAL
+		or difficultyID == ID.RAID_25_NORMAL
+		or difficultyID == ID.DUNGEON_NORMAL
+	then
 		return COLOR_HEX.NORMAL
 	end
-	if difficultyID == ID.RAID_HEROIC or difficultyID == ID.DUNGEON_HEROIC or difficultyID == ID.RAID_10_HEROIC or difficultyID == ID.RAID_25_HEROIC then
+	if
+		difficultyID == ID.RAID_HEROIC
+		or difficultyID == ID.DUNGEON_HEROIC
+		or difficultyID == ID.RAID_10_HEROIC
+		or difficultyID == ID.RAID_25_HEROIC
+	then
 		return COLOR_HEX.HEROIC
 	end
-	if difficultyID == ID.RAID_MYTHIC or difficultyID == ID.DUNGEON_MYTHIC or difficultyID == ID.DUNGEON_MYTHIC_KEYSTONE or difficultyID == ID.RAID_40 then
+	if
+		difficultyID == ID.RAID_MYTHIC
+		or difficultyID == ID.DUNGEON_MYTHIC
+		or difficultyID == ID.DUNGEON_MYTHIC_KEYSTONE
+		or difficultyID == ID.RAID_40
+	then
 		return COLOR_HEX.MYTHIC
 	end
 	return COLOR_HEX.WHITE

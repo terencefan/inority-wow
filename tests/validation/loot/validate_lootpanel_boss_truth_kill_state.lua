@@ -12,7 +12,8 @@ LootPanelRows.Configure({
 		}
 	end,
 	IsEncounterKilledByName = function(state, encounterName)
-		return type(state) == "table" and type(state.byName) == "table" and state.byName[encounterName] and true or false
+		return type(state) == "table" and type(state.byName) == "table" and state.byName[encounterName] and true
+			or false
 	end,
 	IsLootEncounterAutoCollapseDelayed = function()
 		return false
@@ -28,7 +29,10 @@ local inferredKilledAutoCollapsed = LootPanelRows.GetEncounterAutoCollapsed(
 	false
 )
 
-assert(inferredKilledAutoCollapsed == false, "expected progressCount alone not to mark an individual boss as killed or auto-collapsed")
+assert(
+	inferredKilledAutoCollapsed == false,
+	"expected progressCount alone not to mark an individual boss as killed or auto-collapsed"
+)
 
 local explicitKilledAutoCollapsed = LootPanelRows.GetEncounterAutoCollapsed(
 	{ encounterID = 302, index = 2 },

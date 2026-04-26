@@ -44,7 +44,10 @@ LootPanelController.ToggleLootPanel()
 local expected = { "prefer", "invalidate", "reset_active", "refresh" }
 assert(#callOrder == #expected, string.format("call count mismatch: %d ~= %d", #callOrder, #expected))
 for index, value in ipairs(expected) do
-	assert(callOrder[index] == value, string.format("callOrder[%d] mismatch: %s ~= %s", index, tostring(callOrder[index]), value))
+	assert(
+		callOrder[index] == value,
+		string.format("callOrder[%d] mismatch: %s ~= %s", index, tostring(callOrder[index]), value)
+	)
 end
 
 print("loot_panel_open_invalidate_test passed")

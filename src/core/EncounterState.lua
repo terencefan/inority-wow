@@ -248,9 +248,11 @@ function EncounterState.GetCurrentCharacterBossKillCycleInfo(instanceName, insta
 	local targetInstanceID = tonumber(instanceID) or 0
 	local targetDifficultyID = tonumber(difficultyID) or 0
 	for _, lockout in ipairs(character.lockouts or {}) do
-		if tostring(lockout.name or "") == targetName
+		if
+			tostring(lockout.name or "") == targetName
 			and tonumber(lockout.difficultyID) == targetDifficultyID
-			and (targetInstanceID == 0 or tonumber(lockout.id) == 0 or tonumber(lockout.id) == targetInstanceID) then
+			and (targetInstanceID == 0 or tonumber(lockout.id) == 0 or tonumber(lockout.id) == targetInstanceID)
+		then
 			return EncounterState.BuildBossKillCycleInfo(
 				lockout.name,
 				lockout.id,
@@ -268,7 +270,13 @@ function EncounterState.NormalizeBossKillCountsForCharacter(existingCounts, lock
 	local activeByScope = {}
 	for _, lockout in ipairs(lockouts or {}) do
 		local scopeKey = EncounterState.GetBossKillCountScopeKey(lockout.name, lockout.difficultyID)
-		local cycleInfo = EncounterState.BuildBossKillCycleInfo(lockout.name, lockout.id, lockout.difficultyID, lockout.resetSeconds, capturedAt)
+		local cycleInfo = EncounterState.BuildBossKillCycleInfo(
+			lockout.name,
+			lockout.id,
+			lockout.difficultyID,
+			lockout.resetSeconds,
+			capturedAt
+		)
 		if scopeKey and cycleInfo and cycleInfo.token then
 			activeByScope[scopeKey] = cycleInfo
 		end
@@ -280,8 +288,10 @@ function EncounterState.NormalizeBossKillCountsForCharacter(existingCounts, lock
 			normalizedCounts[scopeKey] = {
 				byName = CopyPositiveCountTable(counts.byName),
 				byNormalizedName = CopyPositiveCountTable(counts.byNormalizedName),
-				cycleToken = activeCycle and activeCycle.token or (type(counts.cycleToken) == "string" and counts.cycleToken or nil),
-				cycleResetAtMinute = activeCycle and activeCycle.resetAtMinute or (tonumber(counts.cycleResetAtMinute) or 0),
+				cycleToken = activeCycle and activeCycle.token
+					or (type(counts.cycleToken) == "string" and counts.cycleToken or nil),
+				cycleResetAtMinute = activeCycle and activeCycle.resetAtMinute
+					or (tonumber(counts.cycleResetAtMinute) or 0),
 				lastUpdatedAt = tonumber(counts.lastUpdatedAt) or tonumber(capturedAt) or time(),
 			}
 		end
@@ -491,15 +501,16 @@ function EncounterState.RecordEncounterKill(encounterName)
 
 	local characterKey, name, realm, className, level = GetCharacterKey()
 	db.characters = db.characters or {}
-	local character = db.characters[characterKey] or {
-		name = name,
-		realm = realm,
-		className = className,
-		level = level,
-		lastUpdated = time(),
-		lockouts = {},
-		bossKillCounts = {},
-	}
+	local character = db.characters[characterKey]
+		or {
+			name = name,
+			realm = realm,
+			className = className,
+			level = level,
+			lastUpdated = time(),
+			lockouts = {},
+			bossKillCounts = {},
+		}
 	if name and name ~= "" then
 		character.name = name
 	end
@@ -582,7 +593,11 @@ function EncounterState.GetEncounterTotalKillCount(selection, encounterName)
 		if cacheEntry then
 			if cacheEntry.byName and cacheEntry.byName[encounterName] then
 				sessionKilled = true
-			elseif normalizedName ~= "" and cacheEntry.byNormalizedName and cacheEntry.byNormalizedName[normalizedName] then
+			elseif
+				normalizedName ~= ""
+				and cacheEntry.byNormalizedName
+				and cacheEntry.byNormalizedName[normalizedName]
+			then
 				sessionKilled = true
 			end
 		end

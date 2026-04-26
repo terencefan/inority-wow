@@ -445,9 +445,15 @@ function UIChromeController.ApplyElvUISkin()
 
 	local panel = GetPanel()
 	if panel and not (type(dependencies.getPanelSkinApplied) == "function" and dependencies.getPanelSkinApplied()) then
-		if panel.background then panel.background:Hide() end
-		if panel.headerBackground then panel.headerBackground:Hide() end
-		if panel.border then panel.border:Hide() end
+		if panel.background then
+			panel.background:Hide()
+		end
+		if panel.headerBackground then
+			panel.headerBackground:Hide()
+		end
+		if panel.border then
+			panel.border:Hide()
+		end
 		if panel.SetTemplate then
 			panel:SetTemplate("Transparent")
 		end
@@ -471,10 +477,19 @@ function UIChromeController.ApplyElvUISkin()
 	end
 
 	local debugPanel = GetDebugPanel()
-	if debugPanel and not (type(dependencies.getDebugPanelSkinApplied) == "function" and dependencies.getDebugPanelSkinApplied()) then
-		if debugPanel.background then debugPanel.background:Hide() end
-		if debugPanel.headerBackground then debugPanel.headerBackground:Hide() end
-		if debugPanel.border then debugPanel.border:Hide() end
+	if
+		debugPanel
+		and not (type(dependencies.getDebugPanelSkinApplied) == "function" and dependencies.getDebugPanelSkinApplied())
+	then
+		if debugPanel.background then
+			debugPanel.background:Hide()
+		end
+		if debugPanel.headerBackground then
+			debugPanel.headerBackground:Hide()
+		end
+		if debugPanel.border then
+			debugPanel.border:Hide()
+		end
 		if debugPanel.SetTemplate then
 			debugPanel:SetTemplate("Transparent")
 		end
@@ -486,7 +501,10 @@ function UIChromeController.ApplyElvUISkin()
 		end
 		if S.HandleScrollBar and MogTrackerDebugPanelScrollFrame and MogTrackerDebugPanelScrollFrame.ScrollBar then
 			S:HandleScrollBar(MogTrackerDebugPanelScrollFrame.ScrollBar)
-			UIChromeController.ApplyCompactScrollBarLayout(MogTrackerDebugPanelScrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
+			UIChromeController.ApplyCompactScrollBarLayout(
+				MogTrackerDebugPanelScrollFrame,
+				{ xOffset = 0, topInset = 0, bottomInset = 0 }
+			)
 		end
 		if type(dependencies.setDebugPanelSkinApplied) == "function" then
 			dependencies.setDebugPanelSkinApplied(true)
@@ -494,10 +512,19 @@ function UIChromeController.ApplyElvUISkin()
 	end
 
 	local lootPanel = GetLootPanel()
-	if lootPanel and not (type(dependencies.getLootPanelSkinApplied) == "function" and dependencies.getLootPanelSkinApplied()) then
-		if lootPanel.background then lootPanel.background:Hide() end
-		if lootPanel.headerBackground then lootPanel.headerBackground:Hide() end
-		if lootPanel.border then lootPanel.border:Hide() end
+	if
+		lootPanel
+		and not (type(dependencies.getLootPanelSkinApplied) == "function" and dependencies.getLootPanelSkinApplied())
+	then
+		if lootPanel.background then
+			lootPanel.background:Hide()
+		end
+		if lootPanel.headerBackground then
+			lootPanel.headerBackground:Hide()
+		end
+		if lootPanel.border then
+			lootPanel.border:Hide()
+		end
 		if lootPanel.SetTemplate then
 			lootPanel:SetTemplate("Transparent")
 		end
@@ -522,11 +549,17 @@ function UIChromeController.ApplyElvUISkin()
 		end
 		if S.HandleScrollBar and lootPanel.scrollFrame and lootPanel.scrollFrame.ScrollBar then
 			S:HandleScrollBar(lootPanel.scrollFrame.ScrollBar)
-			UIChromeController.ApplyCompactScrollBarLayout(lootPanel.scrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
+			UIChromeController.ApplyCompactScrollBarLayout(
+				lootPanel.scrollFrame,
+				{ xOffset = 0, topInset = 0, bottomInset = 0 }
+			)
 		end
 		if S.HandleScrollBar and lootPanel.debugScrollFrame and lootPanel.debugScrollFrame.ScrollBar then
 			S:HandleScrollBar(lootPanel.debugScrollFrame.ScrollBar)
-			UIChromeController.ApplyCompactScrollBarLayout(lootPanel.debugScrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
+			UIChromeController.ApplyCompactScrollBarLayout(
+				lootPanel.debugScrollFrame,
+				{ xOffset = 0, topInset = 0, bottomInset = 0 }
+			)
 		end
 		if type(dependencies.setLootPanelSkinApplied) == "function" then
 			dependencies.setLootPanelSkinApplied(true)
@@ -535,9 +568,15 @@ function UIChromeController.ApplyElvUISkin()
 
 	local dashboardPanel = GetDashboardPanel()
 	if dashboardPanel then
-		if dashboardPanel.background then dashboardPanel.background:Hide() end
-		if dashboardPanel.headerBackground then dashboardPanel.headerBackground:Hide() end
-		if dashboardPanel.border then dashboardPanel.border:Hide() end
+		if dashboardPanel.background then
+			dashboardPanel.background:Hide()
+		end
+		if dashboardPanel.headerBackground then
+			dashboardPanel.headerBackground:Hide()
+		end
+		if dashboardPanel.border then
+			dashboardPanel.border:Hide()
+		end
 		if dashboardPanel.SetTemplate then
 			dashboardPanel:SetTemplate("Transparent")
 		end
@@ -564,7 +603,10 @@ function UIChromeController.ApplyElvUISkin()
 		end
 		if S.HandleScrollBar and dashboardPanel.scrollFrame and dashboardPanel.scrollFrame.ScrollBar then
 			S:HandleScrollBar(dashboardPanel.scrollFrame.ScrollBar)
-			UIChromeController.ApplyCompactScrollBarLayout(dashboardPanel.scrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
+			UIChromeController.ApplyCompactScrollBarLayout(
+				dashboardPanel.scrollFrame,
+				{ xOffset = 0, topInset = 0, bottomInset = 0 }
+			)
 		end
 	end
 end
@@ -579,10 +621,17 @@ function UIChromeController.BuildStyleMenu(button)
 			func = function()
 				settings.panelStyle = "blizzard"
 				if MogTrackerPanelStyleDropdownButton then
-					MogTrackerPanelStyleDropdownButton:SetText(UIChromeController.GetPanelStyleLabel(settings.panelStyle))
+					MogTrackerPanelStyleDropdownButton:SetText(
+						UIChromeController.GetPanelStyleLabel(settings.panelStyle)
+					)
 				end
 				if type(dependencies.Print) == "function" then
-					dependencies.Print(dependencies.T("STYLE_RELOAD_REQUIRED", "风格已更新，执行 /reload 后可完整生效。"))
+					dependencies.Print(
+						dependencies.T(
+							"STYLE_RELOAD_REQUIRED",
+							"风格已更新，执行 /reload 后可完整生效。"
+						)
+					)
 				end
 			end,
 		},
@@ -592,17 +641,29 @@ function UIChromeController.BuildStyleMenu(button)
 			func = function()
 				if not UIChromeController.IsAddonLoaded("ElvUI") or not ElvUI then
 					if type(dependencies.Print) == "function" then
-						dependencies.Print(dependencies.T("STYLE_ELVUI_UNAVAILABLE", "当前未加载 ElvUI，无法切换到 ElvUI 风格。"))
+						dependencies.Print(
+							dependencies.T(
+								"STYLE_ELVUI_UNAVAILABLE",
+								"当前未加载 ElvUI，无法切换到 ElvUI 风格。"
+							)
+						)
 					end
 					return
 				end
 				settings.panelStyle = "elvui"
 				if MogTrackerPanelStyleDropdownButton then
-					MogTrackerPanelStyleDropdownButton:SetText(UIChromeController.GetPanelStyleLabel(settings.panelStyle))
+					MogTrackerPanelStyleDropdownButton:SetText(
+						UIChromeController.GetPanelStyleLabel(settings.panelStyle)
+					)
 				end
 				UIChromeController.ApplyElvUISkin()
 				if type(dependencies.Print) == "function" then
-					dependencies.Print(dependencies.T("STYLE_RELOAD_RECOMMENDED", "已切换到 ElvUI 风格；如有残留原生样式，执行 /reload 可完全刷新。"))
+					dependencies.Print(
+						dependencies.T(
+							"STYLE_RELOAD_RECOMMENDED",
+							"已切换到 ElvUI 风格；如有残留原生样式，执行 /reload 可完全刷新。"
+						)
+					)
 				end
 			end,
 		},

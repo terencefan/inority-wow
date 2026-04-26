@@ -65,7 +65,7 @@ end
 local function AppendStartupLifecycleDebug(db, step, detail, elapsedMs)
 	local settings = db and db.settings
 	local debugSections = settings and settings.debugLogSections
-	if not (type(debugSections) == "table" and debugSections.startupLifecycleDebug) then
+	if not (type(debugSections) == "table" and debugSections.runtimeLogs) then
 		return
 	end
 	local log = GetRuntimeLog()
@@ -126,8 +126,7 @@ end
 
 local function BuildDefaultDebugLogSections()
 	return {
-		startupLifecycleDebug = true,
-		runtimeErrorDebug = true,
+		runtimeLogs = true,
 		rawSavedInstanceInfo = true,
 		normalizedLockouts = false,
 		currentLootDebug = true,

@@ -214,14 +214,22 @@ function InstanceMetadata.FindJournalInstanceByInstanceInfo(instanceName, instan
 						return journalInstanceID, "name"
 					end
 					local normalizedJournalName = NormalizeInstanceDisplayName(journalName)
-					if normalizedComparableName ~= "" and normalizedJournalName == normalizedComparableName and normalizedNameMatchJournalInstanceID == nil then
+					if
+						normalizedComparableName ~= ""
+						and normalizedJournalName == normalizedComparableName
+						and normalizedNameMatchJournalInstanceID == nil
+					then
 						normalizedNameMatchJournalInstanceID = journalInstanceID
 					end
-					if normalizedComparableName ~= ""
+					if
+						normalizedComparableName ~= ""
 						and normalizedJournalName ~= ""
 						and fuzzyNameMatchJournalInstanceID == nil
-						and (normalizedJournalName:find(normalizedComparableName, 1, true)
-							or normalizedComparableName:find(normalizedJournalName, 1, true)) then
+						and (
+							normalizedJournalName:find(normalizedComparableName, 1, true)
+							or normalizedComparableName:find(normalizedJournalName, 1, true)
+						)
+					then
 						fuzzyNameMatchJournalInstanceID = journalInstanceID
 					end
 					if mapMatchJournalInstanceID == nil and tonumber(journalMapID) == tonumber(instanceID) then
@@ -300,7 +308,8 @@ function InstanceMetadata.FindJournalInstanceByInstanceInfo(instanceName, instan
 end
 
 function InstanceMetadata.GetCurrentJournalInstanceID()
-	local journalInstanceID, debugInfo = GetAPI().GetCurrentJournalInstanceID(InstanceMetadata.FindJournalInstanceByInstanceInfo)
+	local journalInstanceID, debugInfo =
+		GetAPI().GetCurrentJournalInstanceID(InstanceMetadata.FindJournalInstanceByInstanceInfo)
 	local log = GetLog()
 	if log and type(log.Info) == "function" then
 		log.Info("metadata.instance", "current_journal_instance_resolved", {

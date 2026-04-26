@@ -34,10 +34,18 @@ local function ReadDependency(name, fallback, ...)
 	return value
 end
 
-local function GetDB() return ReadDependency("getDB", nil) end
-local function GetLootPanel() return ReadDependency("getLootPanel", nil) end
-local function GetSettings() return ReadDependency("getSettings", {}) end
-local function GetLootPanelState() return ReadDependency("getLootPanelState", {}) end
+local function GetDB()
+	return ReadDependency("getDB", nil)
+end
+local function GetLootPanel()
+	return ReadDependency("getLootPanel", nil)
+end
+local function GetSettings()
+	return ReadDependency("getSettings", {})
+end
+local function GetLootPanelState()
+	return ReadDependency("getLootPanelState", {})
+end
 
 local VALID_REFRESH_REASONS = {
 	open = true,
@@ -132,7 +140,9 @@ end
 
 local function UpdateClassScopeButtonPresentation(lootPanel, isElvUIStyle)
 	local classScopeButton = lootPanel and lootPanel.classScopeButton
-	if not classScopeButton then return end
+	if not classScopeButton then
+		return
+	end
 	local buttonSize = isElvUIStyle and 22 or 20
 	classScopeButton:SetSize(buttonSize, buttonSize)
 	local text = classScopeButton.text or classScopeButton.Text
@@ -181,7 +191,9 @@ function LootPanelController.BuildLootFilterMenu(button, items)
 				info.hasArrow = item.hasArrow and true or false
 				info.menuList = item.menuList
 				info.notCheckable = item.notCheckable and true or false
-				if UIDropDownMenu_AddButton then UIDropDownMenu_AddButton(info, level) end
+				if UIDropDownMenu_AddButton then
+					UIDropDownMenu_AddButton(info, level)
+				end
 			end
 		end, "MENU")
 		ToggleDropDownMenu(1, nil, lootDropdownMenu, button, 0, 0)
@@ -192,10 +204,14 @@ end
 
 function LootPanelController.GetLootPanelContentWidth()
 	local lootPanel = GetLootPanel()
-	if not lootPanel then return 360 end
+	if not lootPanel then
+		return 360
+	end
 	local baseWidth = (lootPanel:GetWidth() or 420) - 58
 	local activeScrollFrame = lootPanel.scrollFrame
-	if lootPanel.debugScrollFrame and lootPanel.debugScrollFrame:IsShown() then activeScrollFrame = lootPanel.debugScrollFrame end
+	if lootPanel.debugScrollFrame and lootPanel.debugScrollFrame:IsShown() then
+		activeScrollFrame = lootPanel.debugScrollFrame
+	end
 	if activeScrollFrame then
 		local scrollWidth = activeScrollFrame:GetWidth() or baseWidth
 		local scrollbarWidth = 0
@@ -210,7 +226,9 @@ end
 function LootPanelController.UpdateLootHeaderLayout()
 	local lootPanel = GetLootPanel()
 	local db = GetDB()
-	if not lootPanel or not lootPanel.title or not lootPanel.infoButton then return end
+	if not lootPanel or not lootPanel.title or not lootPanel.infoButton then
+		return
+	end
 	local isElvUIStyle = (db.settings and db.settings.panelStyle) == "elvui"
 	local leftInset = isElvUIStyle and 14 or 12
 	local toolWidth = isElvUIStyle and 20 or 18
@@ -252,7 +270,9 @@ end
 
 function LootPanelController.SetLootPanelTab(tabKey)
 	local lootPanel = GetLootPanel()
-	if not lootPanel then return end
+	if not lootPanel then
+		return
+	end
 	local state = GetLootPanelState()
 	state.currentTab = NormalizeTabKey(tabKey)
 	lootPanel.lootTabButton:SetEnabled(state.currentTab ~= "loot")
@@ -267,14 +287,26 @@ end
 
 function LootPanelController.UpdateLootPanelLayout()
 	local lootPanel = GetLootPanel()
-	if not lootPanel then return end
+	if not lootPanel then
+		return
+	end
 	local contentWidth = LootPanelController.GetLootPanelContentWidth()
-	if lootPanel.content then lootPanel.content:SetWidth(contentWidth) end
-	if lootPanel.debugEditBox then lootPanel.debugEditBox:SetWidth(contentWidth) end
+	if lootPanel.content then
+		lootPanel.content:SetWidth(contentWidth)
+	end
+	if lootPanel.debugEditBox then
+		lootPanel.debugEditBox:SetWidth(contentWidth)
+	end
 	for _, row in ipairs(lootPanel.rows or {}) do
-		if row.header then row.header:SetWidth(contentWidth) end
-		if row.body then row.body:SetWidth(contentWidth) end
-		if row.bodyFrame then row.bodyFrame:SetWidth(contentWidth) end
+		if row.header then
+			row.header:SetWidth(contentWidth)
+		end
+		if row.body then
+			row.body:SetWidth(contentWidth)
+		end
+		if row.bodyFrame then
+			row.bodyFrame:SetWidth(contentWidth)
+		end
 	end
 	LootPanelController.UpdateLootHeaderLayout()
 end
@@ -287,13 +319,24 @@ function LootPanelController.InitializeLootPanel()
 	if settings.lootClassScopeMode == "current" or settings.lootClassScopeMode == "selected" then
 		state.classScopeMode = settings.lootClassScopeMode
 	end
-	if lootPanel then return end
+	if lootPanel then
+		return
+	end
 	local lootPanelPoint = db.lootPanelPoint or { point = "CENTER", relativePoint = "CENTER", x = 280, y = 0 }
 	local lootPanelSize = db.lootPanelSize or { width = 420, height = 460 }
 	lootPanel = CreateFrame("Frame", "MogTrackerLootPanel", UIParent, "BackdropTemplate")
 	CallDependency("setLootPanel", lootPanel)
-	lootPanel:SetSize(math.max(360, tonumber(lootPanelSize.width) or 420), math.max(320, tonumber(lootPanelSize.height) or 460))
-	lootPanel:SetPoint(lootPanelPoint.point or "CENTER", UIParent, lootPanelPoint.relativePoint or "CENTER", tonumber(lootPanelPoint.x) or 280, tonumber(lootPanelPoint.y) or 0)
+	lootPanel:SetSize(
+		math.max(360, tonumber(lootPanelSize.width) or 420),
+		math.max(320, tonumber(lootPanelSize.height) or 460)
+	)
+	lootPanel:SetPoint(
+		lootPanelPoint.point or "CENTER",
+		UIParent,
+		lootPanelPoint.relativePoint or "CENTER",
+		tonumber(lootPanelPoint.x) or 280,
+		tonumber(lootPanelPoint.y) or 0
+	)
 	lootPanel:SetFrameStrata("DIALOG")
 	if lootPanel.SetToplevel then
 		lootPanel:SetToplevel(true)
@@ -312,26 +355,40 @@ function LootPanelController.InitializeLootPanel()
 	end)
 	lootPanel:SetMovable(true)
 	lootPanel:SetResizable(true)
-	if lootPanel.SetResizeBounds then lootPanel:SetResizeBounds(360, 320, 900, 900) elseif lootPanel.SetMinResize and lootPanel.SetMaxResize then lootPanel:SetMinResize(360, 320); lootPanel:SetMaxResize(900, 900) end
+	if lootPanel.SetResizeBounds then
+		lootPanel:SetResizeBounds(360, 320, 900, 900)
+	elseif lootPanel.SetMinResize and lootPanel.SetMaxResize then
+		lootPanel:SetMinResize(360, 320)
+		lootPanel:SetMaxResize(900, 900)
+	end
 	lootPanel:RegisterForDrag("LeftButton")
-	lootPanel:SetScript("OnDragStart", function(self) self:StartMoving() end)
+	lootPanel:SetScript("OnDragStart", function(self)
+		self:StartMoving()
+	end)
 	lootPanel:SetScript("OnDragStop", function(self)
 		self:StopMovingOrSizing()
 		local point, _, relativePoint, x, y = self:GetPoint(1)
-		db.lootPanelPoint = { point = point or "CENTER", relativePoint = relativePoint or "CENTER", x = x or 280, y = y or 0 }
+		db.lootPanelPoint =
+			{ point = point or "CENTER", relativePoint = relativePoint or "CENTER", x = x or 280, y = y or 0 }
 	end)
 	lootPanel:SetScript("OnSizeChanged", function(self, width, height)
 		db.lootPanelSize = { width = math.floor(width + 0.5), height = math.floor(height + 0.5) }
 		LootPanelController.UpdateLootPanelLayout()
-		if self:IsShown() then CallDependency("RefreshLootPanel") end
+		if self:IsShown() then
+			CallDependency("RefreshLootPanel")
+		end
 	end)
-	lootPanel:SetScript("OnHide", function() CallDependency("ResetLootPanelSessionState", false) end)
+	lootPanel:SetScript("OnHide", function()
+		CallDependency("ResetLootPanelSessionState", false)
+	end)
 	lootPanel:SetScript("OnShow", function()
 		RecordLootPanelOpenDebug("frame_onshow", { source = "loot_panel_frame" })
 	end)
 	lootPanel:Hide()
 	CallDependency("ApplyDefaultFrameStyle", lootPanel)
-	if lootPanel.background then lootPanel.background:SetColorTexture(0.07, 0.06, 0.04, 0.95) end
+	if lootPanel.background then
+		lootPanel.background:SetColorTexture(0.07, 0.06, 0.04, 0.95)
+	end
 	if lootPanel.headerBackground then
 		lootPanel.headerBackground:ClearAllPoints()
 		lootPanel.headerBackground:SetPoint("TOPLEFT", 3, -3)
@@ -343,7 +400,11 @@ function LootPanelController.InitializeLootPanel()
 		lootPanel.border:ClearAllPoints()
 		lootPanel.border:SetPoint("TOPLEFT", -1, 1)
 		lootPanel.border:SetPoint("BOTTOMRIGHT", 1, -1)
-		lootPanel.border:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12, insets = { left = 2, right = 2, top = 2, bottom = 2 } })
+		lootPanel.border:SetBackdrop({
+			edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+			edgeSize = 12,
+			insets = { left = 2, right = 2, top = 2, bottom = 2 },
+		})
 		lootPanel.border:SetBackdropBorderColor(0.56, 0.46, 0.17, 0.92)
 	end
 	lootPanel.titleDivider = lootPanel:CreateTexture(nil, "ARTWORK")
@@ -364,7 +425,10 @@ function LootPanelController.InitializeLootPanel()
 	lootPanel.configButton:SetScript("OnClick", function()
 		CallDependency("InitializePanel")
 		local panel = ReadDependency("getPanel", nil)
-		if panel:IsShown() and ReadDependency("getCurrentPanelView", "config") == "config" then panel:Hide() return end
+		if panel:IsShown() and ReadDependency("getCurrentPanelView", "config") == "config" then
+			panel:Hide()
+			return
+		end
 		CallDependency("SetPanelView", "config")
 		panel:Show()
 	end)
@@ -379,12 +443,24 @@ function LootPanelController.InitializeLootPanel()
 	lootPanel.refreshButton:SetScript("OnClick", function()
 		local token = (lootPanel.refreshButton.feedbackToken or 0) + 1
 		lootPanel.refreshButton.feedbackToken = token
-		if lootPanel.refreshButton.icon then lootPanel.refreshButton.icon:SetRotation(math.rad(120)); lootPanel.refreshButton.icon:SetVertexColor(1,1,1,1) end
+		if lootPanel.refreshButton.icon then
+			lootPanel.refreshButton.icon:SetRotation(math.rad(120))
+			lootPanel.refreshButton.icon:SetVertexColor(1, 1, 1, 1)
+		end
 		if C_Timer and C_Timer.After then
 			C_Timer.After(0.3, function()
 				local currentLootPanel = GetLootPanel()
-				if not currentLootPanel or not currentLootPanel.refreshButton or currentLootPanel.refreshButton.feedbackToken ~= token then return end
-				if currentLootPanel.refreshButton.icon then currentLootPanel.refreshButton.icon:SetRotation(0); currentLootPanel.refreshButton.icon:SetVertexColor(0.95, 0.90, 0.72, 0.95) end
+				if
+					not currentLootPanel
+					or not currentLootPanel.refreshButton
+					or currentLootPanel.refreshButton.feedbackToken ~= token
+				then
+					return
+				end
+				if currentLootPanel.refreshButton.icon then
+					currentLootPanel.refreshButton.icon:SetRotation(0)
+					currentLootPanel.refreshButton.icon:SetVertexColor(0.95, 0.90, 0.72, 0.95)
+				end
 			end)
 		end
 		LootPanelController.RequestLootPanelRefresh({ reason = "manual_refresh" })
@@ -400,8 +476,12 @@ function LootPanelController.InitializeLootPanel()
 	lootPanel.infoButton.icon:SetPoint("CENTER")
 	lootPanel.infoButton.icon:SetTexture("Interface\\FriendsFrame\\InformationIcon")
 	CallDependency("SetLootHeaderButtonVisualState", lootPanel.infoButton, "normal")
-	lootPanel.infoButton:SetScript("OnEnter", function(self) CallDependency("ShowLootPanelInstanceProgressTooltip", self) end)
-	lootPanel.infoButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	lootPanel.infoButton:SetScript("OnEnter", function(self)
+		CallDependency("ShowLootPanelInstanceProgressTooltip", self)
+	end)
+	lootPanel.infoButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
 	lootPanel.classScopeButton = CreateFrame("CheckButton", nil, lootPanel, "UICheckButtonTemplate")
 	lootPanel.classScopeButton:SetSize(20, 20)
 	lootPanel.classScopeButton.text = lootPanel.classScopeButton.text or lootPanel.classScopeButton.Text
@@ -414,16 +494,24 @@ function LootPanelController.InitializeLootPanel()
 		state.classScopeMode = state.classScopeMode == "current" and "selected" or "current"
 		settings.lootClassScopeMode = state.classScopeMode
 		self:SetChecked(state.classScopeMode == "current")
-		LootPanelController.RequestLootPanelRefresh({ reason = "filter_changed", invalidateData = true, resetScroll = true })
+		LootPanelController.RequestLootPanelRefresh({
+			reason = "filter_changed",
+			invalidateData = true,
+			resetScroll = true,
+		})
 	end)
 	lootPanel.classScopeButton:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		local lines = ReadDependency("GetLootClassScopeTooltipLines", {})
 		GameTooltip:SetText(lines[1] or "")
-		if lines[2] then GameTooltip:AddLine(lines[2], 1, 1, 1, true) end
+		if lines[2] then
+			GameTooltip:AddLine(lines[2], 1, 1, 1, true)
+		end
 		GameTooltip:Show()
 	end)
-	lootPanel.classScopeButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	lootPanel.classScopeButton:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
 	lootPanel.classScopeButton:SetChecked(state.classScopeMode == "current")
 	lootPanel.title = lootPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	lootPanel.title:SetJustifyH("LEFT")
@@ -444,9 +532,12 @@ function LootPanelController.InitializeLootPanel()
 	lootPanel.instanceSelectorButton = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
 	lootPanel.instanceSelectorButton:SetHeight(24)
 	CallDependency("ApplyLootHeaderButtonStyle", lootPanel.instanceSelectorButton)
-	lootPanel.instanceSelectorButton:SetScript("OnClick", function(self) CallDependency("BuildLootPanelInstanceMenu", self) end)
+	lootPanel.instanceSelectorButton:SetScript("OnClick", function(self)
+		CallDependency("BuildLootPanelInstanceMenu", self)
+	end)
 	lootPanel.instanceSelectorButton:SetText(T("LOOT_SELECT_OTHER_INSTANCE", "选择其他副本..."))
-	lootPanel.instanceSelectorButton.customText = lootPanel.instanceSelectorButton:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	lootPanel.instanceSelectorButton.customText =
+		lootPanel.instanceSelectorButton:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	lootPanel.instanceSelectorButton.customText:SetJustifyH("LEFT")
 	lootPanel.instanceSelectorButton.customText:SetPoint("LEFT", lootPanel.instanceSelectorButton, "LEFT", 10, 0)
 	lootPanel.instanceSelectorButton.customText:SetPoint("RIGHT", lootPanel.instanceSelectorButton, "RIGHT", -24, 0)
@@ -462,18 +553,26 @@ function LootPanelController.InitializeLootPanel()
 	lootPanel.debugButton:SetSize(92, 22)
 	lootPanel.debugButton:SetPoint("TOPLEFT", 12, -40)
 	lootPanel.debugButton:SetText(T("LOOT_BUTTON_SELECT_DEBUG", "选择调试"))
-	lootPanel.debugButton:SetScript("OnClick", function() lootPanel.debugEditBox:SetFocus(); lootPanel.debugEditBox:HighlightText(); CallDependency("Print", T("LOOT_DEBUG_SELECTED", "调试信息已全选，按 Ctrl+C 复制。")) end)
+	lootPanel.debugButton:SetScript("OnClick", function()
+		lootPanel.debugEditBox:SetFocus()
+		lootPanel.debugEditBox:HighlightText()
+		CallDependency("Print", T("LOOT_DEBUG_SELECTED", "调试信息已全选，按 Ctrl+C 复制。"))
+	end)
 	lootPanel.debugButton:Hide()
 	lootPanel.lootTabButton = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
 	lootPanel.lootTabButton:SetSize(62, 20)
 	lootPanel.lootTabButton:SetPoint("BOTTOMLEFT", 12, 12)
 	lootPanel.lootTabButton:SetText(T("LOOT_TAB_LOOT", "Loot"))
-	lootPanel.lootTabButton:SetScript("OnClick", function() LootPanelController.SetLootPanelTab("loot") end)
+	lootPanel.lootTabButton:SetScript("OnClick", function()
+		LootPanelController.SetLootPanelTab("loot")
+	end)
 	lootPanel.setsTabButton = CreateFrame("Button", nil, lootPanel, "UIPanelButtonTemplate")
 	lootPanel.setsTabButton:SetSize(62, 20)
 	lootPanel.setsTabButton:SetPoint("LEFT", lootPanel.lootTabButton, "RIGHT", 6, 0)
 	lootPanel.setsTabButton:SetText(T("LOOT_TAB_SETS", "Sets"))
-	lootPanel.setsTabButton:SetScript("OnClick", function() LootPanelController.SetLootPanelTab("sets") end)
+	lootPanel.setsTabButton:SetScript("OnClick", function()
+		LootPanelController.SetLootPanelTab("sets")
+	end)
 	lootPanel.tabDivider = lootPanel:CreateTexture(nil, "ARTWORK")
 	lootPanel.tabDivider:SetColorTexture(0.55, 0.55, 0.60, 0.45)
 	lootPanel.tabDivider:SetPoint("BOTTOMLEFT", 16, 44)
@@ -500,8 +599,12 @@ function LootPanelController.InitializeLootPanel()
 	lootPanel.debugEditBox:SetTextInsets(4, 4, 4, 4)
 	lootPanel.debugEditBox:EnableMouse(true)
 	lootPanel.debugEditBox:SetMaxLetters(0)
-	lootPanel.debugEditBox:SetScript("OnMouseUp", function(self) self:SetFocus() end)
-	lootPanel.debugEditBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+	lootPanel.debugEditBox:SetScript("OnMouseUp", function(self)
+		self:SetFocus()
+	end)
+	lootPanel.debugEditBox:SetScript("OnEscapePressed", function(self)
+		self:ClearFocus()
+	end)
 	lootPanel.debugScrollFrame:SetScrollChild(lootPanel.debugEditBox)
 	lootPanel.debugEditBox:Hide()
 	addon.ApplyCompactScrollBarLayout(lootPanel.debugScrollFrame, { xOffset = 0, topInset = 0, bottomInset = 0 })
@@ -512,13 +615,36 @@ function LootPanelController.InitializeLootPanel()
 	lootPanel.resizeButton.texture:SetAllPoints()
 	CallDependency("UpdateResizeButtonTexture", lootPanel.resizeButton, "normal")
 	lootPanel.resizeButton:RegisterForDrag("LeftButton")
-	lootPanel.resizeButton:SetScript("OnEnter", function(self) CallDependency("UpdateResizeButtonTexture", self, "hover") end)
-	lootPanel.resizeButton:SetScript("OnLeave", function(self) CallDependency("UpdateResizeButtonTexture", self, "normal") end)
-	lootPanel.resizeButton:SetScript("OnMouseDown", function(self) CallDependency("UpdateResizeButtonTexture", self, "down") end)
-	lootPanel.resizeButton:SetScript("OnMouseUp", function(self) CallDependency("UpdateResizeButtonTexture", self, self:IsMouseOver() and "hover" or "normal") end)
-	lootPanel.resizeButton:SetScript("OnDragStart", function(self) self.isSizing = true; CallDependency("UpdateResizeButtonTexture", self, "down"); lootPanel:StartSizing("BOTTOMRIGHT") end)
-	lootPanel.resizeButton:SetScript("OnDragStop", function(self) self.isSizing = nil; CallDependency("UpdateResizeButtonTexture", self, self:IsMouseOver() and "hover" or "normal"); lootPanel:StopMovingOrSizing() end)
-	lootPanel.resizeButton:SetScript("OnHide", function(self) local wasSizing = self.isSizing; self.isSizing = nil; CallDependency("UpdateResizeButtonTexture", self, "normal"); if wasSizing then lootPanel:StopMovingOrSizing() end end)
+	lootPanel.resizeButton:SetScript("OnEnter", function(self)
+		CallDependency("UpdateResizeButtonTexture", self, "hover")
+	end)
+	lootPanel.resizeButton:SetScript("OnLeave", function(self)
+		CallDependency("UpdateResizeButtonTexture", self, "normal")
+	end)
+	lootPanel.resizeButton:SetScript("OnMouseDown", function(self)
+		CallDependency("UpdateResizeButtonTexture", self, "down")
+	end)
+	lootPanel.resizeButton:SetScript("OnMouseUp", function(self)
+		CallDependency("UpdateResizeButtonTexture", self, self:IsMouseOver() and "hover" or "normal")
+	end)
+	lootPanel.resizeButton:SetScript("OnDragStart", function(self)
+		self.isSizing = true
+		CallDependency("UpdateResizeButtonTexture", self, "down")
+		lootPanel:StartSizing("BOTTOMRIGHT")
+	end)
+	lootPanel.resizeButton:SetScript("OnDragStop", function(self)
+		self.isSizing = nil
+		CallDependency("UpdateResizeButtonTexture", self, self:IsMouseOver() and "hover" or "normal")
+		lootPanel:StopMovingOrSizing()
+	end)
+	lootPanel.resizeButton:SetScript("OnHide", function(self)
+		local wasSizing = self.isSizing
+		self.isSizing = nil
+		CallDependency("UpdateResizeButtonTexture", self, "normal")
+		if wasSizing then
+			lootPanel:StopMovingOrSizing()
+		end
+	end)
 	LootPanelController.UpdateLootPanelLayout()
 	CallDependency("ApplyElvUISkin")
 	state.currentTab = (state.currentTab == "sets") and "sets" or "loot"

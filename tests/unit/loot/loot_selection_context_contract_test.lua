@@ -54,13 +54,14 @@ LootSelection.Configure({
 		return { 11, 1 }
 	end,
 	GetCurrentJournalInstanceID = function()
-		return 123, {
-			instanceID = 5001,
-			difficultyID = 16,
-			difficultyName = "Mythic",
-			instanceType = "raid",
-			instanceName = "Current Raid",
-		}
+		return 123,
+			{
+				instanceID = 5001,
+				difficultyID = 16,
+				difficultyName = "Mythic",
+				instanceType = "raid",
+				instanceName = "Current Raid",
+			}
 	end,
 	GetLootPanelSelectionCacheEntries = function()
 		return selectionCache
@@ -74,21 +75,42 @@ local selectionContext = LootSelection.BuildSelectionContext({
 	selectedInstance = archivedSelection,
 })
 
-assert(selectionContext.selectionKey == archivedSelection.key, "expected SelectionContext to use override selection key")
+assert(
+	selectionContext.selectionKey == archivedSelection.key,
+	"expected SelectionContext to use override selection key"
+)
 assert(selectionContext.currentTab == "sets", "expected SelectionContext.currentTab to preserve current tab")
 assert(selectionContext.classScopeMode == "current", "expected SelectionContext.classScopeMode to preserve class scope")
-assert(table.concat(selectionContext.selectedLootTypes, ",") == "MOUNT,TRANSMOG", "expected SelectionContext.selectedLootTypes to be sorted")
+assert(
+	table.concat(selectionContext.selectedLootTypes, ",") == "MOUNT,TRANSMOG",
+	"expected SelectionContext.selectedLootTypes to be sorted"
+)
 assert(selectionContext.hideCollectedFlags.hideCollectedTransmog == true, "expected hideCollectedTransmog flag")
 assert(selectionContext.hideCollectedFlags.hideCollectedPets == true, "expected hideCollectedPets flag")
-assert(selectionContext.lastManualSelectionKey == "321::Old Raid::15", "expected lastManualSelectionKey to stay in SelectionContext")
+assert(
+	selectionContext.lastManualSelectionKey == "321::Old Raid::15",
+	"expected lastManualSelectionKey to stay in SelectionContext"
+)
 assert(selectionContext.lastManualTab == "sets", "expected lastManualTab to stay in SelectionContext")
-assert(selectionContext.lastObservedCurrentInstance.instanceID == 4000, "expected lastObservedCurrentInstance to stay in SelectionContext")
+assert(
+	selectionContext.lastObservedCurrentInstance.instanceID == 4000,
+	"expected lastObservedCurrentInstance to stay in SelectionContext"
+)
 
 -- open priority regression: current instance wins only when instanceID + difficultyID changed.
 LootSelection.PreferCurrentLootPanelSelectionOnOpen()
-assert(lootPanelState.selectedInstanceKey == "current", "expected current selection to win after current instance changed")
-assert(lootPanelState.lastObservedCurrentInstance.instanceID == 5001, "expected lastObservedCurrentInstance.instanceID update")
-assert(lootPanelState.lastObservedCurrentInstance.difficultyID == 16, "expected lastObservedCurrentInstance.difficultyID update")
+assert(
+	lootPanelState.selectedInstanceKey == "current",
+	"expected current selection to win after current instance changed"
+)
+assert(
+	lootPanelState.lastObservedCurrentInstance.instanceID == 5001,
+	"expected lastObservedCurrentInstance.instanceID update"
+)
+assert(
+	lootPanelState.lastObservedCurrentInstance.difficultyID == 16,
+	"expected lastObservedCurrentInstance.difficultyID update"
+)
 
 lootPanelState.selectedInstanceKey = nil
 lootPanelState.lastObservedCurrentInstance = {
@@ -97,6 +119,9 @@ lootPanelState.lastObservedCurrentInstance = {
 }
 
 LootSelection.PreferCurrentLootPanelSelectionOnOpen()
-assert(lootPanelState.selectedInstanceKey == "321::Old Raid::15", "expected unchanged current instance to preserve lastManualSelectionKey")
+assert(
+	lootPanelState.selectedInstanceKey == "321::Old Raid::15",
+	"expected unchanged current instance to preserve lastManualSelectionKey"
+)
 
 print("loot_selection_context_contract_test passed")

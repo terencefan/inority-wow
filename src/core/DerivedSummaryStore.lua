@@ -53,14 +53,23 @@ function DerivedSummaryStore.MatchesCurrentInstanceLootSummary(summary, selectio
 		and tostring(summary.difficultyName or "") == tostring(difficultyName or "")
 end
 
-function DerivedSummaryStore.MatchesCurrentInstanceSetEntryIndexCache(cache, selectionKey, currentInstanceSummaryVersion)
+function DerivedSummaryStore.MatchesCurrentInstanceSetEntryIndexCache(
+	cache,
+	selectionKey,
+	currentInstanceSummaryVersion
+)
 	return type(cache) == "table"
 		and tonumber(cache.rulesVersion) == DerivedSummaryStore.GetRulesVersion("currentInstanceSetEntryIndexCache")
 		and tostring(cache.selectionKey or "") == tostring(selectionKey or "")
 		and tonumber(cache.currentInstanceSummaryVersion) == tonumber(currentInstanceSummaryVersion or 0)
 end
 
-function DerivedSummaryStore.MatchesCurrentInstanceSetSummaryCache(cache, selectionKey, currentInstanceSummaryVersion, classFilesKey)
+function DerivedSummaryStore.MatchesCurrentInstanceSetSummaryCache(
+	cache,
+	selectionKey,
+	currentInstanceSummaryVersion,
+	classFilesKey
+)
 	return type(cache) == "table"
 		and tonumber(cache.rulesVersion) == DerivedSummaryStore.GetRulesVersion("currentInstanceSetSummaryCache")
 		and tostring(cache.selectionKey or "") == tostring(selectionKey or "")
@@ -75,7 +84,8 @@ function DerivedSummaryStore.MatchesDashboardSummaryStore(store, summaryScopeKey
 end
 
 function DerivedSummaryStore.MatchesRaidDashboardStoredEntry(entry, collectSameAppearanceEnabled, instanceType)
-	local summaryScopeKey = DerivedSummaryStore.BuildDashboardSummaryScopeKey(instanceType, collectSameAppearanceEnabled)
+	local summaryScopeKey =
+		DerivedSummaryStore.BuildDashboardSummaryScopeKey(instanceType, collectSameAppearanceEnabled)
 	return type(entry) == "table"
 		and tostring(entry.summaryScopeKey or "") == tostring(summaryScopeKey)
 		and (instanceType == nil or tostring(entry.instanceType or "raid") == tostring(instanceType))

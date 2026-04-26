@@ -122,29 +122,36 @@ function RaidDashboard.RenderContent(owner, content, scrollFrame)
 	end
 
 	for _, rowInfo in ipairs(rows) do
-		if rowInfo.type == "instance"
+		if
+			rowInfo.type == "instance"
 			and not IsExpansionCollapsed(rowInfo.expansionName)
-			and #GetVisibleDifficultyRows(rowInfo) > 0 then
+			and #GetVisibleDifficultyRows(rowInfo) > 0
+		then
 			instanceRowCount = instanceRowCount + 1
 		end
 	end
 
-	local contentWidth = math.max(
-		260,
-		tonumber(content:GetWidth()) or 0,
-		((scrollFrame.GetWidth and scrollFrame:GetWidth()) or 0) - 24
-	)
+	local contentWidth =
+		math.max(260, tonumber(content:GetWidth()) or 0, ((scrollFrame.GetWidth and scrollFrame:GetWidth()) or 0) - 24)
 	local fixedColumns = #classFiles + 1
 	local compact = contentWidth < 430
 	local tierColumnWidth = compact and 42 or 56
-	local firstColumnWidth = compact and math.max(88, math.floor(contentWidth * 0.20)) or math.max(132, math.floor(contentWidth * 0.22))
+	local firstColumnWidth = compact and math.max(88, math.floor(contentWidth * 0.20))
+		or math.max(132, math.floor(contentWidth * 0.22))
 	local difficultyColumnWidth = compact and 52 or 74
 	local refreshColumnWidth = 22
 	local cellWidth = math.max(
 		compact and 16 or 24,
-		math.floor((contentWidth - tierColumnWidth - firstColumnWidth - difficultyColumnWidth - refreshColumnWidth) / math.max(1, fixedColumns))
+		math.floor(
+			(contentWidth - tierColumnWidth - firstColumnWidth - difficultyColumnWidth - refreshColumnWidth)
+				/ math.max(1, fixedColumns)
+		)
 	)
-	local usedWidth = tierColumnWidth + firstColumnWidth + difficultyColumnWidth + (cellWidth * fixedColumns) + refreshColumnWidth
+	local usedWidth = tierColumnWidth
+		+ firstColumnWidth
+		+ difficultyColumnWidth
+		+ (cellWidth * fixedColumns)
+		+ refreshColumnWidth
 
 	local function ApplyCollapsedLayout(resetScroll)
 		local visibleInstanceRowCount = 0
@@ -158,7 +165,10 @@ function RaidDashboard.RenderContent(owner, content, scrollFrame)
 					row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, layoutYOffset)
 					row:SetWidth(usedWidth)
 					if row.collectionIcon then
-						row.collectionIcon:SetTexture(collapsed and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+						row.collectionIcon:SetTexture(
+							collapsed and "Interface\\Buttons\\UI-PlusButton-Up"
+								or "Interface\\Buttons\\UI-MinusButton-Up"
+						)
 						row.collectionIcon:Show()
 					end
 					layoutYOffset = layoutYOffset - (tonumber(row._dashboardYOffsetStep) or 24)
@@ -197,13 +207,15 @@ function RaidDashboard.RenderContent(owner, content, scrollFrame)
 		cellTable[index] = cellTable[index] or CreateFrame("Frame", nil, parentFrame)
 		local cell = cellTable[index]
 		if not cell.topText then
-			cell.topText = cell:CreateFontString(nil, "OVERLAY", compact and "GameFontNormalSmall" or "GameFontHighlightSmall")
+			cell.topText =
+				cell:CreateFontString(nil, "OVERLAY", compact and "GameFontNormalSmall" or "GameFontHighlightSmall")
 		end
 		if not cell.bottomText then
 			cell.bottomText = cell:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 		end
 		if not cell.headerText then
-			cell.headerText = cell:CreateFontString(nil, "OVERLAY", compact and "GameFontDisableSmall" or "GameFontNormalSmall")
+			cell.headerText =
+				cell:CreateFontString(nil, "OVERLAY", compact and "GameFontDisableSmall" or "GameFontNormalSmall")
 			cell.headerText:SetPoint("CENTER")
 		end
 		return cell
@@ -232,22 +244,36 @@ function RaidDashboard.RenderContent(owner, content, scrollFrame)
 		fontString:SetTextColor(defaultR, defaultG, defaultB)
 	end
 
-local function GetMetricParts(metric)
+	local function GetMetricParts(metric)
 		if metricMode == "collectibles" then
-			return
-				FormatMetricValue(metric and metric.collectibleCollected, metric and metric.collectibleTotal),
+			return FormatMetricValue(metric and metric.collectibleCollected, metric and metric.collectibleTotal),
 				metric and metric.collectibleCollected,
 				metric and metric.collectibleTotal,
-				0.80, 0.82, 0.88
+				0.80,
+				0.82,
+				0.88
 		end
-		return
-			FormatMetricValue(metric and metric.setCollected, metric and metric.setTotal),
+		return FormatMetricValue(metric and metric.setCollected, metric and metric.setTotal),
 			metric and metric.setCollected,
 			metric and metric.setTotal,
-			1.0, 0.82, 0.18
+			1.0,
+			0.82,
+			0.18
 	end
 
-	local function ApplyMetricCell(cell, valueText, collected, total, defaultR, defaultG, defaultB, metric, columnLabel, scopeClassFile, clickRowInfo)
+	local function ApplyMetricCell(
+		cell,
+		valueText,
+		collected,
+		total,
+		defaultR,
+		defaultG,
+		defaultB,
+		metric,
+		columnLabel,
+		scopeClassFile,
+		clickRowInfo
+	)
 		cell:Show()
 		cell:EnableMouse(true)
 		cell.headerText:Hide()
@@ -268,7 +294,14 @@ local function GetMetricParts(metric)
 		end
 		if metricMode == "sets" or metricMode == "collectibles" then
 			cell:SetScript("OnEnter", function(self)
-				ShowDashboardMetricTooltip(self, clickRowInfo or metric and metric.rowInfo, columnLabel, metric, scopeClassFile, metricMode)
+				ShowDashboardMetricTooltip(
+					self,
+					clickRowInfo or metric and metric.rowInfo,
+					columnLabel,
+					metric,
+					scopeClassFile,
+					metricMode
+				)
 			end)
 			cell:SetScript("OnLeave", function()
 				GameTooltip:Hide()
@@ -307,7 +340,8 @@ local function GetMetricParts(metric)
 	headerRow.label:SetWidth(firstColumnWidth - 6)
 	headerRow.label:SetJustifyH("LEFT")
 	headerRow.label:SetText(GetColumnInstanceLabel())
-	headerRow.difficultyLabel = headerRow.difficultyLabel or headerRow:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	headerRow.difficultyLabel = headerRow.difficultyLabel
+		or headerRow:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	headerRow.difficultyLabel:ClearAllPoints()
 	headerRow.difficultyLabel:SetPoint("LEFT", headerRow, "LEFT", tierColumnWidth + firstColumnWidth, 0)
 	headerRow.difficultyLabel:SetWidth(difficultyColumnWidth - 4)
@@ -333,7 +367,13 @@ local function GetMetricParts(metric)
 		local cell = EnsureMetricCell(headerRow, headerRow.cells, columnIndex)
 		cell:Show()
 		cell:ClearAllPoints()
-		cell:SetPoint("LEFT", headerRow, "LEFT", tierColumnWidth + firstColumnWidth + difficultyColumnWidth + ((columnIndex - 1) * cellWidth), 0)
+		cell:SetPoint(
+			"LEFT",
+			headerRow,
+			"LEFT",
+			tierColumnWidth + firstColumnWidth + difficultyColumnWidth + ((columnIndex - 1) * cellWidth),
+			0
+		)
 		cell:SetSize(cellWidth, 24)
 		cell.topText:Hide()
 		cell.bottomText:Hide()
@@ -401,7 +441,9 @@ local function GetMetricParts(metric)
 			row.tierLabel:Hide()
 			row.collectionIcon:ClearAllPoints()
 			row.collectionIcon:SetPoint("LEFT", row, "LEFT", 2, 0)
-			row.collectionIcon:SetTexture(isCollapsed and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+			row.collectionIcon:SetTexture(
+				isCollapsed and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up"
+			)
 			row.collectionIcon:Show()
 			row.label:SetWidth(usedWidth - 148 - refreshColumnWidth)
 			row.label:ClearAllPoints()
@@ -420,12 +462,21 @@ local function GetMetricParts(metric)
 				local isRunning = scanPlan and tostring(scanPlan.state or "") == "running"
 				GameTooltip:SetOwner(self, "ANCHOR_TOP")
 				GameTooltip:ClearLines()
-				GameTooltip:AddLine(isRunning and Translate("BUTTON_REFRESH_RUNNING", "扫描中") or Translate("BUTTON_REFRESH", "Refresh"), 1, 0.82, 0)
+				GameTooltip:AddLine(
+					isRunning and Translate("BUTTON_REFRESH_RUNNING", "扫描中")
+						or Translate("BUTTON_REFRESH", "Refresh"),
+					1,
+					0.82,
+					0
+				)
 				GameTooltip:AddLine(
 					isRunning
-						and Translate("DASHBOARD_SCAN_EXPANSION_RUNNING_HINT", "当前资料片扫描进行中。")
+							and Translate("DASHBOARD_SCAN_EXPANSION_RUNNING_HINT", "当前资料片扫描进行中。")
 						or string.format(
-							Translate("DASHBOARD_SCAN_EXPANSION_HINT", "扫描资料片“%s”的已计划副本难度并重建这一行使用的摘要。"),
+							Translate(
+								"DASHBOARD_SCAN_EXPANSION_HINT",
+								"扫描资料片“%s”的已计划副本难度并重建这一行使用的摘要。"
+							),
 							expansionName
 						),
 					1,
@@ -468,7 +519,13 @@ local function GetMetricParts(metric)
 				metricColumnIndex = metricColumnIndex + 1
 				local classCell = EnsureMetricCell(row, row.cells, metricColumnIndex)
 				classCell:ClearAllPoints()
-				classCell:SetPoint("LEFT", row, "LEFT", tierColumnWidth + firstColumnWidth + difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth), 0)
+				classCell:SetPoint(
+					"LEFT",
+					row,
+					"LEFT",
+					tierColumnWidth + firstColumnWidth + difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth),
+					0
+				)
 				classCell:SetSize(cellWidth, 20)
 				classCell:EnableMouse(true)
 				classCell.headerText:Hide()
@@ -483,7 +540,14 @@ local function GetMetricParts(metric)
 				classCell:SetScript("OnMouseUp", nil)
 				if metricMode == "sets" or metricMode == "collectibles" then
 					classCell:SetScript("OnEnter", function(self)
-						ShowDashboardMetricTooltip(self, rowInfo, GetClassDisplayName(classFile), classMetric, classFile, metricMode)
+						ShowDashboardMetricTooltip(
+							self,
+							rowInfo,
+							GetClassDisplayName(classFile),
+							classMetric,
+							classFile,
+							metricMode
+						)
 					end)
 					classCell:SetScript("OnLeave", function()
 						GameTooltip:Hide()
@@ -496,7 +560,13 @@ local function GetMetricParts(metric)
 			metricColumnIndex = metricColumnIndex + 1
 			local totalCell = EnsureMetricCell(row, row.cells, metricColumnIndex)
 			totalCell:ClearAllPoints()
-			totalCell:SetPoint("LEFT", row, "LEFT", tierColumnWidth + firstColumnWidth + difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth), 0)
+			totalCell:SetPoint(
+				"LEFT",
+				row,
+				"LEFT",
+				tierColumnWidth + firstColumnWidth + difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth),
+				0
+			)
 			totalCell:SetSize(cellWidth, 20)
 			totalCell:EnableMouse(true)
 			totalCell.headerText:Hide()
@@ -511,7 +581,14 @@ local function GetMetricParts(metric)
 			totalCell:SetScript("OnMouseUp", nil)
 			if metricMode == "sets" or metricMode == "collectibles" then
 				totalCell:SetScript("OnEnter", function(self)
-					ShowDashboardMetricTooltip(self, rowInfo, Translate("DASHBOARD_TOTAL", "Total"), totalMetric, nil, metricMode)
+					ShowDashboardMetricTooltip(
+						self,
+						rowInfo,
+						Translate("DASHBOARD_TOTAL", "Total"),
+						totalMetric,
+						nil,
+						metricMode
+					)
 				end)
 				totalCell:SetScript("OnLeave", function()
 					GameTooltip:Hide()
@@ -577,7 +654,9 @@ local function GetMetricParts(metric)
 				row.label:SetWidth(firstColumnWidth - 6)
 				row.label:ClearAllPoints()
 				row.label:SetPoint("LEFT", row, "LEFT", tierColumnWidth, 0)
-				row.label:SetText("  " .. tostring(rowInfo.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本")))
+				row.label:SetText(
+					"  " .. tostring(rowInfo.instanceName or Translate("LOOT_UNKNOWN_INSTANCE", "未知副本"))
+				)
 				row.label:SetFontObject(compact and GameFontDisableSmall or GameFontHighlightSmall)
 				row.difficultyLabel:Hide()
 				row:SetScript("OnMouseUp", nil)
@@ -600,7 +679,13 @@ local function GetMetricParts(metric)
 					subRow:Show()
 					subRow:EnableMouse(true)
 					subRow:ClearAllPoints()
-					subRow:SetPoint("TOPLEFT", row, "TOPLEFT", tierColumnWidth + firstColumnWidth, -((subIndex - 1) * subRowHeight))
+					subRow:SetPoint(
+						"TOPLEFT",
+						row,
+						"TOPLEFT",
+						tierColumnWidth + firstColumnWidth,
+						-((subIndex - 1) * subRowHeight)
+					)
 					subRow:SetSize(usedWidth - tierColumnWidth - firstColumnWidth, subRowHeight)
 
 					local rowInfoForHandlers = difficultyRowInfo
@@ -609,7 +694,13 @@ local function GetMetricParts(metric)
 					subRow.difficultyLabel:SetPoint("LEFT", subRow, "LEFT", 0, 0)
 					subRow.difficultyLabel:SetWidth(difficultyColumnWidth - 4)
 					local difficultyName = tostring(difficultyRowInfo.difficultyName or "-")
-					subRow.difficultyLabel:SetText(string.format("%s%s|r", GetDifficultyColorCode(difficultyName, difficultyRowInfo.difficultyID), difficultyName))
+					subRow.difficultyLabel:SetText(
+						string.format(
+							"%s%s|r",
+							GetDifficultyColorCode(difficultyName, difficultyRowInfo.difficultyID),
+							difficultyName
+						)
+					)
 					subRow.difficultyLabel:SetFontObject(compact and GameFontDisableSmall or GameFontHighlightSmall)
 					subRow:SetScript("OnMouseUp", function(_, button)
 						if button == "LeftButton" then
@@ -632,27 +723,64 @@ local function GetMetricParts(metric)
 						metricColumnIndex = metricColumnIndex + 1
 						local classCell = EnsureMetricCell(subRow, subRow.cells, metricColumnIndex)
 						classCell:ClearAllPoints()
-						classCell:SetPoint("LEFT", subRow, "LEFT", difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth), 0)
+						classCell:SetPoint(
+							"LEFT",
+							subRow,
+							"LEFT",
+							difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth),
+							0
+						)
 						classCell:SetSize(cellWidth, subRowHeight - 1)
 						local classMetric = rowInfoForHandlers.byClass and rowInfoForHandlers.byClass[classFile] or nil
 						if classMetric then
 							classMetric.rowInfo = rowInfoForHandlers
 						end
 						local valueText, collected, total, defaultR, defaultG, defaultB = GetMetricParts(classMetric)
-						ApplyMetricCell(classCell, valueText, collected, total, defaultR, defaultG, defaultB, classMetric, GetClassDisplayName(classFile), classFile, rowInfoForHandlers)
+						ApplyMetricCell(
+							classCell,
+							valueText,
+							collected,
+							total,
+							defaultR,
+							defaultG,
+							defaultB,
+							classMetric,
+							GetClassDisplayName(classFile),
+							classFile,
+							rowInfoForHandlers
+						)
 					end
 
 					metricColumnIndex = metricColumnIndex + 1
 					local totalCell = EnsureMetricCell(subRow, subRow.cells, metricColumnIndex)
 					totalCell:ClearAllPoints()
-					totalCell:SetPoint("LEFT", subRow, "LEFT", difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth), 0)
+					totalCell:SetPoint(
+						"LEFT",
+						subRow,
+						"LEFT",
+						difficultyColumnWidth + ((metricColumnIndex - 1) * cellWidth),
+						0
+					)
 					totalCell:SetSize(cellWidth, subRowHeight - 1)
 					local totalMetric = rowInfoForHandlers.total or nil
 					if totalMetric then
 						totalMetric.rowInfo = rowInfoForHandlers
 					end
-					local totalValueText, totalCollected, totalTotal, totalR, totalG, totalB = GetMetricParts(totalMetric)
-					ApplyMetricCell(totalCell, totalValueText, totalCollected, totalTotal, totalR, totalG, totalB, totalMetric, Translate("DASHBOARD_TOTAL", "Total"), nil, rowInfoForHandlers)
+					local totalValueText, totalCollected, totalTotal, totalR, totalG, totalB =
+						GetMetricParts(totalMetric)
+					ApplyMetricCell(
+						totalCell,
+						totalValueText,
+						totalCollected,
+						totalTotal,
+						totalR,
+						totalG,
+						totalB,
+						totalMetric,
+						Translate("DASHBOARD_TOTAL", "Total"),
+						nil,
+						rowInfoForHandlers
+					)
 
 					for index = metricColumnIndex + 1, #(subRow.cells or {}) do
 						local cell = subRow.cells[index]
@@ -681,4 +809,3 @@ local function GetMetricParts(metric)
 
 	ApplyCollapsedLayout(true)
 end
-

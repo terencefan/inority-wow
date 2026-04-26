@@ -27,7 +27,21 @@ local ELIGIBLE_CLASSES_BY_TYPE = {
 	AXE = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "DEATHKNIGHT", "SHAMAN" },
 	MACE = { "WARRIOR", "PALADIN", "PRIEST", "ROGUE", "DEATHKNIGHT", "SHAMAN", "MONK", "DRUID" },
 	SWORD = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "DEATHKNIGHT", "MAGE", "WARLOCK", "MONK", "DEMONHUNTER" },
-	ONE_HAND = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "DEATHKNIGHT", "SHAMAN", "MAGE", "WARLOCK", "MONK", "DRUID", "DEMONHUNTER", "EVOKER" },
+	ONE_HAND = {
+		"WARRIOR",
+		"PALADIN",
+		"HUNTER",
+		"ROGUE",
+		"PRIEST",
+		"DEATHKNIGHT",
+		"SHAMAN",
+		"MAGE",
+		"WARLOCK",
+		"MONK",
+		"DRUID",
+		"DEMONHUNTER",
+		"EVOKER",
+	},
 	TWO_HAND = { "WARRIOR", "PALADIN", "HUNTER", "DEATHKNIGHT", "SHAMAN", "MONK", "DRUID", "EVOKER" },
 }
 local UNIVERSAL_ELIGIBLE_TYPES = {
@@ -370,7 +384,12 @@ function ClassLogic.GetObservedRaidDifficultyOptions(instanceName, instanceID)
 		for _, lockout in ipairs(character.lockouts or {}) do
 			if lockout.isRaid and tostring(lockout.name or "") == tostring(instanceName or "") then
 				local lockoutInstanceID = tonumber(lockout.id) or 0
-				if not instanceID or instanceID == 0 or lockoutInstanceID == 0 or lockoutInstanceID == tonumber(instanceID) then
+				if
+					not instanceID
+					or instanceID == 0
+					or lockoutInstanceID == 0
+					or lockoutInstanceID == tonumber(instanceID)
+				then
 					local difficultyID = tonumber(lockout.difficultyID) or 0
 					if difficultyID > 0 and not observed[difficultyID] then
 						observed[difficultyID] = true
@@ -396,7 +415,8 @@ end
 
 function ClassLogic.GetJournalInstanceDifficultyOptions(journalInstanceID, isRaid)
 	local rules = GetDifficultyRules()
-	local difficultyIDs = isRaid and (rules.RAID_DIFFICULTY_CANDIDATES or {}) or (rules.DUNGEON_DIFFICULTY_CANDIDATES or {})
+	local difficultyIDs = isRaid and (rules.RAID_DIFFICULTY_CANDIDATES or {})
+		or (rules.DUNGEON_DIFFICULTY_CANDIDATES or {})
 	local optionsByID = {}
 	local options = {}
 	local EJ_IsValidInstanceDifficulty = _G.EJ_IsValidInstanceDifficulty
@@ -404,7 +424,9 @@ function ClassLogic.GetJournalInstanceDifficultyOptions(journalInstanceID, isRai
 	local EJ_GetInstanceInfo = _G.EJ_GetInstanceInfo
 	local C_EncounterJournal = _G.C_EncounterJournal
 	local isValidDifficulty = C_EncounterJournal and C_EncounterJournal.IsValidInstanceDifficulty
-	local instanceName, _, _, _, _, _, _, _, _, instanceMapID = EJ_GetInstanceInfo and EJ_GetInstanceInfo(journalInstanceID) or nil
+	local instanceName, _, _, _, _, _, _, _, _, instanceMapID = EJ_GetInstanceInfo
+			and EJ_GetInstanceInfo(journalInstanceID)
+		or nil
 	if EJ_SelectInstance and journalInstanceID then
 		EJ_SelectInstance(journalInstanceID)
 	end
