@@ -729,6 +729,6 @@ db.runtimeLogs = {
 
 ## 外部链接
 
-- [运行时 API 适配重构设计](../runtime/runtime-api-adapter-refactor-design.md)
+- [运行时 API 适配重构 spec](../runtime/runtime-api-adapter-refactor-spec.md)
 - [调试设计入口](./operations-debug-design.md)
 - [DebugToolsCaptureCollectors 实现](/mnt/c/users/terence/workspace/MogTracker/src/debug/DebugToolsCaptureCollectors.lua)

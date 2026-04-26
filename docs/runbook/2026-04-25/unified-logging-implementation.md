@@ -1591,7 +1591,7 @@ authority 不能再把 debug panel 只当兼容层；后续必须新增独立 UI
 ### 文档
 
 - [统一日志组件 spec](../../specs/operations/operations-unified-logging-design.md)：上游设计 authority，只定义结构化日志、双层存储和导出 contract 的目标态。
-- [runtime API adapter spec](../../specs/runtime/runtime-api-adapter-refactor-design.md)：提供高频异步事件聚合与通知 contract 的上游约束。
+- [runtime API adapter spec](../../specs/runtime/runtime-api-adapter-refactor-spec.md)：提供高频异步事件聚合与通知 contract 的上游约束。
 
 ### 资源
 
