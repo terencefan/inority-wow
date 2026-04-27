@@ -6,10 +6,13 @@ This folder contains local automation scripts for validation, formatting, lintin
 
 ## Key Files
 
-- `check.ps1`: unified project validation entrypoint.
-- `run_luacheck.ps1`, `run_luals_check.ps1`, `run_stylua.ps1`: default quality-tool wrappers used by the unified check flow.
+- `check.sh`: WSL / Linux unified project validation entrypoint used by pre-commit.
+- `check.ps1`: Windows-compatible validation entrypoint kept for manual PowerShell use.
+- `run_luacheck.sh`, `run_luals_check.sh`, `run_stylua.sh`: default WSL quality-tool wrappers used by the unified check flow.
+- `run_luacheck.ps1`, `run_luals_check.ps1`, `run_stylua.ps1`: Windows-compatible wrappers kept for manual use.
 - `run_jscpd.ps1`: optional duplication-check wrapper; the expected install path is global `npm install -g jscpd`, and the script resolves it from `PATH`.
-- `run_lua_tests.ps1`: Lua test/validator runner for `tests/unit` and `tests/validation`.
+- `run_lua_tests.sh`: WSL Lua test/validator runner for `tests/unit` and `tests/validation`.
+- `run_lua_tests.ps1`: Windows-compatible Lua test/validator runner.
 - `fixtures/*.lua`: captured local mock data that validators can reuse when a real in-game bug already produced a trustworthy debug dump.
 
 ## Design Constraints

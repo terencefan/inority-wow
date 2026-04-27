@@ -2,13 +2,21 @@
 set -eu
 
 repo_root=$(git rev-parse --show-toplevel)
-check_script="$repo_root/tools/check.ps1"
+check_script_sh="$repo_root/tools/check.sh"
+check_script_ps1="$repo_root/tools/check.ps1"
 
-if command -v pwsh >/dev/null 2>&1; then
-  pwsh -NoProfile -ExecutionPolicy Bypass -File "$check_script"
+if [ -f "$check_script_sh" ]; then
+  if command -v bash >/dev/null 2>&1; then
+    bash "$check_script_sh"
+  else
+    echo "MogTracker pre-commit: tools/check.sh exists but bash is not available." >&2
+    exit 1
+  fi
+elif command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoProfile -ExecutionPolicy Bypass -File "$check_script_ps1"
 elif command -v powershell >/dev/null 2>&1; then
-  powershell -NoProfile -ExecutionPolicy Bypass -File "$check_script"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "$check_script_ps1"
 else
-  echo "MogTracker pre-commit: neither 'pwsh' nor 'powershell' is available." >&2
+  echo "MogTracker pre-commit: neither tools/check.sh nor a PowerShell runtime is available." >&2
   exit 1
 fi

@@ -4,12 +4,9 @@
     {
       "label": "MogTracker: check",
       "type": "shell",
-      "command": "powershell",
+      "command": "bash",
       "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        ".\\tools\\check.ps1"
+        "./tools/check.sh"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -19,13 +16,10 @@
     {
       "label": "MogTracker: check (skip format)",
       "type": "shell",
-      "command": "powershell",
+      "command": "bash",
       "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        ".\\tools\\check.ps1",
-        "-SkipFormat"
+        "./tools/check.sh",
+        "--skip-format"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -35,12 +29,9 @@
     {
       "label": "MogTracker: luacheck",
       "type": "shell",
-      "command": "powershell",
+      "command": "bash",
       "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        ".\\tools\\run_luacheck.ps1"
+        "./tools/run_luacheck.sh"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -65,12 +56,9 @@
     {
       "label": "MogTracker: LuaLS",
       "type": "shell",
-      "command": "powershell",
+      "command": "bash",
       "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        ".\\tools\\run_luals_check.ps1"
+        "./tools/run_luals_check.sh"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -80,12 +68,9 @@
     {
       "label": "MogTracker: tests",
       "type": "shell",
-      "command": "powershell",
+      "command": "bash",
       "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        ".\\tools\\run_lua_tests.ps1"
+        "./tools/run_lua_tests.sh"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
