@@ -7,10 +7,16 @@
 > 这一段说明提交前检查如何通过 Git hook 自动执行。
 
 - 仓库内的 pre-commit hook 入口在 [.githooks/pre-commit](../../.githooks/pre-commit)。
-- 它统一调用 [tools/check.ps1](../../tools/check.ps1)，把现有静态检查和 Lua tests 串成一次提交前检查。
-- 安装脚本是 [tools/install_git_hooks.ps1](../../tools/install_git_hooks.ps1)。
+- 它在 WSL / Linux 下统一调用 [tools/check.sh](../../tools/check.sh)，并保留 [tools/check.ps1](../../tools/check.ps1) 作为 Windows PowerShell 手动入口，把现有静态检查和 Lua tests 串成一次提交前检查。
+- 安装脚本默认用 [tools/install_git_hooks.sh](../../tools/install_git_hooks.sh)，并保留 [tools/install_git_hooks.ps1](../../tools/install_git_hooks.ps1) 作为 Windows PowerShell 入口。
 
 安装：
+
+```bash
+bash ./tools/install_git_hooks.sh
+```
+
+或：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\install_git_hooks.ps1
@@ -28,7 +34,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\install_git_hooks.ps1
 > 这一段说明 Lua 语法和静态问题检查的入口与运行方式。
 
 - 项目已接入根目录配置文件：[.luacheckrc](../../.luacheckrc)
-- 运行脚本：[tools/run_luacheck.ps1](../../tools/run_luacheck.ps1)
+- 运行脚本：WSL / Linux 用 [tools/run_luacheck.sh](../../tools/run_luacheck.sh)，Windows PowerShell 用 [tools/run_luacheck.ps1](../../tools/run_luacheck.ps1)
 - 默认检查范围：
   - `src/`
   - `tests/`
@@ -43,14 +49,14 @@ luarocks install luacheck
 
 然后运行：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_luacheck.ps1
+```bash
+bash ./tools/run_luacheck.sh
 ```
 
 如果要把 warning 也视为失败：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_luacheck.ps1 -FailOnWarnings
+```bash
+bash ./tools/run_luacheck.sh --fail-on-warnings
 ```
 
 说明：
@@ -62,19 +68,19 @@ powershell -ExecutionPolicy Bypass -File .\tools\run_luacheck.ps1 -FailOnWarning
 > 这一段说明 Lua 格式检查和写回格式的入口。
 
 - 项目已接入格式配置：[.stylua.toml](../../.stylua.toml)
-- 运行脚本：[tools/run_stylua.ps1](../../tools/run_stylua.ps1)
-- 当前仓库已接入格式入口，但本机还没有 `stylua` 二进制；脚本会在缺失时直接报错提醒安装
+- 运行脚本：WSL / Linux 用 [tools/run_stylua.sh](../../tools/run_stylua.sh)，Windows PowerShell 用 [tools/run_stylua.ps1](../../tools/run_stylua.ps1)
+- 当前仓库已接入格式入口；脚本会在 `stylua` 缺失时直接报错提醒安装
 
 检查格式：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_stylua.ps1 -Check
+```bash
+bash ./tools/run_stylua.sh --check
 ```
 
 写回格式：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_stylua.ps1
+```bash
+bash ./tools/run_stylua.sh
 ```
 
 ## LuaLS
@@ -83,22 +89,22 @@ powershell -ExecutionPolicy Bypass -File .\tools\run_stylua.ps1
 
 - 项目已接入工作区配置：[.luarc.json](../../.luarc.json)
 - LuaLS 本地 stub 库：[types/wow-globals.lua](../../types/wow-globals.lua)
-- 命令行检查脚本：[tools/run_luals_check.ps1](../../tools/run_luals_check.ps1)
+- 命令行检查脚本：WSL / Linux 用 [tools/run_luals_check.sh](../../tools/run_luals_check.sh)，Windows PowerShell 用 [tools/run_luals_check.ps1](../../tools/run_luals_check.ps1)
 - 目标运行时固定为 `Lua 5.1`
 - 常用 Blizzard / SavedVariables 全局和动态 WoW table 字段已预先声明，减少编辑器误报
-- 本机已安装 `LuaLS.lua-language-server 3.17.1`
-- `winget` 安装后如果当前终端还认不到 `lua-language-server`，重开一个 shell 即可
+- 需要本机自行安装 `lua-language-server` 或 `lua_ls`
+- 如果刚装完 LuaLS 而当前终端还认不到命令，重开一个 shell 再试
 
 默认运行：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_luals_check.ps1
+```bash
+bash ./tools/run_luals_check.sh
 ```
 
 如果要把 LuaLS warning 也视为失败：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_luals_check.ps1 -FailOnWarnings
+```bash
+bash ./tools/run_luals_check.sh --fail-on-warnings
 ```
 
 说明：
@@ -154,8 +160,8 @@ powershell -ExecutionPolicy Bypass -File .\tools\run_jscpd.ps1 -FailOnClones
 
 > 这一段说明统一检查脚本如何串起所有开发检查步骤。
 
-- 统一检查入口：[tools/check.ps1](../../tools/check.ps1)
-- Lua 测试与 mock 校验入口：[tools/run_lua_tests.ps1](../../tools/run_lua_tests.ps1)
+- 统一检查入口：WSL / Linux 用 [tools/check.sh](../../tools/check.sh)，Windows PowerShell 用 [tools/check.ps1](../../tools/check.ps1)
+- Lua 测试与 mock 校验入口：WSL / Linux 用 [tools/run_lua_tests.sh](../../tools/run_lua_tests.sh)，Windows PowerShell 用 [tools/run_lua_tests.ps1](../../tools/run_lua_tests.ps1)
 
 默认顺序：
 - `luac -p`
