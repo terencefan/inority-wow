@@ -1,4 +1,6 @@
-# 主配置面板
+# 主配置面板设计文档
+
+本文是 `config` 页面唯一 authority spec，已吸收原 `ui-config-overview.md`、`ui-config-panel.md` 和 `ui-config-design.md` 的页面说明与模块边界。
 
 本文说明 MogTracker 的主配置面板如何组织视图、把设置写入哪里，以及哪些按钮会直接影响掉落面板和统计看板。
 

@@ -1,4 +1,6 @@
-# 统一日志面板
+# 统一日志面板设计文档
+
+本文是 `debug` 页面唯一 authority spec，已承接统一日志面板的入口、筛选、导出和 focused dump 语义。
 
 本文说明 MogTracker 的统一日志面板如何打开、如何基于统一日志导出构造界面，以及当前 `/img debug ...` 入口如何落到统一日志面板而不是旧 debugTemp 文本框。
 

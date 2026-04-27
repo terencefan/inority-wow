@@ -20,27 +20,27 @@ This index summarizes the repository-owned folders and points to the local desig
 
 | Folder | Purpose | Design Doc |
 | --- | --- | --- |
-| `src/config` | Main panel configuration and debug views | [`src/config/DESIGN.md`](../ui/ui-config-design.md) |
+| `src/config` | Main panel configuration and debug views | [`src/config/DESIGN.md`](../ui/ui-config-panel-spec.md) |
 | `src/core` | Core storage, compute, API, state, and bridge modules | [`src/core/DESIGN.md`](../runtime/runtime-core-design.md) |
-| `src/dashboard` | Standalone dashboard window and dashboard families | [`src/dashboard/DESIGN.md`](../ui/ui-dashboard-design.md) |
-| `src/dashboard/bulk` | Background/bulk snapshot scan orchestration | [`src/dashboard/bulk/DESIGN.md`](../ui/ui-dashboard-bulk-design.md) |
-| `src/dashboard/pvp` | PVP dashboard rendering path | [`src/dashboard/pvp/DESIGN.md`](../ui/ui-dashboard-pvp-design.md) |
-| `src/dashboard/raid` | Raid and dungeon snapshot aggregation/rendering | [`src/dashboard/raid/DESIGN.md`](../ui/ui-dashboard-raid-design.md) |
-| `src/dashboard/set` | Transmog-set dashboard rendering path | [`src/dashboard/set/DESIGN.md`](../ui/ui-dashboard-set-design.md) |
+| `src/dashboard` | Standalone dashboard window and dashboard families | [`src/dashboard/DESIGN.md`](../ui/ui-dashboard-summary-page-spec.md) |
+| `src/dashboard/bulk` | Background/bulk snapshot scan orchestration | [`src/dashboard/bulk/DESIGN.md`](../ui/ui-dashboard-summary-page-spec.md) |
+| `src/dashboard/pvp` | PVP dashboard rendering path | [`src/dashboard/pvp/DESIGN.md`](../ui/ui-dashboard-pvp-page-spec.md) |
+| `src/dashboard/raid` | Raid and dungeon snapshot aggregation/rendering | [`src/dashboard/raid/DESIGN.md`](../ui/ui-dashboard-summary-page-spec.md) |
+| `src/dashboard/set` | Transmog-set dashboard rendering path | [`src/dashboard/set/DESIGN.md`](../ui/ui-dashboard-class-sets-page-spec.md) |
 | `src/data` | Static, non-runtime-heavy data partitions | [`src/data/DESIGN.md`](../data/data-static-design.md) |
 | `src/data/sets` | Set categorization rules and config data | [`src/data/sets/DESIGN.md`](../data/data-sets-design.md) |
 | `src/debug` | Debug collection, raw capture, and dump helpers | [`src/debug/DESIGN.md`](../operations/operations-debug-design.md) |
-| `src/loot` | Loot panel control, selection, rendering, and filters | [`src/loot/DESIGN.md`](../ui/ui-loot-design.md) |
-| `src/loot/sets` | Set-specific loot panel computations | [`src/loot/sets/DESIGN.md`](../ui/ui-loot-sets-design.md) |
+| `src/loot` | Loot panel control, selection, rendering, and filters | [`src/loot/DESIGN.md`](../ui/ui-loot-panel-spec.md) |
+| `src/loot/sets` | Set-specific loot panel computations | [`src/loot/sets/DESIGN.md`](../ui/ui-loot-panel-spec.md) |
 | `src/metadata` | Static metadata and lookup rules | [`src/metadata/DESIGN.md`](../data/data-metadata-design.md) |
 | `src/runtime` | Runtime bootstrap, wiring, and event entrypoints | [`src/runtime/DESIGN.md`](../runtime/runtime-bootstrap-design.md) |
-| `src/ui` | XML-defined UI shell and shared tooltip UI | [`src/ui/DESIGN.md`](../ui/ui-shell-design.md) |
+| `src/ui` | XML-defined UI shell and shared tooltip UI | [`src/ui/DESIGN.md`](../ui/ui-shell-spec.md) |
 
 ## Reading Order
 
 1. Start with [`src/DESIGN.md`](overview-source-tree-design.md) for source-tree boundaries.
 2. Read [`src/runtime/DESIGN.md`](../runtime/runtime-bootstrap-design.md) to understand bootstrap and dependency wiring.
-3. Follow into [`src/core/DESIGN.md`](../runtime/runtime-core-design.md), [`src/loot/DESIGN.md`](../ui/ui-loot-design.md), and [`src/dashboard/DESIGN.md`](../ui/ui-dashboard-design.md) depending on the feature surface you are touching.
+3. Follow into [`src/core/DESIGN.md`](../runtime/runtime-core-design.md), [`src/loot/DESIGN.md`](../ui/ui-loot-panel-spec.md), and [`src/dashboard/DESIGN.md`](../ui/ui-dashboard-summary-page-spec.md) depending on the feature surface you are touching.
 4. Use the narrower nested docs only when changing a specialized area such as raid snapshots, set categorization, or bulk scan orchestration.
 
 ## Maintenance Rules

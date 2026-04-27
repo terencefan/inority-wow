@@ -54,6 +54,6 @@ flowchart TD
 ## 建议阅读顺序
 
 1. 先看 [`overview/overview-project-design-index.md`](./overview/overview-project-design-index.md) 了解整体版图。
-2. 需要理解产品表面和交互时，从 [`ui/ui-panels-overview.md`](./ui/ui-panels-overview.md) 开始。
+2. 需要理解产品表面和交互时，从 [`ui/README.md`](./ui/README.md) 开始。
 3. 需要排查运行时或数据边界时，分别进入 `runtime/` 和 `data/`。
 4. 需要开发、调试或检查工具链时，进入 `operations/` 和 `tooling/`。
