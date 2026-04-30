@@ -399,10 +399,13 @@ function CoreFeatureWiring.Wire(config)
 			ShowLootPanelInstanceProgressTooltip = outputs.ShowLootPanelInstanceProgressTooltip,
 			GetLootClassScopeButtonLabel = config.GetLootClassScopeButtonLabel,
 			GetLootClassScopeTooltipLines = config.GetLootClassScopeTooltipLines,
+			BuildSelectionContext = outputs.BuildSelectionContext,
 			PreferCurrentLootPanelSelectionOnOpen = outputs.PreferCurrentLootPanelSelectionOnOpen,
 			RecordLootPanelOpenDebug = config.RecordLootPanelOpenDebug,
 			getLootDropdownMenu = config.getLootDropdownMenu,
 			setLootDropdownMenu = config.setLootDropdownMenu,
+			getLootRefreshPending = config.getLootRefreshPending,
+			setLootRefreshPending = config.setLootRefreshPending,
 		})
 	end
 	ConfigureLootPanelController(nil)
@@ -529,6 +532,17 @@ function CoreFeatureWiring.Wire(config)
 		GetDashboardClassFiles = config.GetDashboardClassFiles,
 		GetLootItemSourceID = outputs.GetLootItemSourceID,
 		GetLootItemSetIDs = outputs.GetLootItemSetIDs,
+		GetSelectedLootClassFiles = config.GetSelectedLootClassFiles,
+		GetClassDisplayName = config.GetClassDisplayName,
+		ClassMatchesSetInfo = outputs.ClassMatchesSetInfo,
+		GetSetProgress = outputs.GetSetProgress,
+		GetEncounterLootDisplayState = outputs.GetEncounterLootDisplayState,
+		IsEncounterKilledByName = outputs.IsEncounterKilledByName,
+		BuildBossKillCountViewModel = outputs.BuildBossKillCountViewModel,
+		GetEncounterTotalKillCount = outputs.GetEncounterTotalKillCount,
+		GetLootItemDisplayCollectionState = outputs.GetLootItemDisplayCollectionState,
+		GetEncounterAutoCollapsed = addon.LootPanelRows and addon.LootPanelRows.GetEncounterAutoCollapsed,
+		BuildCurrentEncounterKillMap = outputs.BuildCurrentEncounterKillMap,
 		lootDataRulesVersion = config.lootDataRulesVersion,
 		BuildLootPanelInstanceSelections = outputs.BuildLootPanelInstanceSelections,
 		NormalizeLockoutDisplayName = config.NormalizeLockoutDisplayName,
@@ -541,6 +555,11 @@ function CoreFeatureWiring.Wire(config)
 
 	outputs.CollectCurrentInstanceLootData = LootDataController.CollectCurrentInstanceLootData
 	outputs.BuildCurrentInstanceLootSummary = LootDataController.BuildCurrentInstanceLootSummary
+	outputs.BuildCurrentInstanceSetSummary = LootDataController.BuildCurrentInstanceSetSummary
+	outputs.BuildLootPanelViewModel = LootDataController.BuildLootPanelViewModel
+	outputs.BuildLootEncounterViewModels = LootDataController.BuildLootEncounterViewModels
+	outputs.BuildLootTabViewModel = LootDataController.BuildLootTabViewModel
+	outputs.BuildSetsTabViewModel = LootDataController.BuildSetsTabViewModel
 	outputs.ToggleLootEncounterCollapsed = LootDataController.ToggleLootEncounterCollapsed
 	outputs.GetExpansionForLockout = LootDataController.GetExpansionForLockout
 	outputs.GetExpansionOrder = LootDataController.GetExpansionOrder
@@ -566,11 +585,11 @@ function CoreFeatureWiring.Wire(config)
 			GetLootPanelContentWidth = outputs.GetLootPanelContentWidth,
 			GetLootClassScopeButtonLabel = config.GetLootClassScopeButtonLabel,
 			GetSelectedLootPanelInstance = outputs.GetSelectedLootPanelInstance,
+			BuildSelectionContext = outputs.BuildSelectionContext,
 			GetCurrentJournalInstanceID = outputs.GetCurrentJournalInstanceID,
 			GetSelectedLootClassFiles = config.GetSelectedLootClassFiles,
 			CollectCurrentInstanceLootData = outputs.CollectCurrentInstanceLootData,
-			BuildCurrentInstanceLootSummary = outputs.BuildCurrentInstanceLootSummary,
-			BuildCurrentEncounterKillMap = outputs.BuildCurrentEncounterKillMap,
+			BuildLootPanelViewModel = outputs.BuildLootPanelViewModel,
 			IsEncounterKilledByName = outputs.IsEncounterKilledByName,
 			GetEncounterTotalKillCount = outputs.GetEncounterTotalKillCount,
 			BuildBossKillCountViewModel = outputs.BuildBossKillCountViewModel,
@@ -586,8 +605,12 @@ function CoreFeatureWiring.Wire(config)
 			UpdateEncounterHeaderVisuals = addon.LootPanelRows.UpdateEncounterHeaderVisuals,
 			GetEncounterAutoCollapsed = addon.LootPanelRows.GetEncounterAutoCollapsed,
 			GetEncounterLootDisplayState = outputs.GetEncounterLootDisplayState,
-			getLootRefreshPending = config.getLootRefreshPending,
-			setLootRefreshPending = config.setLootRefreshPending,
+			RequestLootPanelRefresh = function(request)
+				if outputs.RequestLootPanelRefresh then
+					return outputs.RequestLootPanelRefresh(request)
+				end
+				return nil
+			end,
 			ColorizeCharacterName = config.ColorizeCharacterName,
 			GetClassDisplayName = config.GetClassDisplayName,
 			GetLootItemSetIDs = outputs.GetLootItemSetIDs,
@@ -601,7 +624,6 @@ function CoreFeatureWiring.Wire(config)
 	end
 
 	outputs.RefreshLootPanel = addon.LootPanelRenderer.RefreshLootPanel
-	outputs.BuildCurrentInstanceSetSummary = addon.LootPanelRenderer.BuildCurrentInstanceSetSummary
 	ConfigureLootPanelController(outputs.RefreshLootPanel)
 	outputs.RequestLootPanelRefresh = LootPanelController.RequestLootPanelRefresh
 
