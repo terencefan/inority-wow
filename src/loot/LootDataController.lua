@@ -90,6 +90,19 @@ local function FinalizeSelectionMembership(membership)
 	return membership
 end
 
+local function CountCollectedLootItems(items, getLootItemDisplayCollectionState)
+	local count = 0
+	for _, item in ipairs(items or {}) do
+		local displayState = type(getLootItemDisplayCollectionState) == "function"
+				and getLootItemDisplayCollectionState(item)
+			or nil
+		if displayState == "collected" or displayState == "newly_collected" then
+			count = count + 1
+		end
+	end
+	return count
+end
+
 function LootDataController.Configure(config)
 	dependencies = config or {}
 	LootDataController._dependencies = dependencies
@@ -154,9 +167,11 @@ local function BuildExpansionCache()
 	return expansionByInstanceKey
 end
 
-function LootDataController.CollectCurrentInstanceLootData()
+function LootDataController.CollectCurrentInstanceLootData(selectionContext)
+	selectionContext = type(selectionContext) == "table" and selectionContext or nil
 	local getSelectedLootPanelInstance = dependencies.GetSelectedLootPanelInstance
-	local selectedInstance = getSelectedLootPanelInstance and getSelectedLootPanelInstance() or nil
+	local selectedInstance = selectionContext and selectionContext.selectedInstance
+		or (getSelectedLootPanelInstance and getSelectedLootPanelInstance() or nil)
 
 	local buildLootDataCacheKey = dependencies.BuildLootDataCacheKey
 	local getSelectedLootClassIDs = dependencies.GetSelectedLootClassIDs
@@ -166,7 +181,9 @@ function LootDataController.CollectCurrentInstanceLootData()
 	local lootDataRulesVersion = tonumber(dependencies.lootDataRulesVersion) or 0
 
 	local cacheKey = buildLootDataCacheKey(selectedInstance)
-	local selectedClassIDs = getSelectedLootClassIDs and getSelectedLootClassIDs() or {}
+	local selectedClassIDs = type(selectionContext and selectionContext.selectedClassIDs) == "table"
+			and selectionContext.selectedClassIDs
+		or (getSelectedLootClassIDs and getSelectedLootClassIDs() or {})
 	local lootDataCache = getLootDataCache and getLootDataCache() or nil
 	local data
 
@@ -186,6 +203,7 @@ function LootDataController.CollectCurrentInstanceLootData()
 			end,
 			deriveLootTypeKey = dependencies.DeriveLootTypeKey,
 			targetInstance = selectedInstance,
+			SelectionContext = selectionContext,
 		})
 		if setLootDataCache then
 			setLootDataCache({
@@ -201,7 +219,10 @@ function LootDataController.CollectCurrentInstanceLootData()
 		data.debugInfo.resolution = data.debugInfo.resolution or "current_without_selection"
 	end
 
-	data.selectionKey = BuildSelectionKey(selectedInstance, selectedClassIDs)
+	data.selectionKey = tostring(
+		(selectionContext and selectionContext.selectionKey) or BuildSelectionKey(selectedInstance, selectedClassIDs)
+	)
+	data.SelectionContext = selectionContext
 
 	return data
 end
@@ -302,6 +323,228 @@ function LootDataController.BuildCurrentInstanceLootSummary(data, sourceContext)
 		summaries.currentInstanceLootSummary = summary
 	end
 	return summary
+end
+
+function LootDataController.BuildCurrentInstanceSetSummary(data, selectionContext, currentInstanceLootSummary)
+	selectionContext = type(selectionContext) == "table" and selectionContext or {}
+	local selectedInstance = selectionContext.selectedInstance
+	local classFiles = dependencies.GetSelectedLootClassFiles and dependencies.GetSelectedLootClassFiles() or {}
+	local getClassDisplayName = dependencies.GetClassDisplayName
+	local getLootItemSetIDs = dependencies.GetLootItemSetIDs
+	local classMatchesSetInfo = dependencies.ClassMatchesSetInfo
+	local getSetProgress = dependencies.GetSetProgress
+
+	if not (addon.LootSets and addon.LootSets.BuildCurrentInstanceSetSummary) then
+		return {
+			message = T("LOOT_ERROR_NO_APIS", "Encounter Journal APIs are not available on this client."),
+			classGroups = {},
+		}
+	end
+
+	return addon.LootSets.BuildCurrentInstanceSetSummary(data, {
+		selectedInstance = selectedInstance,
+		currentInstanceLootSummary = currentInstanceLootSummary
+			or LootDataController.BuildCurrentInstanceLootSummary(data, selectionContext or selectedInstance),
+		classFiles = classFiles,
+		getClassDisplayName = getClassDisplayName,
+		getLootItemSetIDs = getLootItemSetIDs,
+		classMatchesSetInfo = classMatchesSetInfo,
+		getSetProgress = getSetProgress,
+	})
+end
+
+function LootDataController.BuildPanelBannerViewModel(args)
+	local data = type(args and args.data) == "table" and args.data or {}
+	local noSelectedClasses = args and args.noSelectedClasses and true or false
+
+	if noSelectedClasses then
+		return {
+			state = "empty",
+			title = T("LOOT_PANEL_STATUS", "状态"),
+			message = T("LOOT_NO_CLASS_FILTER", "请先在主面板的职业过滤里选择至少一个职业。"),
+		}
+	end
+	if
+		data.error
+		and not (
+			type(data.error) == "string"
+			and data.error:find("当前不在可识别的副本或地下城中。", 1, true)
+		)
+	then
+		return {
+			state = "error",
+			title = T("LOOT_PANEL_STATUS", "状态"),
+			message = tostring(data.error or ""),
+		}
+	end
+	if type(data) == "table" and data.missingItemData then
+		return {
+			state = "partial",
+			title = T("LOOT_PANEL_STATUS", "状态"),
+			message = T("LOOT_PARTIAL_ITEM_DATA", "当前掉落数据仍在补全中，面板会继续尝试刷新。"),
+		}
+	end
+	return nil
+end
+
+function LootDataController.BuildLootPanelViewModel(args)
+	args = type(args) == "table" and args or {}
+	local selectionContext = type(args.selectionContext) == "table" and args.selectionContext or {}
+	local data = type(args.data) == "table" and args.data or {}
+	local currentTab = tostring(args.currentTab or selectionContext.currentTab or "loot")
+	local includeSetSummary = args.includeSetSummary ~= false
+	local encounterKillState = args.encounterKillState
+	if encounterKillState == nil and type(dependencies.BuildCurrentEncounterKillMap) == "function" then
+		encounterKillState = dependencies.BuildCurrentEncounterKillMap()
+	end
+	local progressCount = tonumber(args.progressCount)
+	if progressCount == nil then
+		progressCount = tonumber(encounterKillState and encounterKillState.progressCount) or 0
+	end
+	local selectedClassFiles = dependencies.GetSelectedLootClassFiles and dependencies.GetSelectedLootClassFiles() or {}
+	local classScopeMode = tostring(selectionContext.classScopeMode or "selected")
+	local noSelectedClasses = classScopeMode ~= "current" and #selectedClassFiles == 0
+	local currentInstanceLootSummary = LootDataController.BuildCurrentInstanceLootSummary(data, selectionContext)
+	local setSummary = nil
+	if includeSetSummary and currentTab == "sets" and not data.error then
+		setSummary =
+			LootDataController.BuildCurrentInstanceSetSummary(data, selectionContext, currentInstanceLootSummary)
+	end
+
+	local lootTabViewModel = LootDataController.BuildLootTabViewModel({
+		currentInstanceLootSummary = currentInstanceLootSummary,
+		selectionContext = selectionContext,
+		selectedInstance = selectionContext.selectedInstance,
+		encounterKillState = encounterKillState,
+		progressCount = progressCount,
+	})
+	local setsTabViewModel = LootDataController.BuildSetsTabViewModel({
+		setSummary = setSummary,
+	})
+
+	return {
+		currentTab = currentTab,
+		selectionContext = selectionContext,
+		data = data,
+		noSelectedClasses = noSelectedClasses,
+		currentInstanceLootSummary = currentInstanceLootSummary,
+		setSummary = setSummary,
+		encounterKillState = encounterKillState,
+		progressCount = progressCount,
+		lootTabViewModel = lootTabViewModel,
+		setsTabViewModel = setsTabViewModel,
+		activeTabViewModel = currentTab == "sets" and setsTabViewModel or lootTabViewModel,
+		bannerViewModel = LootDataController.BuildPanelBannerViewModel({
+			data = data,
+			noSelectedClasses = noSelectedClasses,
+		}),
+	}
+end
+
+function LootDataController.BuildLootEncounterViewModels(args)
+	args = type(args) == "table" and args or {}
+	local encounters = type(args.encounters) == "table" and args.encounters or {}
+	local selectedInstance = args.selectedInstance
+	local encounterKillState = args.encounterKillState
+	local progressCount = tonumber(args.progressCount) or 0
+	local getEncounterLootDisplayState = dependencies.GetEncounterLootDisplayState
+	local isEncounterKilledByName = dependencies.IsEncounterKilledByName
+	local buildBossKillCountViewModel = dependencies.BuildBossKillCountViewModel
+	local getEncounterTotalKillCount = dependencies.GetEncounterTotalKillCount
+	local getLootItemDisplayCollectionState = dependencies.GetLootItemDisplayCollectionState
+	local getEncounterAutoCollapsed = dependencies.GetEncounterAutoCollapsed
+	local result = {}
+
+	for _, encounter in ipairs(encounters) do
+		local encounterName = encounter.name or T("LOOT_UNKNOWN_BOSS", "未知首领")
+		local lootState = type(getEncounterLootDisplayState) == "function" and getEncounterLootDisplayState(encounter)
+			or { filteredLoot = {}, visibleLoot = {}, fullyCollected = false }
+		local encounterExhausted = #(lootState.visibleLoot or {}) == 0
+		local encounterKilled = type(isEncounterKilledByName) == "function"
+				and isEncounterKilledByName(encounterKillState, encounterName)
+			or false
+		local bossKillCountViewModel = type(buildBossKillCountViewModel) == "function"
+				and buildBossKillCountViewModel(selectedInstance, encounterName)
+			or nil
+		local totalKillCount = tonumber(bossKillCountViewModel and bossKillCountViewModel.bossKillCount)
+			or (
+				type(getEncounterTotalKillCount) == "function"
+					and getEncounterTotalKillCount(selectedInstance, encounterName)
+				or 0
+			)
+		local filteredLoot = type(lootState.filteredLoot) == "table" and lootState.filteredLoot or {}
+		local totalLootItems = type(encounter.allLoot) == "table" and encounter.allLoot or (encounter.loot or {})
+		local collectedCount = CountCollectedLootItems(filteredLoot, getLootItemDisplayCollectionState)
+		local totalCollectedCount = CountCollectedLootItems(totalLootItems, getLootItemDisplayCollectionState)
+		local filteredColor = collectedCount >= #filteredLoot and "33ff99" or "ffd200"
+		local totalColor = totalCollectedCount >= #totalLootItems and #totalLootItems > 0 and "33ff99" or "ffd200"
+		local countText = string.format(
+			"|cff%s%d/%d|r  |cff%s%d/%d|r",
+			filteredColor,
+			collectedCount,
+			#filteredLoot,
+			totalColor,
+			totalCollectedCount,
+			#totalLootItems
+		)
+		if totalKillCount > 0 then
+			countText = string.format("|cff8f8f8fx%d|r %s", totalKillCount, countText)
+		end
+
+		result[#result + 1] = {
+			encounter = encounter,
+			encounterName = encounterName,
+			lootState = lootState,
+			encounterExhausted = encounterExhausted,
+			encounterKilled = encounterKilled,
+			bossKillCountViewModel = bossKillCountViewModel,
+			totalKillCount = totalKillCount,
+			autoCollapsed = type(getEncounterAutoCollapsed) == "function" and getEncounterAutoCollapsed(
+				encounter,
+				encounterName,
+				lootState,
+				encounterKillState,
+				progressCount,
+				encounterKilled
+			) or false,
+			countText = countText,
+			tooltip = {
+				encounterName = encounterName,
+				totalKillCount = totalKillCount,
+				lootState = lootState,
+				encounter = encounter,
+			},
+		}
+	end
+
+	return result
+end
+
+function LootDataController.BuildLootTabViewModel(args)
+	args = type(args) == "table" and args or {}
+	local currentInstanceLootSummary = args.currentInstanceLootSummary
+	local selectionContext = type(args.selectionContext) == "table" and args.selectionContext or {}
+	local selectedInstance = args.selectedInstance or selectionContext.selectedInstance
+	local encounterKillState = args.encounterKillState
+	local progressCount = tonumber(args.progressCount) or 0
+
+	return {
+		tab = "loot",
+		encounterViewModels = LootDataController.BuildLootEncounterViewModels({
+			encounters = (currentInstanceLootSummary and currentInstanceLootSummary.encounters) or {},
+			selectedInstance = selectedInstance,
+			encounterKillState = encounterKillState,
+			progressCount = progressCount,
+		}),
+	}
+end
+
+function LootDataController.BuildSetsTabViewModel(args)
+	args = type(args) == "table" and args or {}
+	return {
+		tab = "sets",
+		setSummary = args.setSummary,
+	}
 end
 
 function LootDataController.ToggleLootEncounterCollapsed(encounterID, encounterName)

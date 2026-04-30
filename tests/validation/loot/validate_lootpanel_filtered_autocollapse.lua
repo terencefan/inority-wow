@@ -1,6 +1,7 @@
 local addon = {}
 
 assert(loadfile("src/loot/LootPanelRows.lua"))("MogTracker", addon)
+assert(loadfile("src/loot/LootPanelLayout.lua"))("MogTracker", addon)
 assert(loadfile("src/loot/LootPanelRenderer.lua"))("MogTracker", addon)
 
 local LootPanelRows = assert(addon.LootPanelRows)

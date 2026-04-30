@@ -4,6 +4,18 @@ local LootPanelController = addon.LootPanelController or {}
 addon.LootPanelController = LootPanelController
 
 local dependencies = LootPanelController._dependencies or {}
+local MISSING_ITEM_REFRESH_DELAY_SECONDS = 3
+local MISSING_ITEM_REFRESH_MAX_ATTEMPTS = 40
+local missingItemRefreshState = LootPanelController._missingItemRefreshState or {
+	selectionKey = nil,
+	attempts = 0,
+}
+LootPanelController._missingItemRefreshState = missingItemRefreshState
+local zeroLootRefreshState = LootPanelController._zeroLootRefreshState or {
+	selectionKey = nil,
+	attempts = 0,
+}
+LootPanelController._zeroLootRefreshState = zeroLootRefreshState
 
 function LootPanelController.Configure(config)
 	dependencies = config or {}
@@ -46,6 +58,15 @@ end
 local function GetLootPanelState()
 	return ReadDependency("getLootPanelState", {})
 end
+local function BuildSelectionContext(overrides)
+	return ReadDependency("BuildSelectionContext", nil, overrides)
+end
+local function GetLootRefreshPending()
+	return ReadDependency("getLootRefreshPending", false)
+end
+local function SetLootRefreshPending(value)
+	CallDependency("setLootRefreshPending", value)
+end
 
 local VALID_REFRESH_REASONS = {
 	open = true,
@@ -55,6 +76,7 @@ local VALID_REFRESH_REASONS = {
 	runtime_event = true,
 	manual_refresh = true,
 }
+local HandleRefreshOutcome
 
 local function NormalizeTabKey(tabKey)
 	if tabKey == "sets" then
@@ -134,7 +156,12 @@ function LootPanelController.RequestLootPanelRefresh(request)
 		CallDependency("ResetLootPanelScrollPosition")
 	end
 
-	CallDependency("RefreshLootPanel", refreshRequest)
+	if refreshRequest.SelectionContext == nil then
+		refreshRequest.SelectionContext = BuildSelectionContext()
+	end
+
+	local outcome = CallDependency("RefreshLootPanel", refreshRequest)
+	HandleRefreshOutcome(outcome)
 	return refreshRequest
 end
 
@@ -162,6 +189,136 @@ local function RecordLootPanelOpenDebug(stage, details)
 	local recorder = dependencies.RecordLootPanelOpenDebug
 	if type(recorder) == "function" then
 		recorder(stage, details)
+	end
+end
+
+function LootPanelController.ResetMissingItemRefreshState()
+	missingItemRefreshState.selectionKey = nil
+	missingItemRefreshState.attempts = 0
+end
+
+function LootPanelController.ResetZeroLootRefreshState()
+	zeroLootRefreshState.selectionKey = nil
+	zeroLootRefreshState.attempts = 0
+end
+
+function LootPanelController.GetMissingItemRefreshAttempts()
+	return tonumber(missingItemRefreshState.attempts) or 0
+end
+
+function LootPanelController.GetMissingItemRefreshDelaySeconds()
+	return MISSING_ITEM_REFRESH_DELAY_SECONDS
+end
+
+function LootPanelController.GetMissingItemRefreshMaxAttempts()
+	return MISSING_ITEM_REFRESH_MAX_ATTEMPTS
+end
+
+function LootPanelController.EvaluateMissingItemRefresh(data)
+	if not (type(data) == "table" and data.missingItemData) then
+		LootPanelController.ResetMissingItemRefreshState()
+		return false, 0
+	end
+
+	local selectionKey = tostring(data.selectionKey or "")
+	if missingItemRefreshState.selectionKey ~= selectionKey then
+		missingItemRefreshState.selectionKey = selectionKey
+		missingItemRefreshState.attempts = 0
+	end
+
+	if GetLootRefreshPending() then
+		return false, tonumber(missingItemRefreshState.attempts) or 0
+	end
+
+	local attempts = tonumber(missingItemRefreshState.attempts) or 0
+	if attempts >= MISSING_ITEM_REFRESH_MAX_ATTEMPTS then
+		return false, attempts
+	end
+
+	attempts = attempts + 1
+	missingItemRefreshState.attempts = attempts
+	return true, attempts
+end
+
+function LootPanelController.EvaluateZeroLootRefresh(data)
+	if not (type(data) == "table" and data.zeroLootRetrySuggested) then
+		LootPanelController.ResetZeroLootRefreshState()
+		return false, 0
+	end
+
+	local selectionKey = tostring(data.selectionKey or "")
+	if zeroLootRefreshState.selectionKey ~= selectionKey then
+		zeroLootRefreshState.selectionKey = selectionKey
+		zeroLootRefreshState.attempts = 0
+	end
+
+	if GetLootRefreshPending() then
+		return false, tonumber(zeroLootRefreshState.attempts) or 0
+	end
+
+	local attempts = tonumber(zeroLootRefreshState.attempts) or 0
+	if attempts >= MISSING_ITEM_REFRESH_MAX_ATTEMPTS then
+		return false, attempts
+	end
+
+	attempts = attempts + 1
+	zeroLootRefreshState.attempts = attempts
+	return true, attempts
+end
+
+local function ScheduleRefreshRetry(outcome, retryKind)
+	local shouldSchedule, attempts
+	if retryKind == "missing_item_refresh" then
+		shouldSchedule, attempts = LootPanelController.EvaluateMissingItemRefresh(outcome)
+	else
+		shouldSchedule, attempts = LootPanelController.EvaluateZeroLootRefresh(outcome)
+	end
+
+	local selectionKey = tostring(outcome and outcome.selectionKey or "")
+	if shouldSchedule and C_Timer and C_Timer.After then
+		RecordLootPanelOpenDebug(retryKind .. "_scheduled", {
+			source = "loot_panel_controller",
+			note = string.format(
+				"selectionKey=%s attempts=%d/%d",
+				selectionKey,
+				attempts,
+				MISSING_ITEM_REFRESH_MAX_ATTEMPTS
+			),
+		})
+		SetLootRefreshPending(true)
+		C_Timer.After(MISSING_ITEM_REFRESH_DELAY_SECONDS, function()
+			SetLootRefreshPending(false)
+			local activeLootPanel = GetLootPanel()
+			if activeLootPanel and activeLootPanel:IsShown() then
+				LootPanelController.RequestLootPanelRefresh({
+					reason = "runtime_event",
+					invalidateData = true,
+				})
+			end
+		end)
+	elseif shouldSchedule == false and attempts >= MISSING_ITEM_REFRESH_MAX_ATTEMPTS then
+		RecordLootPanelOpenDebug(retryKind .. "_budget_exhausted", {
+			source = "loot_panel_controller",
+			note = string.format("selectionKey=%s attempts=%d", selectionKey, attempts),
+		})
+	end
+end
+
+HandleRefreshOutcome = function(outcome)
+	if type(outcome) ~= "table" then
+		return
+	end
+
+	if outcome.missingItemData then
+		ScheduleRefreshRetry(outcome, "missing_item_refresh")
+	else
+		LootPanelController.ResetMissingItemRefreshState()
+	end
+
+	if outcome.zeroLootRetrySuggested then
+		ScheduleRefreshRetry(outcome, "zero_loot_refresh")
+	else
+		LootPanelController.ResetZeroLootRefreshState()
 	end
 end
 

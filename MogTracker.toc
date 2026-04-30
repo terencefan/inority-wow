@@ -26,6 +26,10 @@ src\core\SetDashboardBridge.lua
 src\loot\LootDataController.lua
 src\loot\LootPanelController.lua
 src\loot\LootPanelRows.lua
+src\loot\LootPanelLayout.lua
+src\loot\LootPanelChromePresenter.lua
+src\loot\LootPanelLootPresenter.lua
+src\loot\LootPanelSetsPresenter.lua
 src\loot\LootPanelRenderer.lua
 src\metadata\CoreMetadata.lua
 src\core\ClassLogic.lua
